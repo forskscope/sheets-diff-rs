@@ -1,159 +1,123 @@
 use std::fmt;
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_derive")]
 use serde::{Deserialize, Serialize};
 
 use super::diff::Diff;
 
-/// unified diff
+/// Unified diff ready for further formatting or splitting.
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_derive", derive(Serialize, Deserialize))]
 pub struct UnifiedDiff {
     pub content: Vec<UnifiedDiffContent>,
 }
 
-/// formatted unified diff
+/// Unified diff with prefix markers applied to each line.
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_derive", derive(Serialize, Deserialize))]
 pub struct FormattedUnifiedDiff {
     pub content: Vec<UnifiedDiffContent>,
 }
 
-/// unified diff content
+/// One sheet's worth of unified diff content.
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_derive", derive(Serialize, Deserialize))]
 pub struct UnifiedDiffContent {
     pub old_title: String,
     pub new_title: String,
     pub lines: Vec<UnifiedDiffLine>,
 }
 
-/// unified diff content lines
+/// A single line in a unified diff.
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_derive", derive(Serialize, Deserialize))]
 pub struct UnifiedDiffLine {
     pub pos: Option<String>,
     pub old: Option<String>,
     pub new: Option<String>,
 }
 
-/// unified diff split into old / new parts
+/// Unified diff split into separate old and new views.
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_derive", derive(Serialize, Deserialize))]
 pub struct SplitUnifiedDiff {
     pub old: Vec<SplitUnifiedDiffContent>,
     pub new: Vec<SplitUnifiedDiffContent>,
 }
 
-/// unified diff content split into old / new parts
+/// One sheet's content in a split unified diff.
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_derive", derive(Serialize, Deserialize))]
 pub struct SplitUnifiedDiffContent {
     pub title: String,
     pub lines: Vec<SplitUnifiedDiffLine>,
 }
 
-/// unified diff content lines split into old / new parts
+/// A single line in a split unified diff.
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_derive", derive(Serialize, Deserialize))]
 pub struct SplitUnifiedDiffLine {
     pub pos: Option<String>,
     pub text: Option<String>,
 }
 
 impl UnifiedDiff {
-    /// convert each string to one in unified format
+    /// Applies `---`/`+++`/`-`/`+`/`@@` prefix markers to all fields.
     pub fn format(&self) -> FormattedUnifiedDiff {
-        let content: Vec<UnifiedDiffContent> = self
+        let content = self
             .content
             .iter()
             .map(|x| {
                 let old_title = format!("--- {}", &x.old_title);
                 let new_title = format!("+++ {}", &x.new_title);
 
-                let lines: Vec<UnifiedDiffLine> = x
+                let lines = x
                     .lines
                     .iter()
-                    .map(|x| {
-                        let pos = if let Some(pos) = &x.pos {
-                            Some(format!("@@ {} @@", pos))
-                        } else {
-                            None
-                        };
-                        let old = if let Some(old) = &x.old {
-                            Some(format!("- {}", old))
-                        } else {
-                            None
-                        };
-                        let new = if let Some(new) = &x.new {
-                            Some(format!("+ {}", new))
-                        } else {
-                            None
-                        };
-                        UnifiedDiffLine { pos, old, new }
+                    .map(|x| UnifiedDiffLine {
+                        pos: x.pos.as_ref().map(|pos| format!("@@ {} @@", pos)),
+                        old: x.old.as_ref().map(|old| format!("- {}", old)),
+                        new: x.new.as_ref().map(|new| format!("+ {}", new)),
                     })
                     .collect();
 
-                UnifiedDiffContent {
-                    old_title,
-                    new_title,
-                    lines,
-                }
+                UnifiedDiffContent { old_title, new_title, lines }
             })
             .collect();
         FormattedUnifiedDiff { content }
     }
 
-    /// split into old / new parts
+    /// Splits into separate old and new content views.
     pub fn split(&self) -> SplitUnifiedDiff {
-        let old: Vec<SplitUnifiedDiffContent> = self
+        let old = self
             .content
             .iter()
-            .map(|x| {
-                let title = x.old_title.clone();
-                let lines: Vec<SplitUnifiedDiffLine> = x
+            .map(|x| SplitUnifiedDiffContent {
+                title: x.old_title.clone(),
+                lines: x
                     .lines
                     .iter()
-                    .map(|x| {
-                        let pos = if let Some(pos) = &x.pos {
-                            Some(pos.to_owned())
-                        } else {
-                            None
-                        };
-                        let text = if let Some(text) = &x.old {
-                            Some(text.to_owned())
-                        } else {
-                            None
-                        };
-                        SplitUnifiedDiffLine { pos, text }
+                    .map(|x| SplitUnifiedDiffLine {
+                        pos: x.pos.as_ref().map(|p| p.to_owned()),
+                        text: x.old.as_ref().map(|t| t.to_owned()),
                     })
-                    .collect();
-                SplitUnifiedDiffContent { title, lines }
+                    .collect(),
             })
             .collect();
-        let new: Vec<SplitUnifiedDiffContent> = self
+
+        let new = self
             .content
             .iter()
-            .map(|x| {
-                let title = x.new_title.clone();
-                let lines: Vec<SplitUnifiedDiffLine> = x
+            .map(|x| SplitUnifiedDiffContent {
+                title: x.new_title.clone(),
+                lines: x
                     .lines
                     .iter()
-                    .map(|x| {
-                        let pos = if let Some(pos) = &x.pos {
-                            Some(pos.to_owned())
-                        } else {
-                            None
-                        };
-                        let text = if let Some(text) = &x.new {
-                            Some(text.to_owned())
-                        } else {
-                            None
-                        };
-                        SplitUnifiedDiffLine { pos, text }
+                    .map(|x| SplitUnifiedDiffLine {
+                        pos: x.pos.as_ref().map(|p| p.to_owned()),
+                        text: x.new.as_ref().map(|t| t.to_owned()),
                     })
-                    .collect();
-                SplitUnifiedDiffContent { title, lines }
+                    .collect(),
             })
             .collect();
 
@@ -162,60 +126,45 @@ impl UnifiedDiff {
 }
 
 impl fmt::Display for FormattedUnifiedDiff {
-    /// generate string in unified format
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.content.iter().for_each(|x| {
-            let _ = writeln!(f, "{}", &x.old_title);
-            let _ = writeln!(f, "{}", &x.new_title);
-            x.lines.iter().for_each(|x| {
+    /// Renders the unified diff as a plain-text string.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for x in &self.content {
+            writeln!(f, "{}", &x.old_title)?;
+            writeln!(f, "{}", &x.new_title)?;
+            for x in &x.lines {
                 if let Some(pos) = &x.pos {
-                    let _ = writeln!(f, "{}", pos);
+                    writeln!(f, "{}", pos)?;
                 }
                 if let Some(old) = &x.old {
-                    let _ = writeln!(f, "{}", old);
+                    writeln!(f, "{}", old)?;
                 }
                 if let Some(new) = &x.new {
-                    let _ = writeln!(f, "{}", new);
+                    writeln!(f, "{}", new)?;
                 }
-            });
-        });
+            }
+        }
         Ok(())
     }
 }
 
-/// get unified diff str split into old / new parts
+/// Builds a [`UnifiedDiff`] from the raw [`Diff`] result.
 pub fn unified_diff(diff: &Diff) -> UnifiedDiff {
     let mut ret: Vec<UnifiedDiffContent> = vec![];
 
     if !diff.sheet_diff.is_empty() {
-        let old_title = format!("{} (sheet names)", diff.old_filepath);
-        let new_title = format!("{} (sheet names)", diff.new_filepath);
-
-        let lines: Vec<UnifiedDiffLine> = diff
+        let lines = diff
             .sheet_diff
             .iter()
-            .map(|x| {
-                let old_sheet = if let Some(sheet) = x.old.as_ref() {
-                    Some(sheet.to_owned())
-                } else {
-                    None
-                };
-                let new_sheet = if let Some(sheet) = x.new.as_ref() {
-                    Some(sheet.to_owned())
-                } else {
-                    None
-                };
-                UnifiedDiffLine {
-                    pos: None,
-                    old: old_sheet,
-                    new: new_sheet,
-                }
+            .map(|x| UnifiedDiffLine {
+                pos: None,
+                old: x.old.clone(),
+                new: x.new.clone(),
             })
             .collect();
 
         ret.push(UnifiedDiffContent {
-            old_title,
-            new_title,
+            old_title: format!("{} (sheet names)", diff.old_filepath),
+            new_title: format!("{} (sheet names)", diff.new_filepath),
             lines,
         });
     }
@@ -224,31 +173,20 @@ pub fn unified_diff(diff: &Diff) -> UnifiedDiff {
         .cell_diffs
         .iter()
         .map(|x| {
-            let cell_diffs_lines: Vec<UnifiedDiffLine> = x
+            let lines = x
                 .cells
                 .iter()
-                .map(|x| {
-                    let pos = Some(format!("{}({},{}) {}", x.addr, x.row, x.col, x.kind));
-
-                    let old = if let Some(sheet) = x.old.as_ref() {
-                        Some(sheet.to_owned())
-                    } else {
-                        None
-                    };
-                    let new = if let Some(sheet) = x.new.as_ref() {
-                        Some(sheet.to_owned())
-                    } else {
-                        None
-                    };
-
-                    UnifiedDiffLine { pos, old, new }
+                .map(|x| UnifiedDiffLine {
+                    pos: Some(format!("{}({},{}) {}", x.addr, x.row, x.col, x.kind)),
+                    old: x.old.clone(),
+                    new: x.new.clone(),
                 })
                 .collect();
 
             UnifiedDiffContent {
                 old_title: format!("{} [{}]", diff.old_filepath, x.sheet),
                 new_title: format!("{} [{}]", diff.new_filepath, x.sheet),
-                lines: cell_diffs_lines,
+                lines,
             }
         })
         .collect();

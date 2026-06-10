@@ -5,7 +5,7 @@
 Please **do not** open a public GitHub issue for a suspected security
 problem. Instead, please report it privately using GitHub's security advisory feature:
 
-> https://github.com/nabbisen/sheets-diff-rs/security/advisories/new
+> https://github.com/forskscope/sheets-diff-rs/security/advisories/new
 
 Please include:
 

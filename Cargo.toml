@@ -1,7 +1,7 @@
 [package]
 name = "sheets-diff"
-version = "1.1.4"
-edition = "2021"
+version = "1.2.0"
+edition = "2024"
 
 description = "Collect diff between office sheets"
 authors = ["nabbisen"]
@@ -11,7 +11,7 @@ categories = ["development-tools", "command-line-utilities", "parsing", "data-st
 keywords = ["excel", "xlsx", "compare", "diff", "cli"]
 repository = "https://github.com/nabbisen/sheets-diff-rs"
 readme = "README.md"
-rust-version = "1.78.0"
+rust-version = "1.85.0"
 
 [profile.release]     # shrink executable size
 opt-level = "z"
@@ -33,3 +33,6 @@ serde_derive = ["serde"]
 [dependencies]
 calamine = "0"
 serde = { version = "1", features = ["derive"], optional = true }
+
+[dev-dependencies]
+rust_xlsxwriter = "0"

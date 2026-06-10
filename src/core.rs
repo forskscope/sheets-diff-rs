@@ -1,3 +1,4 @@
 pub mod diff;
+pub mod error;
 pub mod unified_format;
-mod utils;
+pub mod utils;
