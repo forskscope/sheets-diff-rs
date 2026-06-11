@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Shared fixture-generation helpers for integration tests (RFC-015).
 //!
 //! All helpers return `Vec<u8>` so tests stay I/O-free; `compare_bytes` is

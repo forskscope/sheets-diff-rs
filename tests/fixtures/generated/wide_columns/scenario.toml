@@ -1,0 +1,4 @@
+name        = "wide_columns_xfd"
+kind        = "regression"
+description = "Covers A1 addressing through column XFD (column 16384). Tests the v1 address-encoding bug."
+notes       = ""

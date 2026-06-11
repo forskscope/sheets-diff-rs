@@ -1,0 +1,4 @@
+name        = "sparse_range_one_change"
+kind        = "feature"
+description = "Large used range with only two populated cells far apart. Only A1 changes; Z100 stays the same."
+notes       = ""

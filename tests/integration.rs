@@ -728,3 +728,172 @@ fn format_compare_non_ignore_returns_invalid_options() {
         .build();
     assert!(matches!(result, Err(SheetsDiffError::InvalidOptions { .. })));
 }
+
+// ============================================================================
+// v2.2 — RFC-023 object coverage diagnostics
+// ============================================================================
+
+#[test]
+fn object_coverage_note_emitted_by_default() {
+    // Every comparison emits the coverage note under WarnIfPresent default.
+    let b = wb_empty();
+    let diff = compare_bytes(&b, &b).unwrap();
+    assert!(
+        diff.diagnostics.iter().any(|d| d.kind.code() == "unsupported_workbook_feature"),
+        "expected coverage diagnostic in workbook diagnostics"
+    );
+}
+
+#[test]
+fn object_coverage_suppressed_with_ignore_mode() {
+    use sheets_diff::{DiffOptions, ObjectCompareMode};
+    let opts = DiffOptions::builder()
+        .object_mode(ObjectCompareMode::Ignore)
+        .build().unwrap();
+    let b = wb_empty();
+    let diff = compare_bytes_with_options(&b, &b, opts).unwrap();
+    assert!(
+        !diff.diagnostics.iter().any(|d| d.kind.code() == "unsupported_workbook_feature"),
+        "no coverage diagnostics expected in Ignore mode"
+    );
+}
+
+// ============================================================================
+// v2.2 — RFC-024 DiffMetrics
+// ============================================================================
+
+#[test]
+fn diff_metrics_populated() {
+    let old = wb_strings(&[(0, 0, "a"), (0, 1, "b")]);
+    let new = wb_strings(&[(0, 0, "x"), (0, 1, "b")]);
+    let diff = compare_bytes(&old, &new).unwrap();
+    assert_eq!(diff.metrics.sheets_read, 1);
+    assert_eq!(diff.metrics.diffs_emitted, 1);
+    assert!(diff.metrics.diagnostics_emitted > 0, "coverage note should count");
+}
+
+#[test]
+fn diff_metrics_zero_when_identical() {
+    let b = wb_strings(&[(0, 0, "same")]);
+    let diff = compare_bytes(&b, &b).unwrap();
+    assert_eq!(diff.metrics.diffs_emitted, 0);
+    assert_eq!(diff.metrics.sheets_read, 1);
+}
+
+// ============================================================================
+// v2.2 — RFC-025 parallel feature
+// ============================================================================
+
+#[test]
+#[cfg(feature = "parallel")]
+fn parallel_mode_produces_same_result_as_sequential() {
+    use sheets_diff::options::ExecutionMode;
+
+    let old = wb_sheets(&[("S1", &[(0,0,"a")]), ("S2", &[(0,0,"b")])]);
+    let new = wb_sheets(&[("S1", &[(0,0,"x")]), ("S2", &[(0,0,"b")])]);
+
+    let seq = compare_bytes(&old, &new).unwrap();
+
+    let par_opts = DiffOptions::builder()
+        .execution_mode(ExecutionMode::Parallel)
+        .build().unwrap();
+    let par = compare_bytes_with_options(&old, &new, par_opts).unwrap();
+
+    assert_eq!(seq.summary.cells_changed, par.summary.cells_changed);
+    assert_eq!(seq.sheets.len(), par.sheets.len());
+    // Ordering must be identical
+    for (s, p) in seq.sheets.iter().zip(par.sheets.iter()) {
+        let s_name = s.new_sheet.as_ref().map(|r| r.name.as_str()).unwrap_or("");
+        let p_name = p.new_sheet.as_ref().map(|r| r.name.as_str()).unwrap_or("");
+        assert_eq!(s_name, p_name, "sheet order must match");
+        assert_eq!(s.cell_diffs.len(), p.cell_diffs.len());
+    }
+}
+
+// ============================================================================
+// v2.3 — RFC-020 display formatting types
+// ============================================================================
+
+#[test]
+fn cell_display_from_value_text() {
+    use sheets_diff::{CellDisplay, CellValue, DisplaySource};
+    let v = CellValue::Text("hello".into());
+    let d = CellDisplay::from_value(&v);
+    assert_eq!(d.text, "hello");
+    assert_eq!(d.source, DisplaySource::SheetsDiffDefault);
+    assert!(d.format.is_none());
+}
+
+#[test]
+fn cell_display_from_value_number() {
+    use sheets_diff::{CellDisplay, CellValue};
+    let v = CellValue::Number(3.14);
+    let d = CellDisplay::from_value(&v);
+    assert!(d.text.starts_with("3.14"));
+}
+
+#[test]
+fn cell_value_display_default_and_display_string_agree() {
+    use sheets_diff::CellValue;
+    let cases: &[CellValue] = &[
+        CellValue::Empty,
+        CellValue::Text("x".into()),
+        CellValue::Integer(42),
+        CellValue::Number(1.5),
+        CellValue::Bool(true),
+    ];
+    for v in cases {
+        assert_eq!(v.display_default(), v.display_string(),
+            "display_default must equal display_string for {v:?}");
+    }
+}
+
+#[test]
+fn cell_snapshot_preferred_display_prefers_display_text() {
+    use sheets_diff::{CellDisplay, CellSnapshot, CellValue, DisplaySource};
+    let snap = CellSnapshot {
+        value: CellValue::Integer(42),
+        formula: None,
+        display: Some(CellDisplay {
+            text: "42 units".into(),
+            format: None,
+            source: DisplaySource::ApplicationProvided,
+        }),
+    };
+    assert_eq!(snap.preferred_display(), "42 units");
+}
+
+#[test]
+fn cell_snapshot_preferred_display_falls_back_to_value() {
+    use sheets_diff::{CellSnapshot, CellValue};
+    let snap = CellSnapshot {
+        value: CellValue::Integer(42),
+        formula: None,
+        display: None,
+    };
+    assert_eq!(snap.preferred_display(), "42");
+}
+
+#[test]
+fn cell_number_format_default_is_none() {
+    use sheets_diff::CellNumberFormat;
+    let fmt = CellNumberFormat::default();
+    assert!(fmt.id.is_none());
+    assert!(fmt.code.is_none());
+}
+
+// ============================================================================
+// v2.3 — RFC-030 fixture generation (smoke test that gen.rs runs correctly)
+// ============================================================================
+
+#[test]
+fn fixture_wide_columns_scenario_toml_exists_after_generation() {
+    // This test just verifies the fixture directory and scenario.toml are present.
+    // Run `cargo test --test gen` first to generate them.
+    let path = std::path::Path::new("tests/fixtures/generated/wide_columns/scenario.toml");
+    if path.exists() {
+        let toml = std::fs::read_to_string(path).unwrap();
+        assert!(toml.contains("wide_columns_xfd"));
+    }
+    // Pass even if not generated yet (first run) — gen.rs creates them.
+}

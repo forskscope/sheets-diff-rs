@@ -1,0 +1,885 @@
+{
+  "old": {
+    "source": {
+      "kind": "Bytes",
+      "display_name": null
+    },
+    "workbook_name": null,
+    "sheet_count": 1
+  },
+  "new": {
+    "source": {
+      "kind": "Bytes",
+      "display_name": null
+    },
+    "workbook_name": null,
+    "sheet_count": 1
+  },
+  "sheets": [
+    {
+      "old_sheet": {
+        "name": "Sheet1",
+        "index": 0
+      },
+      "new_sheet": {
+        "name": "Sheet1",
+        "index": 0
+      },
+      "change": "Modified",
+      "cell_diffs": [
+        {
+          "address": {
+            "row": 1,
+            "col": 1,
+            "a1": "A1"
+          },
+          "value": {
+            "old": {
+              "Text": "id_0"
+            },
+            "new": {
+              "Text": "id_inserted"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 1,
+            "col": 2,
+            "a1": "B1"
+          },
+          "value": {
+            "old": {
+              "Text": "val_0"
+            },
+            "new": {
+              "Text": "val_inserted"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 2,
+            "col": 1,
+            "a1": "A2"
+          },
+          "value": {
+            "old": {
+              "Text": "id_1"
+            },
+            "new": {
+              "Text": "id_0"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 2,
+            "col": 2,
+            "a1": "B2"
+          },
+          "value": {
+            "old": {
+              "Text": "val_1"
+            },
+            "new": {
+              "Text": "val_0"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 3,
+            "col": 1,
+            "a1": "A3"
+          },
+          "value": {
+            "old": {
+              "Text": "id_2"
+            },
+            "new": {
+              "Text": "id_1"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 3,
+            "col": 2,
+            "a1": "B3"
+          },
+          "value": {
+            "old": {
+              "Text": "val_2"
+            },
+            "new": {
+              "Text": "val_1"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 4,
+            "col": 1,
+            "a1": "A4"
+          },
+          "value": {
+            "old": {
+              "Text": "id_3"
+            },
+            "new": {
+              "Text": "id_2"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 4,
+            "col": 2,
+            "a1": "B4"
+          },
+          "value": {
+            "old": {
+              "Text": "val_3"
+            },
+            "new": {
+              "Text": "val_2"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 5,
+            "col": 1,
+            "a1": "A5"
+          },
+          "value": {
+            "old": {
+              "Text": "id_4"
+            },
+            "new": {
+              "Text": "id_3"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 5,
+            "col": 2,
+            "a1": "B5"
+          },
+          "value": {
+            "old": {
+              "Text": "val_4"
+            },
+            "new": {
+              "Text": "val_3"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 6,
+            "col": 1,
+            "a1": "A6"
+          },
+          "value": {
+            "old": {
+              "Text": "id_5"
+            },
+            "new": {
+              "Text": "id_4"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 6,
+            "col": 2,
+            "a1": "B6"
+          },
+          "value": {
+            "old": {
+              "Text": "val_5"
+            },
+            "new": {
+              "Text": "val_4"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 7,
+            "col": 1,
+            "a1": "A7"
+          },
+          "value": {
+            "old": {
+              "Text": "id_6"
+            },
+            "new": {
+              "Text": "id_5"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 7,
+            "col": 2,
+            "a1": "B7"
+          },
+          "value": {
+            "old": {
+              "Text": "val_6"
+            },
+            "new": {
+              "Text": "val_5"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 8,
+            "col": 1,
+            "a1": "A8"
+          },
+          "value": {
+            "old": {
+              "Text": "id_7"
+            },
+            "new": {
+              "Text": "id_6"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 8,
+            "col": 2,
+            "a1": "B8"
+          },
+          "value": {
+            "old": {
+              "Text": "val_7"
+            },
+            "new": {
+              "Text": "val_6"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 9,
+            "col": 1,
+            "a1": "A9"
+          },
+          "value": {
+            "old": {
+              "Text": "id_8"
+            },
+            "new": {
+              "Text": "id_7"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 9,
+            "col": 2,
+            "a1": "B9"
+          },
+          "value": {
+            "old": {
+              "Text": "val_8"
+            },
+            "new": {
+              "Text": "val_7"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 10,
+            "col": 1,
+            "a1": "A10"
+          },
+          "value": {
+            "old": {
+              "Text": "id_9"
+            },
+            "new": {
+              "Text": "id_8"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 10,
+            "col": 2,
+            "a1": "B10"
+          },
+          "value": {
+            "old": {
+              "Text": "val_9"
+            },
+            "new": {
+              "Text": "val_8"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 11,
+            "col": 1,
+            "a1": "A11"
+          },
+          "value": {
+            "old": {
+              "Text": "id_10"
+            },
+            "new": {
+              "Text": "id_9"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 11,
+            "col": 2,
+            "a1": "B11"
+          },
+          "value": {
+            "old": {
+              "Text": "val_10"
+            },
+            "new": {
+              "Text": "val_9"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 12,
+            "col": 1,
+            "a1": "A12"
+          },
+          "value": {
+            "old": {
+              "Text": "id_11"
+            },
+            "new": {
+              "Text": "id_10"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 12,
+            "col": 2,
+            "a1": "B12"
+          },
+          "value": {
+            "old": {
+              "Text": "val_11"
+            },
+            "new": {
+              "Text": "val_10"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 13,
+            "col": 1,
+            "a1": "A13"
+          },
+          "value": {
+            "old": {
+              "Text": "id_12"
+            },
+            "new": {
+              "Text": "id_11"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 13,
+            "col": 2,
+            "a1": "B13"
+          },
+          "value": {
+            "old": {
+              "Text": "val_12"
+            },
+            "new": {
+              "Text": "val_11"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 14,
+            "col": 1,
+            "a1": "A14"
+          },
+          "value": {
+            "old": {
+              "Text": "id_13"
+            },
+            "new": {
+              "Text": "id_12"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 14,
+            "col": 2,
+            "a1": "B14"
+          },
+          "value": {
+            "old": {
+              "Text": "val_13"
+            },
+            "new": {
+              "Text": "val_12"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 15,
+            "col": 1,
+            "a1": "A15"
+          },
+          "value": {
+            "old": {
+              "Text": "id_14"
+            },
+            "new": {
+              "Text": "id_13"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 15,
+            "col": 2,
+            "a1": "B15"
+          },
+          "value": {
+            "old": {
+              "Text": "val_14"
+            },
+            "new": {
+              "Text": "val_13"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 16,
+            "col": 1,
+            "a1": "A16"
+          },
+          "value": {
+            "old": {
+              "Text": "id_15"
+            },
+            "new": {
+              "Text": "id_14"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 16,
+            "col": 2,
+            "a1": "B16"
+          },
+          "value": {
+            "old": {
+              "Text": "val_15"
+            },
+            "new": {
+              "Text": "val_14"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 17,
+            "col": 1,
+            "a1": "A17"
+          },
+          "value": {
+            "old": {
+              "Text": "id_16"
+            },
+            "new": {
+              "Text": "id_15"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 17,
+            "col": 2,
+            "a1": "B17"
+          },
+          "value": {
+            "old": {
+              "Text": "val_16"
+            },
+            "new": {
+              "Text": "val_15"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 18,
+            "col": 1,
+            "a1": "A18"
+          },
+          "value": {
+            "old": {
+              "Text": "id_17"
+            },
+            "new": {
+              "Text": "id_16"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 18,
+            "col": 2,
+            "a1": "B18"
+          },
+          "value": {
+            "old": {
+              "Text": "val_17"
+            },
+            "new": {
+              "Text": "val_16"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 19,
+            "col": 1,
+            "a1": "A19"
+          },
+          "value": {
+            "old": {
+              "Text": "id_18"
+            },
+            "new": {
+              "Text": "id_17"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 19,
+            "col": 2,
+            "a1": "B19"
+          },
+          "value": {
+            "old": {
+              "Text": "val_18"
+            },
+            "new": {
+              "Text": "val_17"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 20,
+            "col": 1,
+            "a1": "A20"
+          },
+          "value": {
+            "old": {
+              "Text": "id_19"
+            },
+            "new": {
+              "Text": "id_18"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 20,
+            "col": 2,
+            "a1": "B20"
+          },
+          "value": {
+            "old": {
+              "Text": "val_19"
+            },
+            "new": {
+              "Text": "val_18"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 21,
+            "col": 1,
+            "a1": "A21"
+          },
+          "value": {
+            "old": "Empty",
+            "new": {
+              "Text": "id_19"
+            },
+            "reason": "TypeChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 21,
+            "col": 2,
+            "a1": "B21"
+          },
+          "value": {
+            "old": "Empty",
+            "new": {
+              "Text": "val_19"
+            },
+            "reason": "TypeChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        }
+      ],
+      "compared_range": {
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          21,
+          2
+        ]
+      },
+      "alignment_summary": null,
+      "diagnostics": [],
+      "summary": {
+        "cells_changed": 42,
+        "values_changed": 42,
+        "formulas_changed": 0
+      }
+    }
+  ],
+  "workbook_changes": [],
+  "object_changes": [],
+  "diagnostics": [
+    {
+      "severity": "Info",
+      "kind": {
+        "UnsupportedWorkbookFeature": {
+          "feature": "non-cell objects"
+        }
+      },
+      "location": {
+        "stage": "Metadata",
+        "sheet_order": null,
+        "sheet_name": null,
+        "address": null
+      },
+      "message": "charts, images, comments, hyperlinks, tables, pivot tables, data validation, and conditional formatting are not compared in this version (calamine 0.35 does not expose object content)"
+    }
+  ],
+  "summary": {
+    "sheets_added": 0,
+    "sheets_removed": 0,
+    "sheets_renamed": 0,
+    "sheets_moved": 0,
+    "sheets_changed": 1,
+    "cells_changed": 42,
+    "values_changed": 42,
+    "formulas_changed": 0,
+    "diagnostics": {
+      "errors": 0,
+      "warnings": 0,
+      "info": 1
+    }
+  },
+  "metrics": {
+    "sheets_read": 1,
+    "cells_read": 1,
+    "cells_compared": 42,
+    "diffs_emitted": 42,
+    "diagnostics_emitted": 1
+  }
+}

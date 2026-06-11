@@ -1,6 +1,6 @@
 [package]
 name = "sheets-diff"
-version = "2.1.0"
+version = "2.2.0"
 edition = "2024"
 rust-version = "1.85.0"
 
@@ -27,11 +27,13 @@ lto = false
 # - "serde": optional Serialize derives on public model types (Deserialize deferred)
 # - "chrono": optional ISO string synthesis for DateTime values from calamine serials
 # - "cli": pulls in clap for the binary; not needed by library consumers
+# - "parallel": enables rayon-based parallel sheet comparison (RFC-025)
 [features]
 default = []
 serde = ["dep:serde", "dep:serde_json"]
 chrono = ["dep:chrono", "calamine/chrono"]
-cli = ["dep:clap"]
+cli      = ["dep:clap"]
+parallel = ["dep:rayon"]
 
 [[bin]]
 name = "sheets-diff"
@@ -44,8 +46,15 @@ calamine = "0.35"
 serde     = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
 chrono    = { version = "0.4", optional = true }
+rayon     = { version = "1", optional = true }
+criterion = { version = "0.5", optional = true, features = ["html_reports"] }
 clap      = { version = "4", features = ["derive"], optional = true }
 
 [dev-dependencies]
 rust_xlsxwriter = "0"
 serde_json = "1"
+
+[[bench]]
+name = "workbook_diff"
+harness = false
+required-features = ["bench"]

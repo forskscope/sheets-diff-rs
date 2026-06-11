@@ -88,7 +88,7 @@ impl ComparedRange {
     }
 
     /// Expand to contain both sides' used ranges.
-    pub(crate) fn union(
+    pub fn union(
         old_start: Option<(u32, u32)>,
         old_end: Option<(u32, u32)>,
         new_start: Option<(u32, u32)>,

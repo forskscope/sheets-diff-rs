@@ -1,3 +1,5 @@
+// Suppress dead_code for intentional public-API-only variants.
+#![allow(dead_code)]
 //! # sheets-diff
 //!
 //! Structured diff engine for Microsoft Excel `.xlsx` workbooks.
@@ -33,6 +35,7 @@ mod diff;
 mod error;
 mod matcher;
 mod meta;
+mod objects;
 mod normalize;
 mod open;
 
@@ -61,11 +64,15 @@ pub use error::{LimitKind, OpenErrorKind, ReadErrorKind, SheetsDiffError};
 // Model
 pub use model::{
     AlignmentSummary,
+    DiffMetrics,
     CellChangeKind,
     CellDateTime,
     CellDiff,
+    CellDisplay,
     CellDuration,
     CellError,
+    CellNumberFormat,
+    CellSnapshot,
     CellValue,
     DateTimeKind,
     DiagnosticKind,
@@ -74,6 +81,7 @@ pub use model::{
     Diagnostic,
     DiffStage,
     DiffSummary,
+    DisplaySource,
     FormatChange,
     FormulaChange,
     FormulaText,
@@ -99,6 +107,7 @@ pub use model::{
 pub use address::{CellAddress, ComparedRange, MAX_COL, MAX_COL_LABEL, MAX_ROW};
 
 // Options
+pub use objects::ObjectCompareMode;
 pub use options::{
     AlignmentMode,
     Cancellation,

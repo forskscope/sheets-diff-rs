@@ -1,5 +1,47 @@
 # Changelog
 
+## [2.2.0] - 2026-06-11
+
+### Added
+
+- **RFC-023 — Object / unsupported-feature coverage diagnostics**: every
+  comparison emits an `Info`-level `UnsupportedWorkbookFeature` diagnostic
+  explaining that charts, images, comments, hyperlinks, tables, pivot tables,
+  and data validation are not compared. Non-worksheet sheet types (ChartSheet,
+  MacroSheet, VBA) emit a `Warning`. Controlled by `ObjectCompareMode` (default
+  `WarnIfPresent`); suppressible via `DiffOptionsBuilder::object_mode(Ignore)`.
+- **RFC-024 — `DiffMetrics`**: `WorkbookDiff.metrics` carries `sheets_read`,
+  `cells_read`, `cells_compared`, `diffs_emitted`, and `diagnostics_emitted`
+  for benchmarking and performance analysis.
+- **RFC-025 — Parallel sheet comparison** (`parallel` feature, off by default):
+  `ExecutionMode::Parallel` processes sheets in parallel with `rayon`, then
+  sorts results by original workbook order to guarantee identical output.
+  Enable with `--features parallel`; select via
+  `DiffOptionsBuilder::execution_mode(ExecutionMode::Parallel)`.
+- **RFC-027 — Benchmarks** (`bench` feature): `benches/workbook_diff.rs`
+  covers all eight RFC-027 scenarios (small-business, wide, tall, sparse,
+  many-sheets, formula, rename, alignment cascade). Run with
+  `cargo bench --features bench`.
+- **RFC-028 — Fuzz targets** (`fuzz/`): four `cargo-fuzz` targets covering
+  `compare_bytes` on arbitrary input, `col_to_label` roundtrip,
+  `ComparedRange::union`, and `DiffOptionsBuilder::build`. Corpus seeds in
+  `fuzz/corpus/fuzz_open_xlsx_bytes/`. See `fuzz/README.md`.
+- **RFC-020 — Display formatting types**: `CellDisplay`, `CellSnapshot`,
+  `CellNumberFormat`, `DisplaySource` added to the public model. `CellDisplay`
+  carries a deterministic display string, an optional number-format record
+  (`None` in calamine 0.35 — reserved for RFC-022), and a `DisplaySource` tag.
+  `CellSnapshot` groups a `CellValue`, optional `FormulaText`, and optional
+  `CellDisplay` with a `preferred_display()` helper. `CellValue::display_default()`
+  is an alias for `display_string()` as per RFC-020 §6.
+- **RFC-030 — Extended fixture corpus**: `tests/gen.rs` generates seven scenario
+  fixtures (wide_columns, renamed_sheet, typed_values, formula, empty_sheet,
+  sparse_range, row_insertion_cascade) into `tests/fixtures/generated/`, each
+  with a `scenario.toml` and (with `--features serde`) an `expected.json`
+  golden file. `tests/fixtures/corpus/README.md` documents the contribution policy.
+- `ComparedRange::union` made `pub` (was `pub(crate)`).
+- `DiffOptionsBuilder::object_mode`, `::execution_mode`, `::format_compare`
+  builder methods.
+
 ## [2.1.0] - 2026-06-11
 
 ### Added

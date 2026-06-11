@@ -1,0 +1,4 @@
+name        = "row_insertion_cascade"
+kind        = "regression"
+description = "One row inserted at the top of a 20-row sheet. Positional diff reports all 20 rows as changed (cascade). Row-key alignment should report only the inserted row."
+notes       = ""

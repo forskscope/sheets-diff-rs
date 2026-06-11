@@ -1,0 +1,4 @@
+name        = "formula_text_change"
+kind        = "feature"
+description = "Formula text changes (=1+1 → =2+0) with equivalent result. Tests formula-layer detection independent of value change."
+notes       = ""

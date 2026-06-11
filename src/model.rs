@@ -247,6 +247,91 @@ impl CellValue {
     pub fn is_empty(&self) -> bool {
         matches!(self, CellValue::Empty)
     }
+
+    /// Alias for `display_string` — preferred name per RFC-020.
+    #[inline]
+    pub fn display_default(&self) -> String {
+        self.display_string()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Display metadata (RFC-020)
+// ---------------------------------------------------------------------------
+
+/// Where a display string originated.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub enum DisplaySource {
+    /// Provided directly by the workbook reader.
+    ReaderProvided,
+    /// Synthesised by `sheets-diff` from the typed value.
+    SheetsDiffDefault,
+    /// Substituted by the calling application.
+    ApplicationProvided,
+}
+
+/// A number-format identifier and/or code string captured from the workbook.
+///
+/// In calamine 0.35 neither field is available from cell data; both are
+/// `None` in v2.2. The struct is reserved so RFC-022 can populate it
+/// without an API break.
+#[derive(Clone, PartialEq, Eq, Debug, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct CellNumberFormat {
+    /// Excel built-in format ID (e.g. `4` for `#,##0.00`).
+    pub id: Option<u32>,
+    /// Raw format code string (e.g. `"#,##0.00"`).
+    pub code: Option<String>,
+}
+
+/// Human-friendly display metadata attached to a cell value (RFC-020).
+///
+/// `text` is the primary display string. `format` and `source` are optional
+/// metadata; consumers may use them for localisation or formatting hints.
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct CellDisplay {
+    /// The display string — deterministic and locale-neutral by default.
+    pub text: String,
+    /// Number-format metadata when available (always `None` in calamine 0.35).
+    pub format: Option<CellNumberFormat>,
+    pub source: DisplaySource,
+}
+
+impl CellDisplay {
+    /// Build a default display from a `CellValue`.
+    pub fn from_value(value: &CellValue) -> Self {
+        Self {
+            text: value.display_default(),
+            format: None,
+            source: DisplaySource::SheetsDiffDefault,
+        }
+    }
+}
+
+/// A full snapshot of one cell: typed value + optional formula + optional display
+/// metadata (RFC-020).
+///
+/// `display` is populated by default using `CellDisplay::from_value`; it can be
+/// overridden by the calling application without touching the typed value.
+#[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct CellSnapshot {
+    pub value: CellValue,
+    pub formula: Option<crate::model::FormulaText>,
+    pub display: Option<CellDisplay>,
+}
+
+impl CellSnapshot {
+    /// Return the best available display string: `display.text` when present,
+    /// otherwise `value.display_default()`.
+    pub fn preferred_display(&self) -> String {
+        self.display
+            .as_ref()
+            .map(|d| d.text.clone())
+            .unwrap_or_else(|| self.value.display_default())
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -474,6 +559,20 @@ pub struct DiffSummary {
     pub diagnostics: DiagnosticSummary,
 }
 
+/// Internal processing metrics (RFC-024, RFC-027).
+///
+/// Useful for benchmarking, performance analysis, and debugging.
+/// Always populated; fields are cumulative across the whole comparison.
+#[derive(Clone, Default, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct DiffMetrics {
+    pub sheets_read: u32,
+    pub cells_read: u64,
+    pub cells_compared: u64,
+    pub diffs_emitted: u64,
+    pub diagnostics_emitted: u64,
+}
+
 // ---------------------------------------------------------------------------
 // SheetDiff
 // ---------------------------------------------------------------------------
@@ -554,6 +653,8 @@ pub struct WorkbookDiff {
     pub object_changes: Vec<WorkbookObjectChange>,
     pub diagnostics: Vec<Diagnostic>,
     pub summary: DiffSummary,
+    /// Processing metrics for benchmarking and performance analysis (RFC-024/027).
+    pub metrics: DiffMetrics,
 }
 
 // ---------------------------------------------------------------------------

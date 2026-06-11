@@ -1,0 +1,4 @@
+name        = "renamed_sheet_with_cell_change"
+kind        = "feature"
+description = "A single renamed sheet with one cell changed. Verifies conservative rename detection and cell diff preservation across rename."
+notes       = ""

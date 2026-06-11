@@ -1,0 +1,36 @@
+[package]
+name = "sheets-diff-fuzz"
+version = "0.0.1"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+sheets-diff = { path = "..", features = [] }
+
+[[bin]]
+name = "fuzz_open_xlsx_bytes"
+path = "src/fuzz_open_xlsx_bytes.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_addr_roundtrip"
+path = "src/fuzz_addr_roundtrip.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_range_merge"
+path = "src/fuzz_range_merge.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_diff_options_builder"
+path = "src/fuzz_diff_options_builder.rs"
+test = false
+doc = false

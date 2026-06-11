@@ -1,0 +1,4 @@
+name        = "typed_values_text_vs_number_vs_bool"
+kind        = "feature"
+description = "Text \"100\" and number 100 are different. Bool true→false is a content change. String \"2024-01-01\" unchanged."
+notes       = ""

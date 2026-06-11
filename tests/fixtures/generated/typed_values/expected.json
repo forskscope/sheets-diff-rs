@@ -1,0 +1,145 @@
+{
+  "old": {
+    "source": {
+      "kind": "Bytes",
+      "display_name": null
+    },
+    "workbook_name": null,
+    "sheet_count": 1
+  },
+  "new": {
+    "source": {
+      "kind": "Bytes",
+      "display_name": null
+    },
+    "workbook_name": null,
+    "sheet_count": 1
+  },
+  "sheets": [
+    {
+      "old_sheet": {
+        "name": "Sheet1",
+        "index": 0
+      },
+      "new_sheet": {
+        "name": "Sheet1",
+        "index": 0
+      },
+      "change": "Modified",
+      "cell_diffs": [
+        {
+          "address": {
+            "row": 1,
+            "col": 1,
+            "a1": "A1"
+          },
+          "value": {
+            "old": {
+              "Text": "100"
+            },
+            "new": {
+              "Number": 100.0
+            },
+            "reason": "TypeChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 1,
+            "col": 2,
+            "a1": "B1"
+          },
+          "value": {
+            "old": {
+              "Bool": true
+            },
+            "new": {
+              "Bool": false
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        }
+      ],
+      "compared_range": {
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          1,
+          3
+        ]
+      },
+      "alignment_summary": null,
+      "diagnostics": [
+        {
+          "severity": "Info",
+          "kind": "FormulaUnavailable",
+          "location": {
+            "stage": "Read",
+            "sheet_order": 0,
+            "sheet_name": "Sheet1",
+            "address": {
+              "row": 1,
+              "col": 1,
+              "a1": "A1"
+            }
+          },
+          "message": "formula text unavailable for numeric cell at A1"
+        }
+      ],
+      "summary": {
+        "cells_changed": 2,
+        "values_changed": 2,
+        "formulas_changed": 0
+      }
+    }
+  ],
+  "workbook_changes": [],
+  "object_changes": [],
+  "diagnostics": [
+    {
+      "severity": "Info",
+      "kind": {
+        "UnsupportedWorkbookFeature": {
+          "feature": "non-cell objects"
+        }
+      },
+      "location": {
+        "stage": "Metadata",
+        "sheet_order": null,
+        "sheet_name": null,
+        "address": null
+      },
+      "message": "charts, images, comments, hyperlinks, tables, pivot tables, data validation, and conditional formatting are not compared in this version (calamine 0.35 does not expose object content)"
+    }
+  ],
+  "summary": {
+    "sheets_added": 0,
+    "sheets_removed": 0,
+    "sheets_renamed": 0,
+    "sheets_moved": 0,
+    "sheets_changed": 1,
+    "cells_changed": 2,
+    "values_changed": 2,
+    "formulas_changed": 0,
+    "diagnostics": {
+      "errors": 0,
+      "warnings": 0,
+      "info": 1
+    }
+  },
+  "metrics": {
+    "sheets_read": 1,
+    "cells_read": 1,
+    "cells_compared": 2,
+    "diffs_emitted": 2,
+    "diagnostics_emitted": 2
+  }
+}

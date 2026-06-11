@@ -259,9 +259,17 @@ pub struct DiagnosticOptions {
 // Output options
 // ---------------------------------------------------------------------------
 
-#[derive(Clone, Debug, Default)]
+/// Output and presentation options.
+#[derive(Clone, Debug)]
 pub struct OutputOptions {
-    // Future fields: number format display policy, locale hints, etc.
+    /// How non-cell workbook objects are handled (RFC-023).
+    pub objects: crate::objects::ObjectCompareMode,
+}
+
+impl Default for OutputOptions {
+    fn default() -> Self {
+        Self { objects: crate::objects::ObjectCompareMode::WarnIfPresent }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -348,6 +356,18 @@ impl DiffOptionsBuilder {
 
     pub fn format_compare(mut self, mode: FormatCompareMode) -> Self {
         self.opts.comparison.format = mode;
+        self
+    }
+
+    /// Set the object comparison mode (RFC-023).
+    pub fn object_mode(mut self, mode: crate::objects::ObjectCompareMode) -> Self {
+        self.opts.output.objects = mode;
+        self
+    }
+
+    /// Set the execution mode (RFC-025).
+    pub fn execution_mode(mut self, mode: ExecutionMode) -> Self {
+        self.opts.execution.mode = mode;
         self
     }
 

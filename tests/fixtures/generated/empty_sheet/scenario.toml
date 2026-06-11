@@ -1,0 +1,4 @@
+name        = "empty_sheet_identical"
+kind        = "edge_case"
+description = "Both workbooks have a single empty sheet. Result: no diffs."
+notes       = ""
