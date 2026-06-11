@@ -1,0 +1,370 @@
+//! Comparison options, builder, and related policy enums (RFC-006, RFC-033 §11).
+
+use crate::error::SheetsDiffError;
+
+// ---------------------------------------------------------------------------
+// Formula comparison (RFC-018)
+// ---------------------------------------------------------------------------
+
+/// How formula text is compared when both sides have a formula.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum FormulaCompareMode {
+    /// Compare raw formula strings exactly.  Default.
+    #[default]
+    RawText,
+    /// Compare normalised formula strings.  Requires a normaliser feature;
+    /// returns `InvalidOptions` if selected without one.
+    NormalizedText,
+    /// Compare both raw and normalised; emits both in `FormulaText`.
+    RawAndNormalized,
+    /// Do not compare formulas at all.
+    Ignore,
+}
+
+// ---------------------------------------------------------------------------
+// Numeric / value comparison (RFC-019)
+// ---------------------------------------------------------------------------
+
+/// How two floating-point numbers are compared.
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+pub enum NumberComparePolicy {
+    /// Bit-faithful parsed equality.  Default.
+    #[default]
+    Exact,
+    AbsoluteTolerance(f64),
+    RelativeTolerance(f64),
+    AbsoluteOrRelative { abs: f64, rel: f64 },
+}
+
+/// Whether `Integer` vs `Number` is treated as a type change.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum NumericTypePolicy {
+    /// `Integer(1)` and `Number(1.0)` are **different** (TypeChanged).  Default.
+    #[default]
+    PreserveType,
+    /// Compare by mathematical value; `Integer(1)` and `Number(1.0)` are equal.
+    CompareMathematicalValue,
+}
+
+/// How date/time values are compared.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum DateComparePolicy {
+    /// Compare the raw serial and `is_1904` flag.  Default.
+    #[default]
+    ExactRepresentation,
+    /// Attempt to normalise equivalent date-times before comparing.
+    NormalizeEquivalentDateTimes,
+}
+
+/// How a typed value is compared against a value of a different type.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum TypeMismatchPolicy {
+    /// Different types are always `TypeChanged`.  Default.
+    #[default]
+    Different,
+    /// Compare their display strings instead (for human-friendly reports only).
+    CompareDisplayString,
+}
+
+/// All value-comparison policy fields grouped together.
+#[derive(Clone, Debug, Default)]
+pub struct ValueCompareOptions {
+    pub number: NumberComparePolicy,
+    pub numeric_type: NumericTypePolicy,
+    pub date: DateComparePolicy,
+    pub type_mismatch: TypeMismatchPolicy,
+}
+
+// ---------------------------------------------------------------------------
+// Comparison options
+// ---------------------------------------------------------------------------
+
+/// All comparison-behaviour options.
+#[derive(Clone, Debug)]
+pub struct ComparisonOptions {
+    pub value: ValueCompareOptions,
+    pub formula: FormulaCompareMode,
+    /// Whether the formula's cached value is compared as a value change.
+    pub include_formula_cached_values: bool,
+}
+
+impl Default for ComparisonOptions {
+    fn default() -> Self {
+        Self {
+            value: ValueCompareOptions::default(),
+            formula: FormulaCompareMode::default(),
+            include_formula_cached_values: true,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Sheet matching (RFC-009)
+// ---------------------------------------------------------------------------
+
+/// How sheets are paired between the two workbooks.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum SheetMatchingMode {
+    /// Pair only sheets with the same name; others are Added/Removed.
+    ExactNameOnly,
+    /// Exact name first; then detect a rename when exactly one unmatched old and
+    /// one unmatched new sheet remain and confidence is sufficient.  Default.
+    #[default]
+    ExactNameThenConservativeRename,
+    /// Exact name first; then try pairing by sheet index.
+    ExactNameThenIndex,
+}
+
+/// Row/column alignment mode (RFC-011).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum AlignmentMode {
+    /// Positional (row N on old vs row N on new).  Default.
+    #[default]
+    Positional,
+    // Future RFC-011 modes go here.
+}
+
+/// Options controlling sheet matching and cell alignment.
+#[derive(Clone, Debug, Default)]
+pub struct MatchingOptions {
+    pub sheet_matching: SheetMatchingMode,
+    pub alignment: AlignmentMode,
+}
+
+// ---------------------------------------------------------------------------
+// Limits (RFC-012 / RFC-033 §10)
+// ---------------------------------------------------------------------------
+
+/// Resource bounds that protect against pathological workbooks.
+///
+/// `None` means no limit on that dimension.
+#[derive(Clone, Debug, Default)]
+pub struct Limits {
+    pub max_sheets: Option<u32>,
+    pub max_cells_read: Option<u64>,
+    pub max_cells_compared: Option<u64>,
+    pub max_diffs_returned: Option<u64>,
+}
+
+// ---------------------------------------------------------------------------
+// Progress and cancellation (RFC-012)
+// ---------------------------------------------------------------------------
+
+/// An event emitted during a comparison for progress reporting.
+#[derive(Clone, Debug)]
+pub enum DiffEvent {
+    Started,
+    OpeningWorkbook { side: crate::model::Side },
+    WorkbookOpened { side: crate::model::Side, sheet_count: usize },
+    MatchingSheets,
+    SheetStarted { index: usize, total: usize, name: String },
+    SheetFinished { index: usize, changed_cells: usize },
+    Finished,
+}
+
+/// Trait for receiving progress events.
+///
+/// A blanket impl covers any `FnMut(DiffEvent) + Send` closure, so callers can
+/// pass a bare closure at call sites without boilerplate (RFC-012).
+pub trait ProgressSink: Send {
+    fn on_event(&mut self, event: DiffEvent);
+}
+
+impl<F: FnMut(DiffEvent) + Send> ProgressSink for F {
+    fn on_event(&mut self, event: DiffEvent) {
+        self(event);
+    }
+}
+
+/// Trait for cancellation predicates.
+pub trait Cancellation: Send + Sync {
+    fn is_cancelled(&self) -> bool;
+}
+
+impl<F: Fn() -> bool + Send + Sync> Cancellation for F {
+    fn is_cancelled(&self) -> bool {
+        self()
+    }
+}
+
+/// Execution-mode configuration.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum ExecutionMode {
+    /// Single-threaded, deterministic.  Default.
+    #[default]
+    Sequential,
+    // Parallel added by RFC-025.
+}
+
+/// Execution, progress, and cancellation options.
+pub struct ExecutionOptions {
+    pub progress: Option<Box<dyn ProgressSink>>,
+    pub cancellation: Option<Box<dyn Cancellation>>,
+    pub mode: ExecutionMode,
+}
+
+impl Default for ExecutionOptions {
+    fn default() -> Self {
+        Self {
+            progress: None,
+            cancellation: None,
+            mode: ExecutionMode::default(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Diagnostic options
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Debug, Default)]
+pub struct DiagnosticOptions {
+    /// Minimum severity to collect.  Defaults to `Info` (collect everything).
+    pub min_severity: Option<crate::model::Severity>,
+}
+
+// ---------------------------------------------------------------------------
+// Output options
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Debug, Default)]
+pub struct OutputOptions {
+    // Future fields: number format display policy, locale hints, etc.
+}
+
+// ---------------------------------------------------------------------------
+// DiffOptions — grouped tree (RFC-033 §11)
+// ---------------------------------------------------------------------------
+
+/// The top-level configuration entry point for a v2 comparison.
+///
+/// Construct via `DiffOptions::default()` or `DiffOptions::builder()`.
+pub struct DiffOptions {
+    pub comparison: ComparisonOptions,
+    pub matching: MatchingOptions,
+    pub limits: Limits,
+    pub execution: ExecutionOptions,
+    pub diagnostics: DiagnosticOptions,
+    pub output: OutputOptions,
+}
+
+impl Default for DiffOptions {
+    fn default() -> Self {
+        Self {
+            comparison: ComparisonOptions::default(),
+            matching: MatchingOptions::default(),
+            limits: Limits::default(),
+            execution: ExecutionOptions::default(),
+            diagnostics: DiagnosticOptions::default(),
+            output: OutputOptions::default(),
+        }
+    }
+}
+
+impl DiffOptions {
+    pub fn builder() -> DiffOptionsBuilder {
+        DiffOptionsBuilder::new()
+    }
+
+    /// Validate option combinations before I/O begins.
+    pub(crate) fn validate(&self) -> Result<(), SheetsDiffError> {
+        // NormalizedText requires a normaliser; none exists in v2.0.
+        if self.comparison.formula == FormulaCompareMode::NormalizedText
+            || self.comparison.formula == FormulaCompareMode::RawAndNormalized
+        {
+            return Err(SheetsDiffError::InvalidOptions {
+                detail: "FormulaCompareMode::NormalizedText / RawAndNormalized is not \
+                         available in v2.0; no formula normaliser is implemented yet"
+                    .into(),
+            });
+        }
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Builder
+// ---------------------------------------------------------------------------
+
+/// Fluent builder for `DiffOptions`.
+///
+/// Call `.build()` to validate the combination and obtain a `DiffOptions`.
+#[derive(Default)]
+pub struct DiffOptionsBuilder {
+    opts: DiffOptions,
+}
+
+impl DiffOptionsBuilder {
+    pub fn new() -> Self {
+        Self { opts: DiffOptions::default() }
+    }
+
+    // Comparison
+
+    pub fn formula_compare(mut self, mode: FormulaCompareMode) -> Self {
+        self.opts.comparison.formula = mode;
+        self
+    }
+
+    pub fn include_formula_cached_values(mut self, yes: bool) -> Self {
+        self.opts.comparison.include_formula_cached_values = yes;
+        self
+    }
+
+    pub fn number_compare(mut self, policy: NumberComparePolicy) -> Self {
+        self.opts.comparison.value.number = policy;
+        self
+    }
+
+    pub fn numeric_type_policy(mut self, policy: NumericTypePolicy) -> Self {
+        self.opts.comparison.value.numeric_type = policy;
+        self
+    }
+
+    pub fn type_mismatch_policy(mut self, policy: TypeMismatchPolicy) -> Self {
+        self.opts.comparison.value.type_mismatch = policy;
+        self
+    }
+
+    // Matching
+
+    pub fn sheet_matching(mut self, mode: SheetMatchingMode) -> Self {
+        self.opts.matching.sheet_matching = mode;
+        self
+    }
+
+    // Limits
+
+    pub fn max_sheets(mut self, n: u32) -> Self {
+        self.opts.limits.max_sheets = Some(n);
+        self
+    }
+
+    pub fn max_cells_compared(mut self, n: u64) -> Self {
+        self.opts.limits.max_cells_compared = Some(n);
+        self
+    }
+
+    pub fn max_diffs_returned(mut self, n: u64) -> Self {
+        self.opts.limits.max_diffs_returned = Some(n);
+        self
+    }
+
+    // Execution
+
+    pub fn progress<S: ProgressSink + 'static>(mut self, sink: S) -> Self {
+        self.opts.execution.progress = Some(Box::new(sink));
+        self
+    }
+
+    pub fn cancellation<C: Cancellation + 'static>(mut self, token: C) -> Self {
+        self.opts.execution.cancellation = Some(Box::new(token));
+        self
+    }
+
+    /// Validate and return the built options.
+    pub fn build(self) -> Result<DiffOptions, SheetsDiffError> {
+        self.opts.validate()?;
+        Ok(self.opts)
+    }
+}

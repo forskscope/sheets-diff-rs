@@ -1,0 +1,600 @@
+//! Public result data model.
+//!
+//! All types here are normatively defined in RFC-033.  This module owns
+//! construction and the summary / change-kind derivation logic; the field
+//! shapes are fixed by the canonical lexicon.
+
+use std::fmt;
+
+#[cfg(feature = "serde")]
+use serde::Serialize;
+
+use crate::address::{CellAddress, ComparedRange};
+
+// ---------------------------------------------------------------------------
+// Side
+// ---------------------------------------------------------------------------
+
+/// Which workbook of the pair a piece of data refers to.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub enum Side {
+    Old,
+    New,
+}
+
+impl fmt::Display for Side {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Side::Old => f.write_str("old"),
+            Side::New => f.write_str("new"),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Source description
+// ---------------------------------------------------------------------------
+
+/// What kind of input source a workbook came from.
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub enum SourceKind {
+    Path,
+    Bytes,
+    Reader,
+    Unknown,
+}
+
+/// Caller-visible description of a workbook input source.
+///
+/// `display_name` is never an absolute path unless the caller explicitly
+/// provided it as such.
+#[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct SourceDescription {
+    pub kind: SourceKind,
+    pub display_name: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
+// Per-side workbook metadata
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct WorkbookSideInfo {
+    pub source: SourceDescription,
+    pub workbook_name: Option<String>,
+    pub sheet_count: usize,
+}
+
+// ---------------------------------------------------------------------------
+// Sheet identity
+// ---------------------------------------------------------------------------
+
+/// A reference to a specific sheet in one workbook.
+///
+/// `index` is **0-based** workbook order (as returned by calamine).
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct SheetRef {
+    pub name: String,
+    pub index: usize,
+}
+
+// ---------------------------------------------------------------------------
+// Sheet change classification (RFC-009 / RFC-033 §6)
+// ---------------------------------------------------------------------------
+
+/// How confident the sheet-matching algorithm is about a non-exact pairing.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub enum MatchConfidence {
+    Exact,
+    High,
+    Medium,
+    Low,
+}
+
+/// The reason a non-exact sheet pair was formed.
+#[non_exhaustive]
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub enum SheetMatchReason {
+    ExactName,
+    IndexAndContent,
+    ContentSimilarity,
+}
+
+/// How a sheet pair was classified.
+///
+/// Names and indices live in `SheetDiff.old_sheet` / `SheetDiff.new_sheet`;
+/// they are **not** duplicated inside the variant payloads.
+#[non_exhaustive]
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub enum SheetChange {
+    /// Name-matched, index unchanged, no cell differences.
+    Unchanged,
+    /// Name-matched (or rename-matched), has cell differences.
+    Modified,
+    /// New sheet with no counterpart in the old workbook.
+    Added,
+    /// Old sheet with no counterpart in the new workbook.
+    Removed,
+    /// Name-matched, but the tab index moved between the two workbooks.
+    Moved,
+    /// Name changed; heuristically matched.
+    Renamed { confidence: MatchConfidence, reason: SheetMatchReason },
+    /// Both renamed and moved.
+    RenamedAndMoved { confidence: MatchConfidence, reason: SheetMatchReason },
+}
+
+// ---------------------------------------------------------------------------
+// CellValue and components (RFC-007 / RFC-033 §2–§3)
+// ---------------------------------------------------------------------------
+
+/// Spreadsheet-serial date/time value captured from calamine.
+///
+/// `serial` is the Excel date serial (days since 1900-01-00 or 1904-01-01).
+/// `is_1904` distinguishes the two date systems.
+/// `iso` is populated when calamine provides an ISO string directly or when the
+/// `chrono` feature can synthesize one.
+#[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct CellDateTime {
+    pub serial: f64,
+    pub is_1904: bool,
+    pub kind: DateTimeKind,
+    pub iso: Option<String>,
+}
+
+/// Whether an Excel date serial represents a date, time, or datetime.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub enum DateTimeKind {
+    DateTime,
+    Date,
+    Time,
+}
+
+/// Spreadsheet-serial duration value (ISO 8601 duration string when available).
+#[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct CellDuration {
+    pub serial: f64,
+    pub iso: Option<String>,
+}
+
+/// Typed spreadsheet cell error.
+///
+/// Maps 1-to-1 with calamine's `CellErrorType`; `Other` handles forward-compat.
+#[non_exhaustive]
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub enum CellError {
+    Div0,
+    NA,
+    Name,
+    Null,
+    Num,
+    Ref,
+    Value,
+    GettingData,
+    Other(String),
+}
+
+impl fmt::Display for CellError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CellError::Div0 => f.write_str("#DIV/0!"),
+            CellError::NA => f.write_str("#N/A"),
+            CellError::Name => f.write_str("#NAME?"),
+            CellError::Null => f.write_str("#NULL!"),
+            CellError::Num => f.write_str("#NUM!"),
+            CellError::Ref => f.write_str("#REF!"),
+            CellError::Value => f.write_str("#VALUE!"),
+            CellError::GettingData => f.write_str("#GETTING_DATA"),
+            CellError::Other(s) => write!(f, "#{s}"),
+        }
+    }
+}
+
+/// Typed representation of a spreadsheet cell value (RFC-033 §2).
+///
+/// `Integer` and `Number` are kept distinct (reflecting calamine's `Data::Int`
+/// / `Data::Float`).  Default comparison treats `Integer(1)` vs `Number(1.0)`
+/// as a `TypeChanged` difference; cross-type numeric equality is opt-in
+/// (RFC-019).
+#[non_exhaustive]
+#[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub enum CellValue {
+    Empty,
+    Text(String),
+    Integer(i64),
+    Number(f64),
+    Bool(bool),
+    DateTime(CellDateTime),
+    Duration(CellDuration),
+    Error(CellError),
+    Unsupported { display: String, reason: String },
+}
+
+impl CellValue {
+    /// A human-readable display string.  For use in reports only; never used
+    /// as an equality key.
+    pub fn display_string(&self) -> String {
+        match self {
+            CellValue::Empty => String::new(),
+            CellValue::Text(s) => s.clone(),
+            CellValue::Integer(i) => i.to_string(),
+            CellValue::Number(f) => f.to_string(),
+            CellValue::Bool(b) => b.to_string(),
+            CellValue::DateTime(dt) => {
+                dt.iso.clone().unwrap_or_else(|| dt.serial.to_string())
+            }
+            CellValue::Duration(d) => {
+                d.iso.clone().unwrap_or_else(|| d.serial.to_string())
+            }
+            CellValue::Error(e) => e.to_string(),
+            CellValue::Unsupported { display, .. } => display.clone(),
+        }
+    }
+
+    /// True if the value is `Empty`.
+    pub fn is_empty(&self) -> bool {
+        matches!(self, CellValue::Empty)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Cell change model (RFC-010 / RFC-033 §5)
+// ---------------------------------------------------------------------------
+
+/// Why two `CellValue`s were considered different.
+#[non_exhaustive]
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub enum ValueDifferenceKind {
+    /// The Rust enum variant changed (e.g. `Integer` → `Number`).
+    TypeChanged,
+    /// Same type, different content.
+    ContentChanged,
+    /// Same float type, outside the configured tolerance.
+    NumericOutsideTolerance,
+    /// Date/time serial or kind changed.
+    DateTimeChanged,
+    /// `CellError` variant changed.
+    ErrorKindChanged,
+    /// Compared as display strings (opt-in policy); strings differed.
+    DisplayStringChanged,
+}
+
+/// A value-layer change at one cell address.
+#[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct ValueChange {
+    pub old: CellValue,
+    pub new: CellValue,
+    pub reason: ValueDifferenceKind,
+}
+
+/// A formula's text, with an optional normalised form.
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct FormulaText {
+    pub raw: String,
+    /// `None` unless the `NormalizedText` formula-compare mode is enabled and
+    /// a normaliser is available (RFC-018).
+    pub normalized: Option<String>,
+}
+
+/// A formula-layer change at one cell address.
+///
+/// `None` in `old` or `new` means the formula was added or removed.
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct FormulaChange {
+    pub old: Option<FormulaText>,
+    pub new: Option<FormulaText>,
+}
+
+/// Reserved for RFC-022 (style/format diffs).  Always `None` in v2.0.
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct FormatChange {
+    // Fields added in v2.x once RFC-022 is implemented.
+}
+
+/// Derived classification of a `CellDiff` entry.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub enum CellChangeKind {
+    Added,
+    Removed,
+    Modified,
+}
+
+/// A merged per-cell diff entry (RFC-033 §5).
+///
+/// One `CellDiff` per logical address.  Value and formula changes are
+/// independent sub-fields.  `change_kind()` is derived, not stored.
+#[non_exhaustive]
+#[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct CellDiff {
+    pub address: CellAddress,
+    pub value: Option<ValueChange>,
+    pub formula: Option<FormulaChange>,
+    /// Reserved until RFC-022.
+    pub format: Option<FormatChange>,
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+impl CellDiff {
+    /// Derive Added / Removed / Modified from the sub-change fields.
+    ///
+    /// - **Added**: every present sub-change has `old == None`.
+    /// - **Removed**: every present sub-change has `new == None`.
+    /// - **Modified**: otherwise.
+    pub fn change_kind(&self) -> CellChangeKind {
+        let has_old = self.value.as_ref().map(|v| !v.old.is_empty()).unwrap_or(false)
+            || self.formula.as_ref().map(|f| f.old.is_some()).unwrap_or(false);
+        let has_new = self.value.as_ref().map(|v| !v.new.is_empty()).unwrap_or(false)
+            || self.formula.as_ref().map(|f| f.new.is_some()).unwrap_or(false);
+        match (has_old, has_new) {
+            (false, true) => CellChangeKind::Added,
+            (true, false) => CellChangeKind::Removed,
+            _ => CellChangeKind::Modified,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Diagnostics (RFC-005 / RFC-033 §8)
+// ---------------------------------------------------------------------------
+
+/// Severity of a diagnostic entry.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub enum Severity {
+    Info,
+    Warning,
+    Error,
+}
+
+/// Which processing stage emitted a diagnostic.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub enum DiffStage {
+    Open,
+    Metadata,
+    Match,
+    Read,
+    Normalize,
+    Compare,
+    Aggregate,
+}
+
+/// Location context attached to a diagnostic.
+#[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct DiagnosticLocation {
+    pub stage: DiffStage,
+    /// 0-based sheet order (workbook index), if applicable.
+    pub sheet_order: Option<usize>,
+    pub sheet_name: Option<String>,
+    pub address: Option<CellAddress>,
+}
+
+/// Structured diagnostic kind.
+///
+/// `code()` returns a stable string identifier for serde / localisation;
+/// it is never renamed within a major version.
+#[non_exhaustive]
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub enum DiagnosticKind {
+    FormulaUnavailable,
+    FormulaCachedValueUnverified,
+    AmbiguousSheetMatch { candidates: Vec<SheetRef> },
+    UnsupportedCellValue { detail: String },
+    UnsupportedWorkbookFeature { feature: String },
+    UnsupportedWorkbookMetadata { category: String },
+    DefinedNameScopeUnknown,
+    DateTimeNotNormalized,
+    LimitTruncatedCells { limit: String, observed: u64 },
+}
+
+impl DiagnosticKind {
+    /// Stable code string, safe to match in downstream code and serialised
+    /// JSON.
+    pub fn code(&self) -> &'static str {
+        match self {
+            DiagnosticKind::FormulaUnavailable => "formula_unavailable",
+            DiagnosticKind::FormulaCachedValueUnverified => "formula_cached_value_unverified",
+            DiagnosticKind::AmbiguousSheetMatch { .. } => "ambiguous_sheet_match",
+            DiagnosticKind::UnsupportedCellValue { .. } => "unsupported_cell_value",
+            DiagnosticKind::UnsupportedWorkbookFeature { .. } => "unsupported_workbook_feature",
+            DiagnosticKind::UnsupportedWorkbookMetadata { .. } => "unsupported_workbook_metadata",
+            DiagnosticKind::DefinedNameScopeUnknown => "defined_name_scope_unknown",
+            DiagnosticKind::DateTimeNotNormalized => "datetime_not_normalized",
+            DiagnosticKind::LimitTruncatedCells { .. } => "limit_truncated_cells",
+        }
+    }
+}
+
+/// A single structured diagnostic entry.
+#[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct Diagnostic {
+    pub severity: Severity,
+    pub kind: DiagnosticKind,
+    pub location: DiagnosticLocation,
+    /// Human-readable message — for display only, not for programmatic matching.
+    pub message: String,
+}
+
+// ---------------------------------------------------------------------------
+// Summary types
+// ---------------------------------------------------------------------------
+
+/// Per-sheet summary counts.
+#[derive(Clone, Default, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct SheetSummary {
+    pub cells_changed: usize,
+    pub values_changed: usize,
+    pub formulas_changed: usize,
+}
+
+/// Diagnostic counts rolled up at any level.
+#[derive(Clone, Default, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct DiagnosticSummary {
+    pub errors: usize,
+    pub warnings: usize,
+    pub info: usize,
+}
+
+/// Top-level workbook diff summary.
+#[derive(Clone, Default, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct DiffSummary {
+    pub sheets_added: usize,
+    pub sheets_removed: usize,
+    pub sheets_renamed: usize,
+    pub sheets_moved: usize,
+    pub sheets_changed: usize,
+    pub cells_changed: usize,
+    pub values_changed: usize,
+    pub formulas_changed: usize,
+    pub diagnostics: DiagnosticSummary,
+}
+
+// ---------------------------------------------------------------------------
+// SheetDiff
+// ---------------------------------------------------------------------------
+
+/// Reserved field for RFC-011 (row/column alignment summaries).
+#[non_exhaustive]
+#[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct AlignmentSummary {
+    // Fields added when RFC-011 is implemented.
+}
+
+/// The diff result for one logical sheet pair.
+#[non_exhaustive]
+#[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct SheetDiff {
+    /// The sheet on the old side (`None` for Added sheets).
+    pub old_sheet: Option<SheetRef>,
+    /// The sheet on the new side (`None` for Removed sheets).
+    pub new_sheet: Option<SheetRef>,
+    pub change: SheetChange,
+    /// Cell diffs sorted by `(row, col)`.
+    pub cell_diffs: Vec<CellDiff>,
+    pub compared_range: ComparedRange,
+    /// Reserved until RFC-011.
+    pub alignment_summary: Option<AlignmentSummary>,
+    pub diagnostics: Vec<Diagnostic>,
+    pub summary: SheetSummary,
+}
+
+// ---------------------------------------------------------------------------
+// Workbook-level change placeholders (RFC-021/023, reserved in v2.0)
+// ---------------------------------------------------------------------------
+
+/// Reserved for RFC-021 (workbook metadata diffs).  Always empty in v2.0.
+#[non_exhaustive]
+#[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct WorkbookChange {
+    // Populated by RFC-021 implementation.
+}
+
+/// Reserved for RFC-023 (non-cell object diffs).  Always empty in v2.0.
+#[non_exhaustive]
+#[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct WorkbookObjectChange {
+    // Populated by RFC-023 implementation.
+}
+
+// ---------------------------------------------------------------------------
+// Top-level result (RFC-033 §12)
+// ---------------------------------------------------------------------------
+
+/// The complete diff result for a workbook pair.
+///
+/// `workbook_changes` and `object_changes` are reserved for RFC-021/023 (v2.1+)
+/// and are always empty in v2.0.  Because the struct is `#[non_exhaustive]` and
+/// read-only for application code, those fields can be populated additively.
+#[non_exhaustive]
+#[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct WorkbookDiff {
+    pub old: WorkbookSideInfo,
+    pub new: WorkbookSideInfo,
+    /// Sheet diffs in old-workbook sheet order (then new-workbook order for
+    /// added sheets).
+    pub sheets: Vec<SheetDiff>,
+    /// Reserved; empty until RFC-021.
+    pub workbook_changes: Vec<WorkbookChange>,
+    /// Reserved; empty until RFC-023.
+    pub object_changes: Vec<WorkbookObjectChange>,
+    pub diagnostics: Vec<Diagnostic>,
+    pub summary: DiffSummary,
+}
+
+// ---------------------------------------------------------------------------
+// Summary derivation helpers
+// ---------------------------------------------------------------------------
+
+impl WorkbookDiff {
+    pub(crate) fn derive_summary(sheets: &[SheetDiff], diagnostics: &[Diagnostic]) -> DiffSummary {
+        let mut s = DiffSummary::default();
+        for sd in sheets {
+            match sd.change {
+                SheetChange::Added => s.sheets_added += 1,
+                SheetChange::Removed => s.sheets_removed += 1,
+                SheetChange::Renamed { .. } => {
+                    s.sheets_renamed += 1;
+                    if !sd.cell_diffs.is_empty() {
+                        s.sheets_changed += 1;
+                    }
+                }
+                SheetChange::RenamedAndMoved { .. } => {
+                    s.sheets_renamed += 1;
+                    s.sheets_moved += 1;
+                    if !sd.cell_diffs.is_empty() {
+                        s.sheets_changed += 1;
+                    }
+                }
+                SheetChange::Moved => {
+                    s.sheets_moved += 1;
+                    if !sd.cell_diffs.is_empty() {
+                        s.sheets_changed += 1;
+                    }
+                }
+                SheetChange::Modified => s.sheets_changed += 1,
+                SheetChange::Unchanged => {}
+            }
+            s.cells_changed += sd.summary.cells_changed;
+            s.values_changed += sd.summary.values_changed;
+            s.formulas_changed += sd.summary.formulas_changed;
+        }
+        for d in diagnostics {
+            match d.severity {
+                Severity::Error => s.diagnostics.errors += 1,
+                Severity::Warning => s.diagnostics.warnings += 1,
+                Severity::Info => s.diagnostics.info += 1,
+            }
+        }
+        s
+    }
+}

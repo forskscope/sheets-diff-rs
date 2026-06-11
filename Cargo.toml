@@ -1,38 +1,51 @@
 [package]
 name = "sheets-diff"
-version = "1.2.0"
+version = "2.0.0"
 edition = "2024"
+rust-version = "1.85.0"
 
-description = "Collect diff between office sheets"
+description = "Structured diff engine for Microsoft Excel .xlsx workbooks"
 authors = ["nabbisen"]
 license = "Apache-2.0"
 
-categories = ["development-tools", "command-line-utilities", "parsing", "data-structures"]
-keywords = ["excel", "xlsx", "compare", "diff", "cli"]
+categories = ["development-tools", "parsing", "data-structures"]
+keywords = ["excel", "xlsx", "spreadsheet", "diff", "compare"]
 repository = "https://github.com/nabbisen/sheets-diff-rs"
 readme = "README.md"
-rust-version = "1.85.0"
 
-[profile.release]     # shrink executable size
+[profile.release]
 opt-level = "z"
 lto = true
-# panic = "abort"
 strip = true
 codegen-units = 1
 
-[profile.dev]         # to reasonably improve productivity
-opt-level = 1         # slightly optimize
-lto = false           # disable link-time optimizations
-# strip = "debuginfo" # reduce size
-# incremental = true
+[profile.dev]
+opt-level = 1
+lto = false
 
+# RFC-026: feature flags
+# - "serde": optional Serialize derives on public model types (Deserialize deferred)
+# - "chrono": optional ISO string synthesis for DateTime values from calamine serials
+# - "cli": pulls in clap for the binary; not needed by library consumers
 [features]
 default = []
-serde_derive = ["serde"]
+serde = ["dep:serde", "dep:serde_json"]
+chrono = ["dep:chrono", "calamine/chrono"]
+cli = ["dep:clap"]
+
+[[bin]]
+name = "sheets-diff"
+path = "src/main.rs"
+required-features = ["cli"]
 
 [dependencies]
-calamine = "0"
-serde = { version = "1", features = ["derive"], optional = true }
+# RFC-026: pin to 0.35 — API grounding for Data enum, ExcelDateTime, XlsxError::Password
+calamine = "0.35"
+serde     = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
+chrono    = { version = "0.4", optional = true }
+clap      = { version = "4", features = ["derive"], optional = true }
 
 [dev-dependencies]
 rust_xlsxwriter = "0"
+serde_json = "1"
