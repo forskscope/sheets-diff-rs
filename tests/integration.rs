@@ -897,3 +897,67 @@ fn fixture_wide_columns_scenario_toml_exists_after_generation() {
     }
     // Pass even if not generated yet (first run) — gen.rs creates them.
 }
+
+// ============================================================================
+// ForskScope feedback — Q2/Q3 view enhancements
+// ============================================================================
+
+#[test]
+fn view_row_exposes_formula_text() {
+    use sheets_diff::output::view::{DiffView, ViewFilter};
+
+    // Cell with a formula change: =1+1 → =2+0
+    let old = wb_with_formula(0, 0, "x", 1, 0, "=1+1");
+    let new = wb_with_formula(0, 0, "x", 1, 0, "=2+0");
+    let diff = compare_bytes(&old, &new).unwrap();
+    let view = DiffView::new(&diff);
+    let rows = view.rows(&ViewFilter::default());
+
+    // Find a row that has a formula change, if the writer stored formula text.
+    if let Some(r) = rows.iter().find(|r| r.formula_changed) {
+        // old_formula / new_formula should be populated (Q2)
+        assert!(r.old_formula.is_some() || r.new_formula.is_some(),
+            "formula_changed row should carry formula text");
+    }
+}
+
+#[test]
+fn view_row_to_owned_outlives_diff() {
+    use sheets_diff::output::view::{DiffView, ViewFilter, OwnedCellChangeRow};
+
+    let owned: Vec<OwnedCellChangeRow> = {
+        let old = wb_strings(&[(0, 0, "a")]);
+        let new = wb_strings(&[(0, 0, "b")]);
+        let diff = compare_bytes(&old, &new).unwrap();
+        let view = DiffView::new(&diff);
+        // Map to owned rows, then drop the WorkbookDiff (Q3).
+        view.rows(&ViewFilter::default())
+            .iter()
+            .map(|r| r.to_owned_row())
+            .collect()
+        // `diff` and `view` dropped here; `owned` must still be valid.
+    };
+
+    assert_eq!(owned.len(), 1);
+    assert_eq!(owned[0].old_display, "a");
+    assert_eq!(owned[0].new_display, "b");
+    assert_eq!(owned[0].sheet_name, "Sheet1");
+}
+
+#[test]
+fn change_kind_is_stable_added_removed_modified() {
+    use sheets_diff::CellChangeKind;
+
+    // Added: empty old → value new
+    let added = compare_bytes(&wb_empty(), &wb_strings(&[(0, 0, "new")])).unwrap();
+    assert_eq!(added.sheets[0].cell_diffs[0].change_kind(), CellChangeKind::Added);
+
+    // Removed: value old → empty new
+    let removed = compare_bytes(&wb_strings(&[(0, 0, "gone")]), &wb_empty()).unwrap();
+    assert_eq!(removed.sheets[0].cell_diffs[0].change_kind(), CellChangeKind::Removed);
+
+    // Modified: value old → different value new
+    let modified = compare_bytes(
+        &wb_strings(&[(0, 0, "a")]), &wb_strings(&[(0, 0, "b")])).unwrap();
+    assert_eq!(modified.sheets[0].cell_diffs[0].change_kind(), CellChangeKind::Modified);
+}

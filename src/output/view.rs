@@ -44,6 +44,7 @@ impl Default for ViewFilter {
 ///
 /// Ordering matches the canonical `(sheet_index, row, col)` sort.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct ChangeAnchor {
     pub sheet_index: usize,
     pub row: u32,
@@ -68,7 +69,51 @@ pub struct CellChangeRow<'a> {
     pub new_display: String,
     /// Whether a formula also changed on this cell.
     pub formula_changed: bool,
+    /// Old formula text, if a formula change is present (Q2: borrowed from the
+    /// underlying `CellDiff`, so GUI consumers need not reach into the raw model).
+    pub old_formula: Option<&'a str>,
+    /// New formula text, if a formula change is present.
+    pub new_formula: Option<&'a str>,
     /// Highest diagnostic severity attached to this cell.
+    pub max_severity: Option<Severity>,
+}
+
+impl<'a> CellChangeRow<'a> {
+    /// Convert this borrowed row into a fully owned [`OwnedCellChangeRow`]
+    /// (Q3: convenience for consumers whose model outlives the `WorkbookDiff`).
+    pub fn to_owned_row(&self) -> OwnedCellChangeRow {
+        OwnedCellChangeRow {
+            anchor: self.anchor.clone(),
+            sheet_name: self.sheet_name.to_owned(),
+            address: self.address.clone(),
+            change_kind: self.change_kind,
+            old_display: self.old_display.clone(),
+            new_display: self.new_display.clone(),
+            formula_changed: self.formula_changed,
+            old_formula: self.old_formula.map(|s| s.to_owned()),
+            new_formula: self.new_formula.map(|s| s.to_owned()),
+            max_severity: self.max_severity,
+        }
+    }
+}
+
+/// Fully owned counterpart to [`CellChangeRow`] (Q3).
+///
+/// All borrowed fields become owned (`String`, `CellAddress`), so the row can
+/// outlive the `WorkbookDiff` it was derived from. Produced by
+/// [`CellChangeRow::to_owned_row`].
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub struct OwnedCellChangeRow {
+    pub anchor: ChangeAnchor,
+    pub sheet_name: String,
+    pub address: CellAddress,
+    pub change_kind: CellChangeKind,
+    pub old_display: String,
+    pub new_display: String,
+    pub formula_changed: bool,
+    pub old_formula: Option<String>,
+    pub new_formula: Option<String>,
     pub max_severity: Option<Severity>,
 }
 
@@ -226,6 +271,15 @@ fn cell_to_row<'a>(
         .map(|d| d.severity)
         .max();
 
+    // Borrow formula text from the underlying change, if present (Q2).
+    let (old_formula, new_formula) = match &cd.formula {
+        Some(fc) => (
+            fc.old.as_ref().map(|t| t.raw.as_str()),
+            fc.new.as_ref().map(|t| t.raw.as_str()),
+        ),
+        None => (None, None),
+    };
+
     Some(CellChangeRow {
         anchor: ChangeAnchor {
             sheet_index,
@@ -238,6 +292,8 @@ fn cell_to_row<'a>(
         old_display,
         new_display,
         formula_changed: cd.formula.is_some(),
+        old_formula,
+        new_formula,
         max_severity,
     })
 }

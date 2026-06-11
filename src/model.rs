@@ -404,8 +404,16 @@ pub enum CellChangeKind {
 
 /// A merged per-cell diff entry (RFC-033 §5).
 ///
-/// One `CellDiff` per logical address.  Value and formula changes are
-/// independent sub-fields.  `change_kind()` is derived, not stored.
+/// **One `CellDiff` per logical address.** This is the intended consumer model:
+/// a value change and a formula change at the same address are *facets of one
+/// change*, carried in the independent `value` and `formula` sub-fields, not
+/// two separate entries. The `output::view::CellChangeRow` projection follows
+/// the same rule (one row per address, with `formula_changed` / `old_formula` /
+/// `new_formula` describing the formula facet). Consumers migrating from a
+/// per-facet model should collapse to one row per address rather than preserve
+/// the split.
+///
+/// `change_kind()` is derived from the sub-fields, not stored.
 #[non_exhaustive]
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
@@ -421,9 +429,13 @@ pub struct CellDiff {
 impl CellDiff {
     /// Derive Added / Removed / Modified from the sub-change fields.
     ///
-    /// - **Added**: every present sub-change has `old == None`.
-    /// - **Removed**: every present sub-change has `new == None`.
+    /// - **Added**: every present sub-change has an empty/absent `old` side.
+    /// - **Removed**: every present sub-change has an empty/absent `new` side.
     /// - **Modified**: otherwise.
+    ///
+    /// This derivation is **stable API**: the rule above will not change within
+    /// a major version, so downstream code may depend on it rather than
+    /// re-deriving presence classification from the sub-fields.
     pub fn change_kind(&self) -> CellChangeKind {
         let has_old = self.value.as_ref().map(|v| !v.old.is_empty()).unwrap_or(false)
             || self.formula.as_ref().map(|f| f.old.is_some()).unwrap_or(false);
@@ -494,8 +506,31 @@ pub enum DiagnosticKind {
 }
 
 impl DiagnosticKind {
-    /// Stable code string, safe to match in downstream code and serialised
+    /// Stable code string for this diagnostic kind.
+    ///
+    /// **These strings are the stable programmatic surface for diagnostics.**
+    /// Match on `code()` rather than on the `#[non_exhaustive]` enum variants:
+    /// new variants may be added in a minor release (which would break an
+    /// exhaustive `match` on the enum), but an existing code string is never
+    /// renamed within a major version. Codes also appear verbatim in serialised
     /// JSON.
+    ///
+    /// The complete set of codes in this major version:
+    ///
+    /// | Code | Meaning |
+    /// |---|---|
+    /// | `formula_unavailable` | A cell's formula text could not be read |
+    /// | `formula_cached_value_unverified` | A formula's cached value could not be verified |
+    /// | `ambiguous_sheet_match` | Sheet rename detection found more than one candidate |
+    /// | `unsupported_cell_value` | A cell value could not be normalised to a `CellValue` |
+    /// | `unsupported_workbook_feature` | A non-cell object/sheet type is present but not compared |
+    /// | `unsupported_workbook_metadata` | A defined-name / visibility / metadata change was detected |
+    /// | `defined_name_scope_unknown` | Defined-name scope is unavailable from the reader |
+    /// | `datetime_not_normalized` | A date/time value could not be normalised to ISO form |
+    /// | `limit_truncated_cells` | A configured cell limit truncated the comparison |
+    ///
+    /// New codes added in later minor versions will extend this table; existing
+    /// rows are stable.
     pub fn code(&self) -> &'static str {
         match self {
             DiagnosticKind::FormulaUnavailable => "formula_unavailable",
@@ -638,6 +673,25 @@ pub struct WorkbookObjectChange {
 /// `workbook_changes` and `object_changes` are reserved for RFC-021/023 (v2.1+)
 /// and are always empty in v2.0.  Because the struct is `#[non_exhaustive]` and
 /// read-only for application code, those fields can be populated additively.
+///
+/// # Extracting a lightweight summary
+///
+/// `summary` ([`DiffSummary`]), `metrics` ([`DiffMetrics`]), and each sheet's
+/// `change` ([`SheetChange`]) are all cheap, small, owned values. Memory-conscious
+/// consumers that only need counts and the sheet-change list can clone those out
+/// and drop the whole `WorkbookDiff` — including the potentially large
+/// `sheets[..].cell_diffs` vectors — at their adapter boundary:
+///
+/// ```no_run
+/// # use sheets_diff::compare_paths;
+/// let diff = compare_paths("a.xlsx", "b.xlsx")?;
+/// let summary = diff.summary.clone();        // cheap
+/// let metrics = diff.metrics.clone();        // cheap
+/// let sheet_changes: Vec<_> =
+///     diff.sheets.iter().map(|s| s.change.clone()).collect();
+/// drop(diff);                                 // releases all cell_diffs
+/// # Ok::<(), sheets_diff::SheetsDiffError>(())
+/// ```
 #[non_exhaustive]
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]

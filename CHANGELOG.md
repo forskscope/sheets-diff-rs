@@ -1,5 +1,34 @@
 # Changelog
 
+## [2.2.1] - 2026-06-11
+
+Additive response to integration feedback from ForskScope. No breaking changes.
+
+### Added
+
+- `output::view::CellChangeRow` now carries `old_formula: Option<&str>` and
+  `new_formula: Option<&str>`, borrowed from the underlying `CellDiff`. GUI
+  consumers can render formula changes without reaching past the view layer
+  into the raw model.
+- `output::view::OwnedCellChangeRow` — a fully owned counterpart to
+  `CellChangeRow`, plus `CellChangeRow::to_owned_row()`. Convenience for
+  consumers whose model outlives the `WorkbookDiff`.
+- `ChangeAnchor` now derives `serde::Serialize` (under the `serde` feature).
+
+### Documentation
+
+- `Cancellation` trait: added an `Arc<AtomicBool>` cancellation example and a
+  "Cancellation latency" section documenting that `is_cancelled()` is polled
+  once per sheet pair (not mid-sheet).
+- `DiagnosticKind::code()`: documented as the stable programmatic surface for
+  diagnostics, with a full table of the current code strings.
+- `CellDiff`: documented the "one `CellDiff` per address" consumer model and
+  confirmed `change_kind()`'s derivation as stable API.
+- `compare_paths`: documented that non-UTF-8 paths are fully supported with no
+  internal `to_str()`/`unwrap()` on the path.
+- `WorkbookDiff`: documented that `summary`, `metrics`, and the per-sheet
+  `change` list are cheap to extract so bulky `cell_diffs` can be dropped.
+
 ## [2.2.0] - 2026-06-11
 
 ### Added

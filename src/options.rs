@@ -209,6 +209,35 @@ impl<F: FnMut(DiffEvent) + Send> ProgressSink for F {
 }
 
 /// Trait for cancellation predicates.
+///
+/// A blanket impl covers any `Fn() -> bool + Send + Sync`, so the common case
+/// is a closure. The single most common adapter is an `Arc<AtomicBool>` shared
+/// with a GUI "Cancel" button:
+///
+/// ```
+/// use std::sync::Arc;
+/// use std::sync::atomic::{AtomicBool, Ordering};
+/// use sheets_diff::DiffOptions;
+///
+/// let cancel_flag = Arc::new(AtomicBool::new(false));
+/// let flag = cancel_flag.clone();
+/// let opts = DiffOptions::builder()
+///     .cancellation(move || flag.load(Ordering::Relaxed))
+///     .build()
+///     .unwrap();
+/// // Setting `cancel_flag` to true from another thread causes the next
+/// // cancellation check to abort the diff with `SheetsDiffError::Cancelled`.
+/// ```
+///
+/// # Cancellation latency
+///
+/// `is_cancelled()` is polled **once before each sheet pair** is processed.
+/// On a workbook with many sheets, cancellation is observed promptly. On a
+/// single very large sheet, cancellation is **not** observed mid-sheet in the
+/// current implementation — it fires before the next sheet begins. If you need
+/// sub-sheet cancellation latency for huge single-sheet workbooks, also set a
+/// `max_cells_read` / `max_cells_compared` bound so the diff returns within a
+/// predictable amount of work.
 pub trait Cancellation: Send + Sync {
     fn is_cancelled(&self) -> bool;
 }

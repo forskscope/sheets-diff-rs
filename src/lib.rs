@@ -142,6 +142,16 @@ use std::path::Path;
 /// Compare two workbooks given their filesystem paths.
 ///
 /// Uses [`DiffOptions::default()`].
+/// Compare two workbooks given their filesystem paths.
+///
+/// # Path handling
+///
+/// `old` and `new` accept any `AsRef<Path>`, and the raw `Path` is passed to
+/// `std::fs::read` unchanged — there is **no internal `to_str()`/`unwrap()` on
+/// the path**, so non-UTF-8 paths (common on Linux) are fully supported and
+/// never cause a panic. The only UTF-8-dependent step is the cosmetic
+/// `SourceDescription.display_name`, which is set to `None` for a non-UTF-8
+/// file name rather than failing.
 pub fn compare_paths(
     old: impl AsRef<Path>,
     new: impl AsRef<Path>,
