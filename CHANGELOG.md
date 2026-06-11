@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.1.0] - 2026-06-11
+
+### Added
+
+- **RFC-011 — Row alignment** (`AlignmentMode::RowKey`, `RowSignature`):
+  opt-in row matching by key columns or content signature to reduce
+  false-positive cascades after row insertions/deletions.
+  `SheetDiff.alignment_summary` is populated when alignment is active.
+- **RFC-021 — Workbook metadata diffs**: defined-name additions, removals, and
+  target changes are reported as `Info`-severity diagnostics in
+  `WorkbookDiff.diagnostics`. Sheet visibility changes are similarly reported.
+  Defined-name scope is unavailable in calamine 0.35; a
+  `DefinedNameScopeUnknown` diagnostic is attached when names are present.
+- **RFC-022 — Format comparison policy**: `FormatCompareMode` enum added to
+  `ComparisonOptions`. Selecting anything other than `Ignore` returns
+  `SheetsDiffError::InvalidOptions` — calamine 0.35 exposes no cell-style API
+  and the policy is honest about that.
+- **RFC-029 — GUI view adapters** (`output::view`): `DiffView`, `CellChangeRow`,
+  `SheetSummaryRow`, `ChangeAnchor`, `ViewFilter`. Framework-neutral borrowed
+  iterators for sheet-tree, flat change-list, and prev/next navigation.
+- `DiffOptionsBuilder::build_with_matching` convenience method.
+- `FormatCompareMode` re-exported from crate root.
+
 ## [2.0.1] - 2026-06-11
 
 ### Added

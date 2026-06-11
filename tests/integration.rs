@@ -6,6 +6,7 @@
 //!   progress/cancellation · output · serde
 
 mod support;
+use rust_xlsxwriter::Workbook;
 use support::*;
 
 use sheets_diff::{
@@ -592,4 +593,138 @@ fn large_workbook_limit_exceeded_cleanly() {
         compare_bytes_with_options(&old, &new, opts),
         Err(SheetsDiffError::LimitExceeded { .. })
     ));
+}
+
+// ============================================================================
+// v2.1 — RFC-011 alignment
+// ============================================================================
+
+#[test]
+fn row_key_alignment_reduces_cascade() {
+    use sheets_diff::options::{AlignmentMode, MatchingOptions};
+
+    // old: id1/val_a, id2/val_b, id3/val_c
+    // new: id1/val_a, id_new/val_x, id2/val_b, id3/val_c  (row inserted at position 2)
+    // Positional would report id2→id_new, id3→id2, nothing→id3 (3 false positives)
+    // RowKey should match id1↔id1, id2↔id2, id3↔id3 and report only id_new as inserted.
+    let old = {
+        let mut wb = Workbook::new();
+        let ws = wb.add_worksheet();
+        ws.write_string(0, 0, "id1").unwrap(); ws.write_string(0, 1, "val_a").unwrap();
+        ws.write_string(1, 0, "id2").unwrap(); ws.write_string(1, 1, "val_b").unwrap();
+        ws.write_string(2, 0, "id3").unwrap(); ws.write_string(2, 1, "val_c").unwrap();
+        wb.save_to_buffer().unwrap()
+    };
+    let new = {
+        let mut wb = Workbook::new();
+        let ws = wb.add_worksheet();
+        ws.write_string(0, 0, "id1").unwrap();    ws.write_string(0, 1, "val_a").unwrap();
+        ws.write_string(1, 0, "id_new").unwrap(); ws.write_string(1, 1, "val_x").unwrap();
+        ws.write_string(2, 0, "id2").unwrap();    ws.write_string(2, 1, "val_b").unwrap();
+        ws.write_string(3, 0, "id3").unwrap();    ws.write_string(3, 1, "val_c").unwrap();
+        wb.save_to_buffer().unwrap()
+    };
+
+    // Positional: all 3 data rows appear changed (cascade)
+    let pos_diff = compare_bytes(&old, &new).unwrap();
+    assert!(pos_diff.summary.cells_changed >= 3, "positional should show cascade");
+
+    // RowKey on column A (col index 1, 1-based): only id_new is truly new
+    let opts = DiffOptions::builder()
+        .build_with_matching(MatchingOptions {
+            sheet_matching: SheetMatchingMode::default(),
+            alignment: AlignmentMode::RowKey { columns: vec![1] },
+        })
+        .unwrap();
+    let aligned_diff = compare_bytes_with_options(&old, &new, opts).unwrap();
+    // With key alignment, val_a/val_b/val_c rows should NOT appear as changed.
+    assert!(
+        aligned_diff.summary.cells_changed < pos_diff.summary.cells_changed,
+        "aligned diff should report fewer changes than positional: aligned={}, positional={}",
+        aligned_diff.summary.cells_changed, pos_diff.summary.cells_changed
+    );
+    let sheet = &aligned_diff.sheets[0];
+    assert!(sheet.alignment_summary.is_some(), "alignment summary should be set");
+}
+
+// ============================================================================
+// v2.1 — RFC-029 view adapters
+// ============================================================================
+
+#[test]
+fn diff_view_rows_matches_cell_diffs() {
+    use sheets_diff::output::view::{DiffView, ViewFilter};
+
+    let old = wb_strings(&[(0, 0, "a"), (0, 1, "b")]);
+    let new = wb_strings(&[(0, 0, "x"), (0, 1, "b")]);
+    let diff = compare_bytes(&old, &new).unwrap();
+    let view = DiffView::new(&diff);
+    let rows = view.rows(&ViewFilter::default());
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].anchor.col, 1); // A1 column 1
+    assert_eq!(rows[0].old_display, "a");
+    assert_eq!(rows[0].new_display, "x");
+}
+
+#[test]
+fn diff_view_navigation() {
+    use sheets_diff::output::view::{DiffView, ViewFilter};
+
+    let old = wb_strings(&[(0, 0, "a"), (0, 1, "b"), (0, 2, "c")]);
+    let new = wb_strings(&[(0, 0, "x"), (0, 1, "y"), (0, 2, "z")]);
+    let diff = compare_bytes(&old, &new).unwrap();
+    let view = DiffView::new(&diff);
+    let filter = ViewFilter::default();
+
+    let first = view.first(&filter).unwrap();
+    assert_eq!(first.col, 1); // A1
+
+    let second = view.next_after(&first, &filter).unwrap();
+    assert_eq!(second.col, 2); // B1
+
+    let back = view.previous_before(&second, &filter).unwrap();
+    assert_eq!(back, first);
+}
+
+#[test]
+fn diff_view_filter_excludes_formulas() {
+    use sheets_diff::output::view::{DiffView, ViewFilter};
+
+    let old = wb_strings(&[(0, 0, "a")]);
+    let new = wb_strings(&[(0, 0, "b")]);
+    let diff = compare_bytes(&old, &new).unwrap();
+    let view = DiffView::new(&diff);
+
+    let mut filter = ViewFilter::default();
+    filter.include_values = false;
+    // With values excluded and no formula changes, should be empty.
+    assert_eq!(view.rows(&filter).len(), 0);
+}
+
+#[test]
+fn diff_view_sheet_summary() {
+    use sheets_diff::output::view::DiffView;
+
+    let old = wb_sheets(&[("S1", &[(0, 0, "a")]), ("S2", &[])]);
+    let new = wb_sheets(&[("S1", &[(0, 0, "b")]), ("S2", &[])]);
+    let diff = compare_bytes(&old, &new).unwrap();
+    let view = DiffView::new(&diff);
+    let sheets: Vec<_> = view.sheets().collect();
+    assert_eq!(sheets.len(), 2);
+    assert_eq!(sheets[0].name, "S1");
+    assert_eq!(sheets[0].cells_changed, 1);
+    assert_eq!(sheets[1].cells_changed, 0);
+}
+
+// ============================================================================
+// v2.1 — RFC-022 format mode validation
+// ============================================================================
+
+#[test]
+fn format_compare_non_ignore_returns_invalid_options() {
+    use sheets_diff::{DiffOptions, FormatCompareMode, SheetsDiffError};
+    let result = DiffOptions::builder()
+        .format_compare(FormatCompareMode::NumberFormatOnly)
+        .build();
+    assert!(matches!(result, Err(SheetsDiffError::InvalidOptions { .. })));
 }

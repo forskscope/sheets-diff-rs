@@ -76,6 +76,25 @@ pub struct ValueCompareOptions {
 }
 
 // ---------------------------------------------------------------------------
+// Format / style comparison (RFC-022)
+// ---------------------------------------------------------------------------
+
+/// Controls whether cell formatting (number format, font, fill, …) is compared.
+///
+/// Default is `Ignore` — calamine 0.35 does not expose a cell-style API, so
+/// `AllAvailable` emits an `UnsupportedWorkbookFeature` diagnostic at runtime.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum FormatCompareMode {
+    /// Ignore all formatting differences (default).
+    #[default]
+    Ignore,
+    /// Compare number-format strings only (future, requires style reader).
+    NumberFormatOnly,
+    /// Compare all available style fields (future, best-effort).
+    AllAvailable,
+}
+
+// ---------------------------------------------------------------------------
 // Comparison options
 // ---------------------------------------------------------------------------
 
@@ -86,6 +105,8 @@ pub struct ComparisonOptions {
     pub formula: FormulaCompareMode,
     /// Whether the formula's cached value is compared as a value change.
     pub include_formula_cached_values: bool,
+    /// Cell formatting comparison mode (RFC-022). Default: `Ignore`.
+    pub format: FormatCompareMode,
 }
 
 impl Default for ComparisonOptions {
@@ -94,6 +115,7 @@ impl Default for ComparisonOptions {
             value: ValueCompareOptions::default(),
             formula: FormulaCompareMode::default(),
             include_formula_cached_values: true,
+            format: FormatCompareMode::default(),
         }
     }
 }
@@ -116,12 +138,22 @@ pub enum SheetMatchingMode {
 }
 
 /// Row/column alignment mode (RFC-011).
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[allow(dead_code)]
+#[derive(Clone, Debug, Default)]
 pub enum AlignmentMode {
     /// Positional (row N on old vs row N on new).  Default.
     #[default]
     Positional,
-    // Future RFC-011 modes go here.
+    /// Match rows by the values in the specified key columns (1-based).
+    /// Reduces cascades after row insertion/deletion.
+    RowKey { columns: Vec<u32> },
+    /// Match rows by a hash of selected cell values (content similarity).
+    /// `sample_columns` limits which columns contribute to the signature;
+    /// `None` means all columns.
+    RowSignature { sample_columns: Option<Vec<u32>> },
+    /// Match rows using the first row as a column-header identity.
+    #[allow(dead_code)]
+    HeaderColumn,
 }
 
 /// Options controlling sheet matching and cell alignment.
@@ -278,6 +310,14 @@ impl DiffOptions {
                     .into(),
             });
         }
+        // Style comparison requires a calamine style reader not yet available.
+        if self.comparison.format != FormatCompareMode::Ignore {
+            return Err(SheetsDiffError::InvalidOptions {
+                detail: "FormatCompareMode other than Ignore is not available in v2; \
+                         calamine 0.35 does not expose a cell-style API"
+                    .into(),
+            });
+        }
         Ok(())
     }
 }
@@ -303,6 +343,11 @@ impl DiffOptionsBuilder {
 
     pub fn formula_compare(mut self, mode: FormulaCompareMode) -> Self {
         self.opts.comparison.formula = mode;
+        self
+    }
+
+    pub fn format_compare(mut self, mode: FormatCompareMode) -> Self {
+        self.opts.comparison.format = mode;
         self
     }
 
@@ -360,6 +405,13 @@ impl DiffOptionsBuilder {
     pub fn cancellation<C: Cancellation + 'static>(mut self, token: C) -> Self {
         self.opts.execution.cancellation = Some(Box::new(token));
         self
+    }
+
+    /// Build with a fully specified `MatchingOptions` (convenience for alignment tests).
+    pub fn build_with_matching(mut self, matching: MatchingOptions) -> Result<DiffOptions, SheetsDiffError> {
+        self.opts.matching = matching;
+        self.opts.validate()?;
+        Ok(self.opts)
     }
 
     /// Validate and return the built options.

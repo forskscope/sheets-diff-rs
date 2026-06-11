@@ -28,9 +28,11 @@
 // ---------------------------------------------------------------------------
 
 pub mod address;
+mod align;
 mod diff;
 mod error;
 mod matcher;
+mod meta;
 mod normalize;
 mod open;
 
@@ -108,6 +110,7 @@ pub use options::{
     DiffOptionsBuilder,
     ExecutionMode,
     ExecutionOptions,
+    FormatCompareMode,
     FormulaCompareMode,
     Limits,
     MatchingOptions,

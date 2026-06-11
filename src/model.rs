@@ -478,12 +478,17 @@ pub struct DiffSummary {
 // SheetDiff
 // ---------------------------------------------------------------------------
 
-/// Reserved field for RFC-011 (row/column alignment summaries).
+/// Summary of row-alignment decisions for a sheet pair (RFC-011).
+///
+/// `None` on `SheetDiff.alignment_summary` when mode is `Positional`.
 #[non_exhaustive]
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct AlignmentSummary {
-    // Fields added when RFC-011 is implemented.
+    pub inserted_rows: usize,
+    pub removed_rows: usize,
+    pub matched_rows: usize,
+    pub confidence: MatchConfidence,
 }
 
 /// The diff result for one logical sheet pair.

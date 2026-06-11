@@ -8,17 +8,19 @@ use std::io::{Read, Seek};
 use calamine::Reader;
 
 use crate::address::{CellAddress, ComparedRange};
+use crate::align::{AlignCellMap, compute_row_mapping};
 use crate::compare::{compare_formulas, compare_values};
 use crate::error::{LimitKind, SheetsDiffError};
 use crate::matcher::{MatchedPair, match_sheets};
+use crate::meta::compare_workbook_metadata;
 use crate::model::{
-    CellDiff, Diagnostic, DiagnosticKind, DiagnosticLocation, DiffStage, Severity,
-    SheetChange, SheetDiff, SheetRef, SheetSummary, Side,
+    AlignmentSummary, CellDiff, Diagnostic, DiagnosticKind, DiagnosticLocation,
+    DiffStage, Severity, SheetChange, SheetDiff, SheetRef, SheetSummary, Side,
     WorkbookDiff, WorkbookSideInfo,
 };
 use crate::normalize::normalize_cell_value;
 use crate::open::{OpenedWorkbook, open_bytes, open_path, open_reader};
-use crate::options::{DiffEvent, DiffOptions};
+use crate::options::{AlignmentMode, DiffEvent, DiffOptions};
 
 // ---------------------------------------------------------------------------
 // Internal normalised cell
@@ -30,6 +32,11 @@ struct NormalizedCell {
 }
 
 type CellMap = BTreeMap<(u32, u32), NormalizedCell>;
+
+/// Build a value-only map for alignment (avoids cloning formulas).
+fn cell_map_to_align(cells: &CellMap) -> AlignCellMap {
+    cells.iter().map(|(k, v)| (*k, v.value.clone())).collect()
+}
 
 // ---------------------------------------------------------------------------
 // Public pipeline entry points (called from lib.rs)
@@ -131,6 +138,10 @@ fn run_pipeline(
         &mut workbook_diagnostics,
     );
 
+    // Workbook metadata comparison (RFC-021)
+    let meta_changes = compare_workbook_metadata(&mut old_wb, &mut new_wb,
+        &opts, &mut workbook_diagnostics);
+
     // Process each sheet pair
     let total_sheets = matched.len();
     let mut sheet_diffs: Vec<SheetDiff> = Vec::with_capacity(total_sheets);
@@ -184,7 +195,7 @@ fn run_pipeline(
         old: old_info,
         new: new_info,
         sheets: sheet_diffs,
-        workbook_changes: Vec::new(),
+        workbook_changes: meta_changes,
         object_changes: Vec::new(),
         diagnostics: workbook_diagnostics,
         summary,
@@ -223,10 +234,45 @@ fn process_sheet_pair(
 
     let compared_range = ComparedRange::union(old_start, old_end, new_start, new_end);
 
-    // Union of coordinates from both sides (BTreeSet gives sorted (row,col) order).
+    // Alignment (RFC-011): compute row mapping if mode is not Positional.
+    let align_mapping = if !matches!(opts.matching.alignment, AlignmentMode::Positional) {
+        let old_align = cell_map_to_align(&old_map);
+        let new_align = cell_map_to_align(&new_map);
+        compute_row_mapping(&old_align, &new_align, &opts.matching.alignment,
+            opts.limits.max_cells_compared, &mut sheet_diag)
+    } else {
+        None
+    };
+
+    // Build the coordinate set, remapping new-side rows when aligned.
     let mut coords: std::collections::BTreeSet<(u32, u32)> = std::collections::BTreeSet::new();
-    coords.extend(old_map.keys().copied());
-    coords.extend(new_map.keys().copied());
+    if let Some(ref mapping) = align_mapping {
+        // Add matched pairs (using old coords as the canonical address).
+        for (old_row, new_row) in &mapping.matched {
+            let old_cols: Vec<u32> = old_map.keys()
+                .filter(|(r, _)| r == old_row).map(|(_, c)| *c).collect();
+            let new_cols: Vec<u32> = new_map.keys()
+                .filter(|(r, _)| r == new_row).map(|(_, c)| *c).collect();
+            for c in old_cols.iter().chain(new_cols.iter()) {
+                coords.insert((*old_row, *c));
+            }
+        }
+        // Removed rows — compare against empty new side.
+        for r in &mapping.removed {
+            for (_, c) in old_map.keys().filter(|(row, _)| row == r) {
+                coords.insert((*r, *c));
+            }
+        }
+        // Inserted rows — compare against empty old side.
+        for r in &mapping.inserted {
+            for (_, c) in new_map.keys().filter(|(row, _)| row == r) {
+                coords.insert((*r, *c));
+            }
+        }
+    } else {
+        coords.extend(old_map.keys().copied());
+        coords.extend(new_map.keys().copied());
+    }
 
     let mut cell_diffs: Vec<CellDiff> = Vec::new();
     let mut summary = SheetSummary::default();
@@ -252,7 +298,12 @@ fn process_sheet_pair(
         }
 
         let old_cell = old_map.get(&(row, col)).unwrap_or(&empty_cell);
-        let new_cell = new_map.get(&(row, col)).unwrap_or(&empty_cell);
+        // When aligned, look up the new cell using the remapped row.
+        let new_lookup_row = align_mapping.as_ref()
+            .and_then(|m| m.matched.get(&row))
+            .copied()
+            .unwrap_or(row);
+        let new_cell = new_map.get(&(new_lookup_row, col)).unwrap_or(&empty_cell);
 
         let value_change = compare_values(
             &old_cell.value,
@@ -312,7 +363,12 @@ fn process_sheet_pair(
         change,
         cell_diffs,
         compared_range,
-        alignment_summary: None,
+        alignment_summary: align_mapping.map(|m| AlignmentSummary {
+            inserted_rows: m.summary.inserted_rows,
+            removed_rows: m.summary.removed_rows,
+            matched_rows: m.summary.matched_rows,
+            confidence: m.summary.confidence,
+        }),
         diagnostics: sheet_diag,
         summary,
     })
