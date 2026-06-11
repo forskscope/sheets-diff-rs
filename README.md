@@ -21,9 +21,10 @@ text diff. Application developers get the data; they decide the presentation.
 - structured diagnostics and per-level summary counts;
 - deterministic ordering by sheet index, then `(row, col)`.
 
-**Supported format: `.xlsx` only.** `.xls`, `.ods`, `.xlsm`, CSV, and other
-formats are out of scope for v2. Passing a non-xlsx file returns a structured
-error, never a panic.
+**Current format support: `.xlsx`.** Other spreadsheet formats (`.ods`,
+`.xlsm`, …) may be added in future versions. Plain-text formats such as CSV
+and TSV are out of scope — diffs of text files are better served by dedicated
+text-diff tools.
 
 ## Why / When
 

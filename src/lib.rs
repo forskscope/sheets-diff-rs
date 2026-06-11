@@ -28,12 +28,13 @@
 // ---------------------------------------------------------------------------
 
 pub mod address;
-mod compare;
 mod diff;
 mod error;
 mod matcher;
 mod normalize;
 mod open;
+
+pub mod compare;
 
 // ---------------------------------------------------------------------------
 // Public modules

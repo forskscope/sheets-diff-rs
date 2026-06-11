@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.0.1] - 2026-06-11
+
+### Added
+
+- Expanded integration test corpus covering all RFC-015 fixture categories:
+  corrupt inputs, wide-column A1 encoding (A–XFD), typed-value distinctions,
+  formula handling, sheet rename/add/remove, empty and sparse ranges, resource
+  limits, progress events, cancellation, text output, and JSON output.
+- `tests/support.rs` — shared programmatic fixture builders.
+- `tests/fixtures/corrupt/not_a_zip.xlsx` — committed corrupt binary fixture.
+- `docs/src/migration/v1-to-v2.md` — migration guide (RFC-017): entry points,
+  sheet changes, cell value model, duplicate-address policy, errors,
+  diagnostics, text output, CLI exit codes, and a v1-style flattening helper.
+- `docs/src/SUMMARY.md` and `docs/src/README.md` — mdbook scaffolding.
+
+### Changed
+
+- `compare` module is now `pub` so integration tests can call
+  `compare_values_pub` directly; the function is `#[doc(hidden)]`.
+
 ## [2.0.0] - 2026-06-11
 
 Complete rewrite.  v2 is a structured, library-first `.xlsx` diff engine.

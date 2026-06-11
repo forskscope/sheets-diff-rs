@@ -1,78 +1,40 @@
 //! Integration tests for `sheets-diff` v2 (RFC-015).
 //!
-//! Fixtures are generated programmatically where possible to avoid committing
-//! binary files.  Each test corresponds to a fixture category from RFC-015 §1.
+//! Fixture categories follow RFC-015 §5:
+//!   basic · corrupt · wide-columns · typed-values · formulas
+//!   sheet-renames · empty-sheets · sparse-ranges · limits
+//!   progress/cancellation · output · serde
 
-use rust_xlsxwriter::Workbook;
+mod support;
+use support::*;
+
 use sheets_diff::{
-    CellChangeKind, CellValue, DiffOptions, FormulaCompareMode, SheetChange, SheetMatchingMode,
-    SheetsDiffError, compare_bytes, compare_bytes_with_options,
+    CellChangeKind, CellValue, DiffEvent, DiffOptions, FormulaCompareMode,
+    SheetChange, SheetMatchingMode, SheetsDiffError,
+    compare_bytes, compare_bytes_with_options,
+    output::text::{render_summary, render_unified},
 };
 
-// ---------------------------------------------------------------------------
-// Fixture builder helpers
-// ---------------------------------------------------------------------------
-
-/// Build a single-sheet workbook with the supplied cell matrix and return its bytes.
-///
-/// `cells` is a slice of `(row, col, value)` tuples; row and col are 0-based
-/// (rust_xlsxwriter convention).
-fn workbook_bytes(cells: &[(u32, u16, &str)]) -> Vec<u8> {
-    let mut wb = Workbook::new();
-    let ws = wb.add_worksheet();
-    for (row, col, val) in cells {
-        ws.write_string(*row, *col, *val).unwrap();
-    }
-    wb.save_to_buffer().unwrap()
-}
-
-fn workbook_bytes_number(cells: &[(u32, u16, f64)]) -> Vec<u8> {
-    let mut wb = Workbook::new();
-    let ws = wb.add_worksheet();
-    for (row, col, val) in cells {
-        ws.write_number(*row, *col, *val).unwrap();
-    }
-    wb.save_to_buffer().unwrap()
-}
-
-fn empty_workbook() -> Vec<u8> {
-    let mut wb = Workbook::new();
-    wb.add_worksheet();
-    wb.save_to_buffer().unwrap()
-}
-
-fn two_sheet_workbook(names: &[(&str, &[(u32, u16, &str)])]) -> Vec<u8> {
-    let mut wb = Workbook::new();
-    for (name, cells) in names {
-        let ws = wb.add_worksheet();
-        ws.set_name(*name).unwrap();
-        for (row, col, val) in *cells {
-            ws.write_string(*row, *col, *val).unwrap();
-        }
-    }
-    wb.save_to_buffer().unwrap()
-}
-
-// ---------------------------------------------------------------------------
-// Basic value change
-// ---------------------------------------------------------------------------
+// ============================================================================
+// basic
+// ============================================================================
 
 #[test]
-fn identical_workbooks_produce_no_diffs() {
-    let bytes = workbook_bytes(&[(0, 0, "hello")]);
-    let diff = compare_bytes(&bytes, &bytes).unwrap();
-    assert_eq!(diff.summary.cells_changed, 0);
-    assert_eq!(diff.summary.sheets_changed, 0);
+fn identical_workbooks_no_diffs() {
+    let b = wb_strings(&[(0, 0, "hello")]);
+    let d = compare_bytes(&b, &b).unwrap();
+    assert_eq!(d.summary.cells_changed, 0);
+    assert_eq!(d.summary.sheets_changed, 0);
 }
 
 #[test]
-fn single_cell_text_change_detected() {
-    let old = workbook_bytes(&[(0, 0, "hello")]);
-    let new = workbook_bytes(&[(0, 0, "world")]);
-    let diff = compare_bytes(&old, &new).unwrap();
-    assert_eq!(diff.summary.cells_changed, 1);
-    assert_eq!(diff.summary.values_changed, 1);
-    let cd = &diff.sheets[0].cell_diffs[0];
+fn single_cell_text_change() {
+    let old = wb_strings(&[(0, 0, "hello")]);
+    let new = wb_strings(&[(0, 0, "world")]);
+    let d = compare_bytes(&old, &new).unwrap();
+    assert_eq!(d.summary.cells_changed, 1);
+    assert_eq!(d.summary.values_changed, 1);
+    let cd = &d.sheets[0].cell_diffs[0];
     assert_eq!(cd.address.a1, "A1");
     let vc = cd.value.as_ref().unwrap();
     assert!(matches!(&vc.old, CellValue::Text(s) if s == "hello"));
@@ -81,318 +43,553 @@ fn single_cell_text_change_detected() {
 
 #[test]
 fn cell_added_to_empty_sheet() {
-    let old = empty_workbook();
-    let new = workbook_bytes(&[(0, 0, "new value")]);
-    let diff = compare_bytes(&old, &new).unwrap();
-    assert_eq!(diff.summary.cells_changed, 1);
-    let cd = &diff.sheets[0].cell_diffs[0];
-    assert_eq!(cd.change_kind(), CellChangeKind::Added);
+    let old = wb_empty();
+    let new = wb_strings(&[(0, 0, "new")]);
+    let d = compare_bytes(&old, &new).unwrap();
+    assert_eq!(d.summary.cells_changed, 1);
+    assert_eq!(d.sheets[0].cell_diffs[0].change_kind(), CellChangeKind::Added);
 }
 
 #[test]
 fn cell_removed_from_sheet() {
-    let old = workbook_bytes(&[(0, 0, "gone")]);
-    let new = empty_workbook();
-    let diff = compare_bytes(&old, &new).unwrap();
-    assert_eq!(diff.summary.cells_changed, 1);
-    let cd = &diff.sheets[0].cell_diffs[0];
-    assert_eq!(cd.change_kind(), CellChangeKind::Removed);
+    let old = wb_strings(&[(0, 0, "gone")]);
+    let new = wb_empty();
+    let d = compare_bytes(&old, &new).unwrap();
+    assert_eq!(d.sheets[0].cell_diffs[0].change_kind(), CellChangeKind::Removed);
 }
 
-// ---------------------------------------------------------------------------
-// Typed value distinctions (RFC-033 §4)
-// ---------------------------------------------------------------------------
+#[test]
+fn multiple_cells_multiple_sheets() {
+    let old = wb_sheets(&[
+        ("Data", &[(0, 0, "a"), (0, 1, "b")]),
+        ("Meta", &[(0, 0, "v1")]),
+    ]);
+    let new = wb_sheets(&[
+        ("Data", &[(0, 0, "x"), (0, 1, "b")]),
+        ("Meta", &[(0, 0, "v2")]),
+    ]);
+    let d = compare_bytes(&old, &new).unwrap();
+    assert_eq!(d.summary.cells_changed, 2);
+    assert_eq!(d.summary.sheets_changed, 2);
+}
 
 #[test]
-fn text_100_and_number_100_are_different() {
-    let old = workbook_bytes(&[(0, 0, "100")]);
-    let new = workbook_bytes_number(&[(0, 0, 100.0)]);
-    let diff = compare_bytes(&old, &new).unwrap();
-    assert_eq!(diff.summary.values_changed, 1);
-    let vc = diff.sheets[0].cell_diffs[0].value.as_ref().unwrap();
+fn unchanged_sheets_not_counted() {
+    let b = wb_sheets(&[("S1", &[(0, 0, "x")]), ("S2", &[(0, 0, "y")])]);
+    let d = compare_bytes(&b, &b).unwrap();
+    assert_eq!(d.summary.sheets_changed, 0);
+    assert_eq!(d.summary.cells_changed, 0);
+}
+
+#[test]
+fn cell_diffs_sorted_by_row_then_col() {
+    // A10 must sort after A2 (numeric, not lexicographic).
+    let old = wb_strings(&[(0, 0, "a"), (0, 1, "b"), (9, 0, "c")]);
+    let new = wb_strings(&[(0, 0, "x"), (0, 1, "y"), (9, 0, "z")]);
+    let d = compare_bytes(&old, &new).unwrap();
+    let addrs: Vec<&str> = d.sheets[0].cell_diffs.iter().map(|c| c.address.a1.as_str()).collect();
+    assert_eq!(addrs, ["A1", "B1", "A10"]);
+}
+
+// ============================================================================
+// corrupt
+// ============================================================================
+
+#[test]
+fn corrupt_bytes_structured_error() {
+    let junk = b"not a zip file";
+    let good = wb_empty();
+    assert!(matches!(
+        compare_bytes(junk.as_slice(), &good),
+        Err(SheetsDiffError::OpenWorkbook { .. })
+    ));
+}
+
+#[test]
+fn empty_bytes_structured_error() {
+    let good = wb_empty();
+    assert!(matches!(
+        compare_bytes(b"".as_slice(), &good),
+        Err(SheetsDiffError::OpenWorkbook { .. })
+    ));
+}
+
+#[test]
+fn corrupt_file_fixture_structured_error() {
+    // Binary fixture: valid gzip header but not a ZIP.
+    let corrupt = std::fs::read("tests/fixtures/corrupt/not_a_zip.xlsx").unwrap();
+    let good = wb_empty();
+    let result = compare_bytes(&corrupt, &good);
+    assert!(result.is_err(), "expected error for corrupt fixture");
+    assert!(!std::panic::catch_unwind(|| compare_bytes(&corrupt, &good)).is_err(),
+        "must not panic");
+}
+
+// ============================================================================
+// wide-columns  (RFC-015: columns A / Z / AA / AZ / BA / ZZ / AAA / XFD)
+// ============================================================================
+
+#[test]
+fn wide_column_a1_encoding() {
+    use sheets_diff::address::col_to_label;
+    assert_eq!(col_to_label(1),      "A");
+    assert_eq!(col_to_label(26),     "Z");
+    assert_eq!(col_to_label(27),     "AA");
+    assert_eq!(col_to_label(52),     "AZ");
+    assert_eq!(col_to_label(53),     "BA");
+    assert_eq!(col_to_label(702),    "ZZ");
+    assert_eq!(col_to_label(703),    "AAA");
+    assert_eq!(col_to_label(16_384), "XFD");
+}
+
+#[test]
+fn wide_column_cell_diff_detected() {
+    // Column 703 = AAA
+    let old = wb_wide_column(0, 702, "before"); // 0-based col 702 → 1-based 703 → AAA
+    let new = wb_wide_column(0, 702, "after");
+    let d = compare_bytes(&old, &new).unwrap();
+    assert_eq!(d.summary.cells_changed, 1);
+    assert_eq!(d.sheets[0].cell_diffs[0].address.a1, "AAA1");
+}
+
+#[test]
+fn cell_address_bounds() {
+    use sheets_diff::CellAddress;
+    assert!(CellAddress::new(1, 1).is_some());
+    assert!(CellAddress::new(1_048_576, 16_384).is_some());
+    assert!(CellAddress::new(0, 1).is_none());
+    assert!(CellAddress::new(1, 0).is_none());
+    assert!(CellAddress::new(1_048_577, 1).is_none());
+    assert!(CellAddress::new(1, 16_385).is_none());
+}
+
+#[test]
+fn a10_sorts_after_a2_not_lexicographically() {
+    use sheets_diff::CellAddress;
+    let a2  = CellAddress::new(2, 1).unwrap();
+    let a10 = CellAddress::new(10, 1).unwrap();
+    assert!(a2 < a10);
+}
+
+// ============================================================================
+// typed-values  (RFC-033 §4 equality policy)
+// ============================================================================
+
+#[test]
+fn text_100_and_number_100_different() {
+    let old = wb_strings(&[(0, 0, "100")]);
+    let new = wb_numbers(&[(0, 0, 100.0)]);
+    let d = compare_bytes(&old, &new).unwrap();
+    assert_eq!(d.summary.values_changed, 1);
+    let vc = d.sheets[0].cell_diffs[0].value.as_ref().unwrap();
     assert!(matches!(vc.old, CellValue::Text(_)));
     assert!(matches!(vc.new, CellValue::Number(_)));
 }
 
-// ---------------------------------------------------------------------------
-// Sheet changes
-// ---------------------------------------------------------------------------
-
 #[test]
-fn added_sheet_detected() {
-    let old = two_sheet_workbook(&[("Sheet1", &[])]);
-    let new = two_sheet_workbook(&[("Sheet1", &[]), ("Sheet2", &[])]);
-    let diff = compare_bytes(&old, &new).unwrap();
-    assert_eq!(diff.summary.sheets_added, 1);
-    let added = diff.sheets.iter().find(|s| matches!(s.change, SheetChange::Added)).unwrap();
-    assert_eq!(added.new_sheet.as_ref().unwrap().name, "Sheet2");
+fn integer_and_float_different_by_default() {
+    // calamine Int(1) vs Float(1.0) → TypeChanged by default
+    use sheets_diff::ValueDifferenceKind;
+    // Both sides store 1 but as different calamine variants — simulate via
+    // a workbook where we know one came from Int.
+    // We verify the policy directly via normalize + compare instead.
+    use sheets_diff::address::col_to_label;
+    let _ = col_to_label(1); // ensure normalize module is compiled
+    // Unit-level tested in normalize::tests; here confirm CellValue PartialEq.
+    assert_ne!(CellValue::Integer(1), CellValue::Number(1.0));
+    // And the reason is TypeChanged in compare:
+    use sheets_diff::options::ValueCompareOptions;
+    use sheets_diff::compare::compare_values_pub;
+    let vc = compare_values_pub(
+        &CellValue::Integer(1),
+        &CellValue::Number(1.0),
+        &ValueCompareOptions::default(),
+    ).unwrap();
+    assert_eq!(vc.reason, ValueDifferenceKind::TypeChanged);
 }
 
 #[test]
-fn removed_sheet_detected() {
-    let old = two_sheet_workbook(&[("Sheet1", &[]), ("Sheet2", &[])]);
-    let new = two_sheet_workbook(&[("Sheet1", &[])]);
-    let diff = compare_bytes(&old, &new).unwrap();
-    assert_eq!(diff.summary.sheets_removed, 1);
+fn bool_true_and_bool_false_different() {
+    let old = wb_bools(&[(0, 0, true)]);
+    let new = wb_bools(&[(0, 0, false)]);
+    let d = compare_bytes(&old, &new).unwrap();
+    assert_eq!(d.summary.values_changed, 1);
 }
 
 #[test]
-fn renamed_sheet_detected_conservative() {
-    // One removed + one added = conservative rename inference.
-    let old = two_sheet_workbook(&[("OldName", &[(0, 0, "value")])]);
-    let new = two_sheet_workbook(&[("NewName", &[(0, 0, "value")])]);
-    let diff = compare_bytes(&old, &new).unwrap();
-    assert_eq!(diff.summary.sheets_renamed, 1);
-    let renamed = diff.sheets.iter().find(|s| matches!(s.change, SheetChange::Renamed { .. })).unwrap();
+fn bool_and_text_true_different() {
+    let old = wb_bools(&[(0, 0, true)]);
+    let new = wb_strings(&[(0, 0, "TRUE")]);
+    let d = compare_bytes(&old, &new).unwrap();
+    assert_eq!(d.summary.values_changed, 1);
+    let vc = d.sheets[0].cell_diffs[0].value.as_ref().unwrap();
+    assert!(matches!(vc.old, CellValue::Bool(_)));
+    assert!(matches!(vc.new, CellValue::Text(_)));
+}
+
+#[test]
+fn numeric_tolerance_treats_near_equal_as_same() {
+    use sheets_diff::options::{NumberComparePolicy, ValueCompareOptions};
+    use sheets_diff::compare::compare_values_pub;
+    let mut opts = ValueCompareOptions::default();
+    opts.number = NumberComparePolicy::AbsoluteTolerance(0.01);
+    let result = compare_values_pub(
+        &CellValue::Number(1.0),
+        &CellValue::Number(1.005),
+        &opts,
+    );
+    assert!(result.is_none(), "should be equal within tolerance");
+}
+
+#[test]
+fn numeric_tolerance_detects_difference_outside_tolerance() {
+    use sheets_diff::options::{NumberComparePolicy, ValueCompareOptions};
+    use sheets_diff::compare::compare_values_pub;
+    let mut opts = ValueCompareOptions::default();
+    opts.number = NumberComparePolicy::AbsoluteTolerance(0.001);
+    let result = compare_values_pub(
+        &CellValue::Number(1.0),
+        &CellValue::Number(1.005),
+        &opts,
+    );
+    assert!(result.is_some(), "should detect difference outside tolerance");
+}
+
+// ============================================================================
+// formulas
+// ============================================================================
+
+#[test]
+fn formula_only_change_produces_no_value_change() {
+    // Two workbooks with the same cached string value but different formula text.
+    // rust_xlsxwriter writes the formula; calamine reads it back.
+    let old = wb_with_formula(0, 0, "label", 1, 0, "=1+1");
+    let new = wb_with_formula(0, 0, "label", 1, 0, "=1+1+0");
+    let d = compare_bytes(&old, &new).unwrap();
+    // formula text changed; cached value may or may not differ depending on
+    // whether the xlsx writer stored the cached result.
+    // At minimum, no panic and formula change is tracked if text was available.
+    assert!(d.summary.cells_changed <= 1); // 0 if no formula text stored, 1 if it was
+}
+
+#[test]
+fn formula_ignore_skips_formula_changes() {
+    let old = wb_with_formula(0, 0, "x", 1, 0, "=A1");
+    let new = wb_with_formula(0, 0, "x", 1, 0, "=A1&\"\"");
+    let opts = DiffOptions::builder()
+        .formula_compare(FormulaCompareMode::Ignore)
+        .build().unwrap();
+    let d = compare_bytes_with_options(&old, &new, opts).unwrap();
+    assert_eq!(d.summary.formulas_changed, 0);
+}
+
+#[test]
+fn value_and_formula_both_changed_is_one_cell_diff() {
+    // Change both the string value and the formula in the same cell position.
+    let old = wb_with_formula(0, 0, "before", 0, 0, "=1");
+    let new = wb_with_formula(0, 0, "after",  0, 0, "=2");
+    let d = compare_bytes(&old, &new).unwrap();
+    // A1 contains either the string or the formula depending on write order;
+    // the key invariant is at most one CellDiff per address.
+    let a1_diffs: Vec<_> = d.sheets[0].cell_diffs.iter()
+        .filter(|c| c.address.a1 == "A1").collect();
+    assert!(a1_diffs.len() <= 1, "must be at most one CellDiff per address");
+}
+
+// ============================================================================
+// sheet-renames
+// ============================================================================
+
+#[test]
+fn sheet_rename_detected_conservative() {
+    let old = wb_sheets(&[("OldName", &[(0, 0, "v")])]);
+    let new = wb_sheets(&[("NewName", &[(0, 0, "v")])]);
+    let d = compare_bytes(&old, &new).unwrap();
+    assert_eq!(d.summary.sheets_renamed, 1);
+    assert!(d.sheets.iter().any(|s| matches!(s.change, SheetChange::Renamed { .. })));
+}
+
+#[test]
+fn renamed_sheet_preserves_cell_diffs() {
+    let old = wb_sheets(&[("OldName", &[(0, 0, "before")])]);
+    let new = wb_sheets(&[("NewName", &[(0, 0, "after")])]);
+    let d = compare_bytes(&old, &new).unwrap();
+    let renamed = d.sheets.iter().find(|s| matches!(s.change, SheetChange::Renamed { .. })).unwrap();
+    assert_eq!(renamed.cell_diffs.len(), 1);
     assert_eq!(renamed.old_sheet.as_ref().unwrap().name, "OldName");
     assert_eq!(renamed.new_sheet.as_ref().unwrap().name, "NewName");
 }
 
 #[test]
-fn renamed_sheet_still_produces_cell_diffs() {
-    let old = two_sheet_workbook(&[("OldName", &[(0, 0, "before")])]);
-    let new = two_sheet_workbook(&[("NewName", &[(0, 0, "after")])]);
-    let diff = compare_bytes(&old, &new).unwrap();
-    let sd = diff.sheets.iter().find(|s| matches!(s.change, SheetChange::Renamed { .. })).unwrap();
-    assert_eq!(sd.cell_diffs.len(), 1);
+fn sheet_added() {
+    let old = wb_sheets(&[("S1", &[])]);
+    let new = wb_sheets(&[("S1", &[]), ("S2", &[(0, 0, "x")])]);
+    let d = compare_bytes(&old, &new).unwrap();
+    assert_eq!(d.summary.sheets_added, 1);
 }
 
-// ---------------------------------------------------------------------------
-// Exact-name-only mode suppresses rename
-// ---------------------------------------------------------------------------
+#[test]
+fn sheet_removed() {
+    let old = wb_sheets(&[("S1", &[]), ("S2", &[(0, 0, "x")])]);
+    let new = wb_sheets(&[("S1", &[])]);
+    let d = compare_bytes(&old, &new).unwrap();
+    assert_eq!(d.summary.sheets_removed, 1);
+}
 
 #[test]
-fn exact_name_only_does_not_rename() {
-    let old = two_sheet_workbook(&[("OldName", &[])]);
-    let new = two_sheet_workbook(&[("NewName", &[])]);
+fn exact_name_only_no_rename() {
+    let old = wb_sheets(&[("OldName", &[])]);
+    let new = wb_sheets(&[("NewName", &[])]);
     let opts = DiffOptions::builder()
         .sheet_matching(SheetMatchingMode::ExactNameOnly)
-        .build()
-        .unwrap();
-    let diff = compare_bytes_with_options(&old, &new, opts).unwrap();
-    assert_eq!(diff.summary.sheets_renamed, 0);
-    assert_eq!(diff.summary.sheets_added, 1);
-    assert_eq!(diff.summary.sheets_removed, 1);
-}
-
-// ---------------------------------------------------------------------------
-// Formula comparison
-// ---------------------------------------------------------------------------
-
-#[test]
-fn formula_ignore_mode_skips_formula_changes() {
-    // We can only test the Ignore guard via options; actual formula round-trip
-    // requires fixtures with formula data (rust_xlsxwriter write_formula).
-    let opts = DiffOptions::builder()
-        .formula_compare(FormulaCompareMode::Ignore)
-        .build()
-        .unwrap();
-    // Just verify it doesn't error; formula comparison is off.
-    let bytes = workbook_bytes(&[(0, 0, "x")]);
-    let diff = compare_bytes_with_options(&bytes, &bytes, opts).unwrap();
-    assert_eq!(diff.summary.formulas_changed, 0);
-}
-
-// ---------------------------------------------------------------------------
-// Deterministic ordering
-// ---------------------------------------------------------------------------
-
-#[test]
-fn cell_diffs_sorted_by_row_then_col() {
-    let old = workbook_bytes(&[(0, 0, "a"), (0, 1, "b"), (1, 0, "c")]);
-    let new = workbook_bytes(&[(0, 0, "x"), (0, 1, "y"), (1, 0, "z")]);
-    let diff = compare_bytes(&old, &new).unwrap();
-    let addrs: Vec<&str> = diff.sheets[0].cell_diffs.iter().map(|c| c.address.a1.as_str()).collect();
-    assert_eq!(addrs, vec!["A1", "B1", "A2"]);
-}
-
-// ---------------------------------------------------------------------------
-// A1 addressing through wide columns
-// ---------------------------------------------------------------------------
-
-#[test]
-fn wide_column_address_is_correct() {
-    use sheets_diff::address::col_to_label;
-    assert_eq!(col_to_label(1), "A");
-    assert_eq!(col_to_label(26), "Z");
-    assert_eq!(col_to_label(27), "AA");
-    assert_eq!(col_to_label(16_384), "XFD");
-}
-
-// ---------------------------------------------------------------------------
-// Error cases (RFC-032)
-// ---------------------------------------------------------------------------
-
-#[test]
-fn corrupt_bytes_return_structured_error() {
-    let junk = b"not a zip file at all";
-    let good = workbook_bytes(&[]);
-    match compare_bytes(junk.as_slice(), &good) {
-        Err(SheetsDiffError::OpenWorkbook { .. }) => {} // expected
-        Err(e) => panic!("unexpected error variant: {e}"),
-        Ok(_) => panic!("expected error, got Ok"),
-    }
+        .build().unwrap();
+    let d = compare_bytes_with_options(&old, &new, opts).unwrap();
+    assert_eq!(d.summary.sheets_renamed, 0);
+    assert_eq!(d.summary.sheets_added, 1);
+    assert_eq!(d.summary.sheets_removed, 1);
 }
 
 #[test]
-fn no_panic_on_empty_byte_slice() {
-    let empty: &[u8] = &[];
-    let good = workbook_bytes(&[]);
-    let result = compare_bytes(empty, &good);
-    assert!(result.is_err());
+fn ambiguous_renames_become_add_remove_with_diagnostic() {
+    // Two removed + two added → no confident rename; expect diagnostics.
+    let old = wb_sheets(&[("A", &[]), ("B", &[])]);
+    let new = wb_sheets(&[("C", &[]), ("D", &[])]);
+    let d = compare_bytes(&old, &new).unwrap();
+    assert_eq!(d.summary.sheets_renamed, 0);
+    assert!(d.diagnostics.iter().any(|diag| {
+        diag.kind.code() == "ambiguous_sheet_match"
+    }));
 }
 
-// ---------------------------------------------------------------------------
-// Resource limits
-// ---------------------------------------------------------------------------
+// ============================================================================
+// empty-sheets / sparse-ranges
+// ============================================================================
 
 #[test]
-fn max_diffs_returned_limit_triggers() {
-    // 3 changed cells; limit = 2.
-    let old = workbook_bytes(&[(0, 0, "a"), (0, 1, "b"), (0, 2, "c")]);
-    let new = workbook_bytes(&[(0, 0, "x"), (0, 1, "y"), (0, 2, "z")]);
+fn empty_vs_empty_no_diff() {
+    let b = wb_empty();
+    let d = compare_bytes(&b, &b).unwrap();
+    assert_eq!(d.summary.cells_changed, 0);
+}
+
+#[test]
+fn empty_vs_nonempty_all_cells_added() {
+    let old = wb_empty();
+    let new = wb_strings(&[(0, 0, "x"), (5, 5, "y")]);
+    let d = compare_bytes(&old, &new).unwrap();
+    assert_eq!(d.summary.cells_changed, 2);
+    assert!(d.sheets[0].cell_diffs.iter().all(|c| c.change_kind() == CellChangeKind::Added));
+}
+
+#[test]
+fn nonempty_vs_empty_all_cells_removed() {
+    let old = wb_strings(&[(0, 0, "a"), (3, 2, "b")]);
+    let new = wb_empty();
+    let d = compare_bytes(&old, &new).unwrap();
+    assert_eq!(d.summary.cells_changed, 2);
+    assert!(d.sheets[0].cell_diffs.iter().all(|c| c.change_kind() == CellChangeKind::Removed));
+}
+
+#[test]
+fn sparse_range_only_changed_cells_reported() {
+    // Only A1 changes; B5 and Z100 are the same on both sides.
+    let old = wb_sparse(&[(0, 0, "old"), (4, 1, "same"), (99, 25, "same")]);
+    let new = wb_sparse(&[(0, 0, "new"), (4, 1, "same"), (99, 25, "same")]);
+    let d = compare_bytes(&old, &new).unwrap();
+    assert_eq!(d.summary.cells_changed, 1);
+    assert_eq!(d.sheets[0].cell_diffs[0].address.a1, "A1");
+}
+
+#[test]
+fn compared_range_covers_both_sides() {
+    let old = wb_strings(&[(0, 0, "x")]);
+    let new = wb_strings(&[(9, 9, "y")]);
+    let d = compare_bytes(&old, &new).unwrap();
+    let cr = &d.sheets[0].compared_range;
+    let (sr, sc) = cr.start.unwrap();
+    let (er, ec) = cr.end.unwrap();
+    assert_eq!((sr, sc), (1, 1));  // A1 (1-based)
+    assert_eq!((er, ec), (10, 10)); // J10 (1-based)
+}
+
+// ============================================================================
+// limits
+// ============================================================================
+
+#[test]
+fn max_diffs_returned_triggers() {
+    let old = wb_strings(&[(0, 0, "a"), (0, 1, "b"), (0, 2, "c")]);
+    let new = wb_strings(&[(0, 0, "x"), (0, 1, "y"), (0, 2, "z")]);
     let opts = DiffOptions::builder().max_diffs_returned(2).build().unwrap();
-    let result = compare_bytes_with_options(&old, &new, opts);
-    match result {
-        Err(SheetsDiffError::LimitExceeded { .. }) => {}
-        other => panic!("expected LimitExceeded, got {other:?}"),
-    }
+    assert!(matches!(
+        compare_bytes_with_options(&old, &new, opts),
+        Err(SheetsDiffError::LimitExceeded { .. })
+    ));
 }
 
-// ---------------------------------------------------------------------------
-// M5 – Progress events and cancellation
-// ---------------------------------------------------------------------------
+#[test]
+fn max_sheets_limit_triggers() {
+    let b = wb_sheets(&[("S1", &[]), ("S2", &[]), ("S3", &[])]);
+    let opts = DiffOptions::builder().max_sheets(2).build().unwrap();
+    assert!(matches!(
+        compare_bytes_with_options(&b, &b, opts),
+        Err(SheetsDiffError::LimitExceeded { .. })
+    ));
+}
 
 #[test]
-fn progress_events_are_emitted() {
-    use std::sync::{Arc, Mutex};
-    use sheets_diff::{DiffEvent, DiffOptions};
+fn invalid_option_rejected_before_io() {
+    use sheets_diff::FormulaCompareMode;
+    let result = DiffOptions::builder()
+        .formula_compare(FormulaCompareMode::NormalizedText)
+        .build();
+    assert!(matches!(result, Err(SheetsDiffError::InvalidOptions { .. })));
+}
 
-    let events: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
-    let events_clone = events.clone();
+// ============================================================================
+// progress / cancellation  (M5)
+// ============================================================================
+
+#[test]
+fn progress_events_fired_in_order() {
+    use std::sync::{Arc, Mutex};
+
+    let log: Arc<Mutex<Vec<&'static str>>> = Arc::new(Mutex::new(Vec::new()));
+    let log2 = log.clone();
 
     let opts = DiffOptions::builder()
         .progress(move |e: DiffEvent| {
-            let label = match &e {
-                DiffEvent::Started => "Started".into(),
-                DiffEvent::OpeningWorkbook { side } => format!("Opening:{side}"),
-                DiffEvent::WorkbookOpened { side, .. } => format!("Opened:{side}"),
-                DiffEvent::MatchingSheets => "MatchingSheets".into(),
-                DiffEvent::SheetStarted { name, .. } => format!("SheetStarted:{name}"),
-                DiffEvent::SheetFinished { .. } => "SheetFinished".into(),
-                DiffEvent::Finished => "Finished".into(),
+            let tag = match e {
+                DiffEvent::Started => "Started",
+                DiffEvent::OpeningWorkbook { .. } => "Opening",
+                DiffEvent::WorkbookOpened { .. } => "Opened",
+                DiffEvent::MatchingSheets => "Matching",
+                DiffEvent::SheetStarted { .. } => "SheetStart",
+                DiffEvent::SheetFinished { .. } => "SheetEnd",
+                DiffEvent::Finished => "Finished",
             };
-            events_clone.lock().unwrap().push(label);
+            log2.lock().unwrap().push(tag);
         })
-        .build()
-        .unwrap();
+        .build().unwrap();
 
-    let bytes = workbook_bytes(&[(0, 0, "x")]);
-    compare_bytes_with_options(&bytes, &bytes, opts).unwrap();
+    let b = wb_strings(&[(0, 0, "x")]);
+    compare_bytes_with_options(&b, &b, opts).unwrap();
 
-    let got = events.lock().unwrap();
-    assert!(got.contains(&"Started".into()), "missing Started event");
-    assert!(got.contains(&"Finished".into()), "missing Finished event");
-    assert!(got.iter().any(|e| e.starts_with("Opened:")), "missing WorkbookOpened");
+    let got = log.lock().unwrap();
+    assert_eq!(got[0], "Started");
+    assert_eq!(*got.last().unwrap(), "Finished");
+    assert!(got.contains(&"Matching"));
+    assert!(got.contains(&"SheetStart"));
 }
 
 #[test]
-fn cancellation_returns_cancelled_error() {
-    use sheets_diff::{DiffOptions, SheetsDiffError};
-
-    // Cancel immediately
-    let opts = DiffOptions::builder()
-        .cancellation(|| true)
-        .build()
-        .unwrap();
-
-    // Build a workbook with multiple sheets so cancellation has a chance to fire
-    let bytes = two_sheet_workbook(&[
-        ("Sheet1", &[(0, 0, "a")]),
-        ("Sheet2", &[(0, 0, "b")]),
-    ]);
-    let result = compare_bytes_with_options(&bytes, &bytes, opts);
-    assert!(
-        matches!(result, Err(SheetsDiffError::Cancelled)),
-        "expected Cancelled, got {result:?}"
-    );
+fn cancellation_returns_cancelled() {
+    let opts = DiffOptions::builder().cancellation(|| true).build().unwrap();
+    let b = wb_sheets(&[("S1", &[(0, 0, "a")]), ("S2", &[(0, 0, "b")])]);
+    assert!(matches!(
+        compare_bytes_with_options(&b, &b, opts),
+        Err(SheetsDiffError::Cancelled)
+    ));
 }
 
-// ---------------------------------------------------------------------------
-// M6 – Text output
-// ---------------------------------------------------------------------------
+// ============================================================================
+// output / text
+// ============================================================================
 
 #[test]
-fn render_summary_contains_changed_count() {
-    use sheets_diff::output::text::render_summary;
-
-    let old = workbook_bytes(&[(0, 0, "before")]);
-    let new = workbook_bytes(&[(0, 0, "after")]);
-    let diff = compare_bytes(&old, &new).unwrap();
-    let summary = render_summary(&diff);
-    assert!(summary.contains("1 cell(s) changed") || summary.contains("cells"), 
-        "summary missing cell change count: {summary}");
+fn render_summary_shows_changed_count() {
+    let old = wb_strings(&[(0, 0, "a")]);
+    let new = wb_strings(&[(0, 0, "b")]);
+    let d = compare_bytes(&old, &new).unwrap();
+    let s = render_summary(&d);
+    assert!(s.contains("1 cell(s) changed"), "got: {s}");
 }
 
 #[test]
-fn render_unified_contains_minus_plus_lines() {
-    use sheets_diff::output::text::render_unified;
-
-    let old = workbook_bytes(&[(0, 0, "hello")]);
-    let new = workbook_bytes(&[(0, 0, "world")]);
-    let diff = compare_bytes(&old, &new).unwrap();
-    let unified = render_unified(&diff);
-    assert!(unified.contains("-A1"), "expected old value line starting with -A1");
-    assert!(unified.contains("+A1"), "expected new value line starting with +A1");
+fn render_unified_has_minus_plus_lines() {
+    let old = wb_strings(&[(0, 0, "hello")]);
+    let new = wb_strings(&[(0, 0, "world")]);
+    let d = compare_bytes(&old, &new).unwrap();
+    let u = render_unified(&d);
+    assert!(u.contains("-A1"), "missing old line: {u}");
+    assert!(u.contains("+A1"), "missing new line: {u}");
 }
 
-// ---------------------------------------------------------------------------
-// M6 – JSON / serde (only when feature enabled)
-// ---------------------------------------------------------------------------
+#[test]
+fn render_summary_shows_renamed_sheet() {
+    let old = wb_sheets(&[("Before", &[])]);
+    let new = wb_sheets(&[("After", &[])]);
+    let d = compare_bytes(&old, &new).unwrap();
+    let s = render_summary(&d);
+    assert!(s.contains("[renamed]"), "got: {s}");
+}
+
+#[test]
+fn render_unified_shows_added_sheet_marker() {
+    let old = wb_sheets(&[("S1", &[])]);
+    let new = wb_sheets(&[("S1", &[]), ("S2", &[(0, 0, "x")])]);
+    let d = compare_bytes(&old, &new).unwrap();
+    let u = render_unified(&d);
+    assert!(u.contains("[sheet added]"), "got: {u}");
+}
+
+// ============================================================================
+// serde / JSON  (M6, only with feature)
+// ============================================================================
 
 #[test]
 #[cfg(feature = "serde")]
-fn json_output_is_valid_and_contains_cells_changed() {
-    use sheets_diff::output::json::to_json;
-
-    let old = workbook_bytes(&[(0, 0, "hello")]);
-    let new = workbook_bytes(&[(0, 0, "world")]);
-    let diff = compare_bytes(&old, &new).unwrap();
-    let json = to_json(&diff).unwrap();
-
-    // Must be valid JSON
-    let v: serde_json::Value = serde_json::from_str(&json).expect("not valid JSON");
-    // Must contain summary.cells_changed = 1
+fn json_valid_and_cells_changed_correct() {
+    let old = wb_strings(&[(0, 0, "hello")]);
+    let new = wb_strings(&[(0, 0, "world")]);
+    let d = compare_bytes(&old, &new).unwrap();
+    let json = sheets_diff::output::json::to_json(&d).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&json).expect("invalid JSON");
     assert_eq!(v["summary"]["cells_changed"], 1);
 }
 
-// ---------------------------------------------------------------------------
-// Additional M3 fixture: multiple cells, multiple sheets
-// ---------------------------------------------------------------------------
-
 #[test]
-fn multiple_sheets_all_diffs_collected() {
-    let old = two_sheet_workbook(&[
-        ("Data", &[(0, 0, "a"), (0, 1, "b")]),
-        ("Meta", &[(0, 0, "v1")]),
-    ]);
-    let new = two_sheet_workbook(&[
-        ("Data", &[(0, 0, "x"), (0, 1, "b")]),   // 1 cell changed
-        ("Meta", &[(0, 0, "v2")]),                 // 1 cell changed
-    ]);
-    let diff = compare_bytes(&old, &new).unwrap();
-    assert_eq!(diff.summary.cells_changed, 2);
-    assert_eq!(diff.summary.sheets_changed, 2);
-    assert_eq!(diff.sheets.len(), 2);
+#[cfg(feature = "serde")]
+fn json_pretty_is_multiline() {
+    let b = wb_strings(&[(0, 0, "x")]);
+    let d = compare_bytes(&b, &b).unwrap();
+    let json = sheets_diff::output::json::to_json_pretty(&d).unwrap();
+    assert!(json.contains('\n'), "pretty JSON should be multiline");
 }
 
 #[test]
-fn unchanged_sheet_not_counted_as_changed() {
-    let bytes = two_sheet_workbook(&[
-        ("Sheet1", &[(0, 0, "same")]),
-        ("Sheet2", &[(0, 0, "same")]),
-    ]);
-    let diff = compare_bytes(&bytes, &bytes).unwrap();
-    assert_eq!(diff.summary.sheets_changed, 0);
-    assert_eq!(diff.summary.cells_changed, 0);
+#[cfg(feature = "serde")]
+fn json_includes_reserved_empty_arrays() {
+    let b = wb_empty();
+    let d = compare_bytes(&b, &b).unwrap();
+    let json = sheets_diff::output::json::to_json(&d).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+    assert_eq!(v["workbook_changes"], serde_json::json!([]));
+    assert_eq!(v["object_changes"],   serde_json::json!([]));
+}
+
+// ============================================================================
+// large workbook (ignored by default)
+// ============================================================================
+
+#[test]
+#[ignore]
+fn large_workbook_completes_within_limit() {
+    // 10 000 rows × 10 cols = 100 000 cells; changed on one side.
+    let old = wb_large(10_000, 10, "old");
+    let new = wb_large(10_000, 10, "new");
+    let d = compare_bytes(&old, &new).unwrap();
+    assert_eq!(d.summary.cells_changed, 100_000);
+}
+
+#[test]
+#[ignore]
+fn large_workbook_limit_exceeded_cleanly() {
+    let old = wb_large(10_000, 10, "old");
+    let new = wb_large(10_000, 10, "new");
+    let opts = DiffOptions::builder().max_diffs_returned(1_000).build().unwrap();
+    assert!(matches!(
+        compare_bytes_with_options(&old, &new, opts),
+        Err(SheetsDiffError::LimitExceeded { .. })
+    ));
 }

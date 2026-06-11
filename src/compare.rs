@@ -8,6 +8,10 @@ use crate::options::{
     TypeMismatchPolicy, ValueCompareOptions,
 };
 
+/// Public re-export for testing; not part of the stable API surface.
+#[doc(hidden)]
+pub use self::compare_values as compare_values_pub;
+
 // ---------------------------------------------------------------------------
 // Value comparison
 // ---------------------------------------------------------------------------
