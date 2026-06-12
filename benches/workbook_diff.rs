@@ -131,11 +131,8 @@ fn bench_sparse(c: &mut Criterion) {
 }
 
 fn bench_many_sheets(c: &mut Criterion) {
-    let sheets: Vec<(&str, u32, u16)> = {
-        let names: Vec<String> = (0..50).map(|i| format!("S{i}")).collect();
-        names.iter().map(|n| (n.as_str(), 5u32, 5u16)).collect()
-    };
-    // Can't use string slices from local Vec with static lifetime — build a fixed array
+    // Build 50-sheet workbooks directly without the intermediate Vec<(&str,...)>
+    // which had a lifetime issue (names dropped before sheets).
     let old = {
         let mut wb = Workbook::new();
         for i in 0..50u32 {
@@ -154,7 +151,6 @@ fn bench_many_sheets(c: &mut Criterion) {
         }
         wb.save_to_buffer().unwrap()
     };
-    let _ = sheets; // suppress unused warning from the abandoned approach
     c.bench_function("many_sheets_50", |b| {
         b.iter(|| compare_bytes(black_box(&old), black_box(&new)).unwrap())
     });
@@ -179,12 +175,6 @@ fn bench_alignment_vs_positional(c: &mut Criterion) {
     });
 
     group.bench_with_input(BenchmarkId::new("row_key_align", 500), &(&old, &new), |b, (o, n)| {
-        let opts = DiffOptions::builder()
-            .build_with_matching(MatchingOptions {
-                sheet_matching: Default::default(),
-                alignment: AlignmentMode::RowKey { columns: vec![1] },
-            })
-            .unwrap();
         b.iter(|| compare_bytes_with_options(black_box(o), black_box(n),
             DiffOptions::builder()
                 .build_with_matching(MatchingOptions {
@@ -195,7 +185,6 @@ fn bench_alignment_vs_positional(c: &mut Criterion) {
         ).unwrap())
     });
 
-    let _ = opts; // used above
     group.finish();
 }
 

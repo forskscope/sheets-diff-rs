@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.2.2] - 2026-06-11
+
+### Changed
+
+- Updated `criterion` from `0.5` to `0.8` (latest).
+- Moved `criterion` from `[dependencies]` (optional) to `[dev-dependencies]`
+  where it belongs — it is a benchmarking tool and has no place in the
+  published dependency tree. The `bench` feature flag is removed; benches
+  now compile unconditionally with `cargo build --benches`.
+- Fixed two pre-existing bugs in `benches/workbook_diff.rs` that were
+  previously hidden behind `required-features = ["bench"]`: a lifetime
+  error in `bench_many_sheets` and a stale variable reference in
+  `bench_alignment_vs_positional`.
+
 ## [2.2.1] - 2026-06-11
 
 Additive response to integration feedback from ForskScope. No breaking changes.
