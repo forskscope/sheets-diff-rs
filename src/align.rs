@@ -20,21 +20,11 @@ use crate::options::AlignmentMode;
 
 /// Populated when alignment mode is not `Positional`.
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
 pub struct AlignmentSummaryData {
-    pub mode: AlignmentModeLabel,
     pub inserted_rows: usize,
     pub removed_rows: usize,
     pub matched_rows: usize,
     pub confidence: MatchConfidence,
-}
-
-/// Human-readable label for the alignment mode that was applied.
-#[derive(Clone, Debug)]
-pub enum AlignmentModeLabel {
-    RowKey,
-    RowSignature,
-    HeaderColumn,
 }
 
 // ---------------------------------------------------------------------------
@@ -127,7 +117,7 @@ fn row_key_alignment(
         });
     }
 
-    lcs_match(old_keys, new_keys, max_rows, AlignmentModeLabel::RowKey)
+    lcs_match(old_keys, new_keys, max_rows)
 }
 
 // ---------------------------------------------------------------------------
@@ -143,7 +133,7 @@ fn row_signature_alignment(
 ) -> RowMapping {
     let old_sigs = compute_row_signatures(old_cells, sample_cols);
     let new_sigs = compute_row_signatures(new_cells, sample_cols);
-    lcs_match(old_sigs, new_sigs, max_rows, AlignmentModeLabel::RowSignature)
+    lcs_match(old_sigs, new_sigs, max_rows)
 }
 
 // ---------------------------------------------------------------------------
@@ -172,7 +162,6 @@ fn lcs_match(
     old_seq: BTreeMap<u32, RowKey>,
     new_seq: BTreeMap<u32, RowKey>,
     max_rows: Option<u64>,
-    mode: AlignmentModeLabel,
 ) -> RowMapping {
     let old_rows: Vec<(u32, RowKey)> = old_seq.into_iter().collect();
     let new_rows: Vec<(u32, RowKey)> = new_seq.into_iter().collect();
@@ -192,7 +181,6 @@ fn lcs_match(
             removed: Vec::new(),
             inserted: Vec::new(),
             summary: AlignmentSummaryData {
-                mode,
                 inserted_rows: 0,
                 removed_rows: 0,
                 matched_rows: n_matched,
@@ -259,7 +247,6 @@ fn lcs_match(
         removed,
         inserted,
         summary: AlignmentSummaryData {
-            mode,
             inserted_rows: n_inserted,
             removed_rows: n_removed,
             matched_rows: n_matched,

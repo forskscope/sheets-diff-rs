@@ -137,7 +137,7 @@
   },
   "metrics": {
     "sheets_read": 1,
-    "cells_read": 1,
+    "cells_read": 6,
     "cells_compared": 2,
     "diffs_emitted": 2,
     "diagnostics_emitted": 2

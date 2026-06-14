@@ -12,10 +12,12 @@
 //! 7. rename          — sheets renamed, minimal cell changes
 //! 8. alignment       — inserted row cascade (positional vs key-aligned)
 
-use criterion::{Criterion, criterion_group, criterion_main, BenchmarkId, black_box};
+use std::hint::black_box;
+
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use rust_xlsxwriter::{Formula, Workbook};
-use sheets_diff::{compare_bytes, compare_bytes_with_options, DiffOptions};
 use sheets_diff::options::{AlignmentMode, MatchingOptions};
+use sheets_diff::{DiffOptions, compare_bytes, compare_bytes_with_options};
 
 // ---------------------------------------------------------------------------
 // Fixture builders
@@ -48,7 +50,11 @@ fn make_sparse(rows: u32, cols: u16, density_pct: u32, changed: bool) -> Vec<u8>
         for c in 0..cols {
             n += 1;
             if n % (100 / density_pct) == 0 {
-                let val = if changed && r == 0 && c == 0 { "changed" } else { "val" };
+                let val = if changed && r == 0 && c == 0 {
+                    "changed"
+                } else {
+                    "val"
+                };
                 ws.write_string(r, c, val).unwrap();
             }
         }
@@ -61,17 +67,8 @@ fn make_formula_workbook(rows: u32) -> Vec<u8> {
     let ws = wb.add_worksheet();
     for r in 0..rows {
         ws.write_number(r, 0, r as f64).unwrap();
-        ws.write_formula(r, 1, Formula::new(&format!("=A{}", r + 1))).unwrap();
-    }
-    wb.save_to_buffer().unwrap()
-}
-
-fn make_renamed_workbook(n_sheets: usize, suffix: &str) -> Vec<u8> {
-    let mut wb = Workbook::new();
-    for i in 0..n_sheets {
-        let ws = wb.add_worksheet();
-        ws.set_name(&format!("Sheet{i}_{suffix}")).unwrap();
-        ws.write_string(0, 0, "value").unwrap();
+        ws.write_formula(r, 1, Formula::new(&format!("=A{}", r + 1)))
+            .unwrap();
     }
     wb.save_to_buffer().unwrap()
 }
@@ -96,7 +93,7 @@ fn make_insertion_workbook(rows: u32, inserted: bool) -> Vec<u8> {
 
 fn bench_small_business(c: &mut Criterion) {
     let sheets: Vec<(&str, u32, u16)> = (0..5)
-        .map(|i| (["S1","S2","S3","S4","S5"][i], 100, 20))
+        .map(|i| (["S1", "S2", "S3", "S4", "S5"][i], 100, 20))
         .collect();
     let old = make_workbook(&sheets, false);
     let new = make_workbook(&sheets, true);
@@ -147,7 +144,8 @@ fn bench_many_sheets(c: &mut Criterion) {
         for i in 0..50u32 {
             let ws = wb.add_worksheet();
             ws.set_name(&format!("Sheet{i}")).unwrap();
-            ws.write_string(0, 0, if i == 0 { "changed" } else { "val" }).unwrap();
+            ws.write_string(0, 0, if i == 0 { "changed" } else { "val" })
+                .unwrap();
         }
         wb.save_to_buffer().unwrap()
     };
@@ -170,20 +168,31 @@ fn bench_alignment_vs_positional(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("insertion_cascade");
 
-    group.bench_with_input(BenchmarkId::new("positional", 500), &(&old, &new), |b, (o, n)| {
-        b.iter(|| compare_bytes(black_box(o), black_box(n)).unwrap())
-    });
+    group.bench_with_input(
+        BenchmarkId::new("positional", 500),
+        &(&old, &new),
+        |b, (o, n)| b.iter(|| compare_bytes(black_box(o), black_box(n)).unwrap()),
+    );
 
-    group.bench_with_input(BenchmarkId::new("row_key_align", 500), &(&old, &new), |b, (o, n)| {
-        b.iter(|| compare_bytes_with_options(black_box(o), black_box(n),
-            DiffOptions::builder()
-                .build_with_matching(MatchingOptions {
-                    sheet_matching: Default::default(),
-                    alignment: AlignmentMode::RowKey { columns: vec![1] },
-                })
+    group.bench_with_input(
+        BenchmarkId::new("row_key_align", 500),
+        &(&old, &new),
+        |b, (o, n)| {
+            b.iter(|| {
+                compare_bytes_with_options(
+                    black_box(o),
+                    black_box(n),
+                    DiffOptions::builder()
+                        .build_with_matching(MatchingOptions {
+                            sheet_matching: Default::default(),
+                            alignment: AlignmentMode::RowKey { columns: vec![1] },
+                        })
+                        .unwrap(),
+                )
                 .unwrap()
-        ).unwrap())
-    });
+            })
+        },
+    );
 
     group.finish();
 }

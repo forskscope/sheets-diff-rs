@@ -420,6 +420,11 @@ impl DiffOptionsBuilder {
         self
     }
 
+    pub fn number_compare_policy(mut self, policy: NumberComparePolicy) -> Self {
+        self.opts.comparison.value.number = policy;
+        self
+    }
+
     // Matching
 
     pub fn sheet_matching(mut self, mode: SheetMatchingMode) -> Self {

@@ -236,8 +236,10 @@ fn run_pipeline(
 
             let changed = sheet_diff.cell_diffs.len();
             metrics.sheets_read += 1;
-            metrics.cells_read += sheet_diff.compared_range.start.map(|_| 1u64).unwrap_or(0);
-            metrics.cells_compared += sheet_diff.summary.cells_changed as u64;
+            // cells_read is accumulated in read_sheet_cells via total_cells_read
+            metrics.cells_compared += sheet_diff.summary.cells_changed as u64
+                + sheet_diff.cell_diffs.iter()
+                    .filter(|cd| cd.value.is_none() && cd.formula.is_none()).count() as u64;
             metrics.diffs_emitted += changed as u64;
             emit(&mut opts, DiffEvent::SheetFinished { index: idx, changed_cells: changed });
 
@@ -253,6 +255,7 @@ fn run_pipeline(
             .unwrap_or_else(|| (1, sd.new_sheet.as_ref().map(|s| s.index).unwrap_or(0)))
     });
 
+    metrics.cells_read = total_cells_read;
     metrics.diagnostics_emitted = workbook_diagnostics.len() as u64 +
         sheet_diffs.iter().map(|s| s.diagnostics.len() as u64).sum::<u64>();
     let summary = WorkbookDiff::derive_summary(&sheet_diffs, &workbook_diagnostics);

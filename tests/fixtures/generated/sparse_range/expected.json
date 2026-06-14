@@ -102,7 +102,7 @@
   },
   "metrics": {
     "sheets_read": 1,
-    "cells_read": 1,
+    "cells_read": 5200,
     "cells_compared": 1,
     "diffs_emitted": 1,
     "diagnostics_emitted": 1

@@ -19,13 +19,6 @@ pub struct OpenedWorkbook {
     pub source: SourceDescription,
 }
 
-impl OpenedWorkbook {
-    /// Sheet names as a `Vec<String>`, in workbook order.
-    #[allow(dead_code)]
-    pub fn sheet_names(&self) -> Vec<String> {
-        self.sheets.iter().map(|s| s.name.clone()).collect()
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Open from path

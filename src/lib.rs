@@ -1,5 +1,3 @@
-// Suppress dead_code for intentional public-API-only variants.
-#![allow(dead_code)]
 //! # sheets-diff
 //!
 //! Structured diff engine for Microsoft Excel `.xlsx` workbooks.
@@ -39,7 +37,7 @@ mod objects;
 mod normalize;
 mod open;
 
-pub mod compare;
+pub(crate) mod compare;
 
 // ---------------------------------------------------------------------------
 // Public modules

@@ -18,6 +18,7 @@ use crate::address::{CellAddress, ComparedRange};
 /// Which workbook of the pair a piece of data refers to.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub enum Side {
     Old,
     New,
@@ -39,6 +40,7 @@ impl fmt::Display for Side {
 /// What kind of input source a workbook came from.
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub enum SourceKind {
     Path,
     Bytes,
@@ -52,6 +54,7 @@ pub enum SourceKind {
 /// provided it as such.
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub struct SourceDescription {
     pub kind: SourceKind,
     pub display_name: Option<String>,
@@ -63,6 +66,7 @@ pub struct SourceDescription {
 
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub struct WorkbookSideInfo {
     pub source: SourceDescription,
     pub workbook_name: Option<String>,
@@ -78,6 +82,7 @@ pub struct WorkbookSideInfo {
 /// `index` is **0-based** workbook order (as returned by calamine).
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub struct SheetRef {
     pub name: String,
     pub index: usize,
@@ -90,6 +95,7 @@ pub struct SheetRef {
 /// How confident the sheet-matching algorithm is about a non-exact pairing.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub enum MatchConfidence {
     Exact,
     High,
@@ -143,6 +149,7 @@ pub enum SheetChange {
 /// `chrono` feature can synthesize one.
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub struct CellDateTime {
     pub serial: f64,
     pub is_1904: bool,
@@ -153,6 +160,7 @@ pub struct CellDateTime {
 /// Whether an Excel date serial represents a date, time, or datetime.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub enum DateTimeKind {
     DateTime,
     Date,
@@ -162,6 +170,7 @@ pub enum DateTimeKind {
 /// Spreadsheet-serial duration value (ISO 8601 duration string when available).
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub struct CellDuration {
     pub serial: f64,
     pub iso: Option<String>,
@@ -262,6 +271,7 @@ impl CellValue {
 /// Where a display string originated.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub enum DisplaySource {
     /// Provided directly by the workbook reader.
     ReaderProvided,
@@ -278,6 +288,7 @@ pub enum DisplaySource {
 /// without an API break.
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub struct CellNumberFormat {
     /// Excel built-in format ID (e.g. `4` for `#,##0.00`).
     pub id: Option<u32>,
@@ -291,6 +302,7 @@ pub struct CellNumberFormat {
 /// metadata; consumers may use them for localisation or formatting hints.
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub struct CellDisplay {
     /// The display string — deterministic and locale-neutral by default.
     pub text: String,
@@ -300,6 +312,11 @@ pub struct CellDisplay {
 }
 
 impl CellDisplay {
+    /// Construct a `CellDisplay` from its components.
+    pub fn new(text: String, format: Option<CellNumberFormat>, source: DisplaySource) -> Self {
+        Self { text, format, source }
+    }
+
     /// Build a default display from a `CellValue`.
     pub fn from_value(value: &CellValue) -> Self {
         Self {
@@ -317,6 +334,7 @@ impl CellDisplay {
 /// overridden by the calling application without touching the typed value.
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub struct CellSnapshot {
     pub value: CellValue,
     pub formula: Option<crate::model::FormulaText>,
@@ -324,6 +342,11 @@ pub struct CellSnapshot {
 }
 
 impl CellSnapshot {
+    /// Construct a `CellSnapshot` from its components.
+    pub fn new(value: CellValue, formula: Option<FormulaText>, display: Option<CellDisplay>) -> Self {
+        Self { value, formula, display }
+    }
+
     /// Return the best available display string: `display.text` when present,
     /// otherwise `value.display_default()`.
     pub fn preferred_display(&self) -> String {
@@ -360,6 +383,7 @@ pub enum ValueDifferenceKind {
 /// A value-layer change at one cell address.
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub struct ValueChange {
     pub old: CellValue,
     pub new: CellValue,
@@ -369,6 +393,7 @@ pub struct ValueChange {
 /// A formula's text, with an optional normalised form.
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub struct FormulaText {
     pub raw: String,
     /// `None` unless the `NormalizedText` formula-compare mode is enabled and
@@ -381,14 +406,18 @@ pub struct FormulaText {
 /// `None` in `old` or `new` means the formula was added or removed.
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub struct FormulaChange {
     pub old: Option<FormulaText>,
     pub new: Option<FormulaText>,
 }
 
-/// Reserved for RFC-022 (style/format diffs).  Always `None` in v2.0.
+/// Reserved for RFC-022 (style/format diffs).  Always `None` — calamine 0.35
+/// does not expose a cell-style API. Set via `FormatCompareMode` (currently
+/// only `Ignore` is accepted).
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub struct FormatChange {
     // Fields added in v2.x once RFC-022 is implemented.
 }
@@ -396,6 +425,7 @@ pub struct FormatChange {
 /// Derived classification of a `CellDiff` entry.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub enum CellChangeKind {
     Added,
     Removed,
@@ -456,6 +486,7 @@ impl CellDiff {
 /// Severity of a diagnostic entry.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub enum Severity {
     Info,
     Warning,
@@ -465,6 +496,7 @@ pub enum Severity {
 /// Which processing stage emitted a diagnostic.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub enum DiffStage {
     Open,
     Metadata,
@@ -478,6 +510,7 @@ pub enum DiffStage {
 /// Location context attached to a diagnostic.
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub struct DiagnosticLocation {
     pub stage: DiffStage,
     /// 0-based sheet order (workbook index), if applicable.
@@ -549,6 +582,7 @@ impl DiagnosticKind {
 /// A single structured diagnostic entry.
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub struct Diagnostic {
     pub severity: Severity,
     pub kind: DiagnosticKind,
@@ -564,6 +598,7 @@ pub struct Diagnostic {
 /// Per-sheet summary counts.
 #[derive(Clone, Default, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub struct SheetSummary {
     pub cells_changed: usize,
     pub values_changed: usize,
@@ -573,6 +608,7 @@ pub struct SheetSummary {
 /// Diagnostic counts rolled up at any level.
 #[derive(Clone, Default, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub struct DiagnosticSummary {
     pub errors: usize,
     pub warnings: usize,
@@ -582,6 +618,7 @@ pub struct DiagnosticSummary {
 /// Top-level workbook diff summary.
 #[derive(Clone, Default, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub struct DiffSummary {
     pub sheets_added: usize,
     pub sheets_removed: usize,
@@ -600,6 +637,7 @@ pub struct DiffSummary {
 /// Always populated; fields are cumulative across the whole comparison.
 #[derive(Clone, Default, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub struct DiffMetrics {
     pub sheets_read: u32,
     pub cells_read: u64,
@@ -670,9 +708,10 @@ pub struct WorkbookObjectChange {
 
 /// The complete diff result for a workbook pair.
 ///
-/// `workbook_changes` and `object_changes` are reserved for RFC-021/023 (v2.1+)
-/// and are always empty in v2.0.  Because the struct is `#[non_exhaustive]` and
-/// read-only for application code, those fields can be populated additively.
+/// `workbook_changes` and `object_changes` are always empty — RFC-021/023
+/// surface their findings through `diagnostics` in v2.2, and structured
+/// variants await a future release. The struct is `#[non_exhaustive]` so
+/// they can be populated additively without a breaking change.
 ///
 /// # Extracting a lightweight summary
 ///
@@ -701,9 +740,9 @@ pub struct WorkbookDiff {
     /// Sheet diffs in old-workbook sheet order (then new-workbook order for
     /// added sheets).
     pub sheets: Vec<SheetDiff>,
-    /// Reserved; empty until RFC-021.
+    /// Always empty in v2.2; reserved for future structured workbook-level changes.
     pub workbook_changes: Vec<WorkbookChange>,
-    /// Reserved; empty until RFC-023.
+    /// Always empty in v2.2; reserved for future structured object-level changes.
     pub object_changes: Vec<WorkbookObjectChange>,
     pub diagnostics: Vec<Diagnostic>,
     pub summary: DiffSummary,

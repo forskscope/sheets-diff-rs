@@ -189,24 +189,9 @@ fn text_100_and_number_100_different() {
 
 #[test]
 fn integer_and_float_different_by_default() {
-    // calamine Int(1) vs Float(1.0) → TypeChanged by default
-    use sheets_diff::ValueDifferenceKind;
-    // Both sides store 1 but as different calamine variants — simulate via
-    // a workbook where we know one came from Int.
-    // We verify the policy directly via normalize + compare instead.
-    use sheets_diff::address::col_to_label;
-    let _ = col_to_label(1); // ensure normalize module is compiled
-    // Unit-level tested in normalize::tests; here confirm CellValue PartialEq.
+    // Integer(1) and Number(1.0) are distinct CellValue variants — confirmed unequal.
+    // The TypeChanged reason is tested in compare::tests (unit tests in src/compare.rs).
     assert_ne!(CellValue::Integer(1), CellValue::Number(1.0));
-    // And the reason is TypeChanged in compare:
-    use sheets_diff::options::ValueCompareOptions;
-    use sheets_diff::compare::compare_values_pub;
-    let vc = compare_values_pub(
-        &CellValue::Integer(1),
-        &CellValue::Number(1.0),
-        &ValueCompareOptions::default(),
-    ).unwrap();
-    assert_eq!(vc.reason, ValueDifferenceKind::TypeChanged);
 }
 
 #[test]
@@ -230,30 +215,27 @@ fn bool_and_text_true_different() {
 
 #[test]
 fn numeric_tolerance_treats_near_equal_as_same() {
-    use sheets_diff::options::{NumberComparePolicy, ValueCompareOptions};
-    use sheets_diff::compare::compare_values_pub;
-    let mut opts = ValueCompareOptions::default();
-    opts.number = NumberComparePolicy::AbsoluteTolerance(0.01);
-    let result = compare_values_pub(
-        &CellValue::Number(1.0),
-        &CellValue::Number(1.005),
-        &opts,
-    );
-    assert!(result.is_none(), "should be equal within tolerance");
+    // Tolerance comparison tested via full diff with two workbooks.
+    use sheets_diff::{DiffOptions, options::NumberComparePolicy};
+    let old = wb_numbers(&[(0, 0, 1.0)]);
+    let new = wb_numbers(&[(0, 0, 1.005)]);
+    let opts = DiffOptions::builder()
+        .number_compare_policy(NumberComparePolicy::AbsoluteTolerance(0.01))
+        .build().unwrap();
+    let d = compare_bytes_with_options(&old, &new, opts).unwrap();
+    assert_eq!(d.summary.values_changed, 0, "should be equal within tolerance");
 }
 
 #[test]
 fn numeric_tolerance_detects_difference_outside_tolerance() {
-    use sheets_diff::options::{NumberComparePolicy, ValueCompareOptions};
-    use sheets_diff::compare::compare_values_pub;
-    let mut opts = ValueCompareOptions::default();
-    opts.number = NumberComparePolicy::AbsoluteTolerance(0.001);
-    let result = compare_values_pub(
-        &CellValue::Number(1.0),
-        &CellValue::Number(1.005),
-        &opts,
-    );
-    assert!(result.is_some(), "should detect difference outside tolerance");
+    use sheets_diff::{DiffOptions, options::NumberComparePolicy};
+    let old = wb_numbers(&[(0, 0, 1.0)]);
+    let new = wb_numbers(&[(0, 0, 1.005)]);
+    let opts = DiffOptions::builder()
+        .number_compare_policy(NumberComparePolicy::AbsoluteTolerance(0.001))
+        .build().unwrap();
+    let d = compare_bytes_with_options(&old, &new, opts).unwrap();
+    assert_eq!(d.summary.values_changed, 1, "should detect difference outside tolerance");
 }
 
 // ============================================================================
@@ -851,26 +833,18 @@ fn cell_value_display_default_and_display_string_agree() {
 #[test]
 fn cell_snapshot_preferred_display_prefers_display_text() {
     use sheets_diff::{CellDisplay, CellSnapshot, CellValue, DisplaySource};
-    let snap = CellSnapshot {
-        value: CellValue::Integer(42),
-        formula: None,
-        display: Some(CellDisplay {
-            text: "42 units".into(),
-            format: None,
-            source: DisplaySource::ApplicationProvided,
-        }),
-    };
+    let snap = CellSnapshot::new(
+        CellValue::Integer(42),
+        None,
+        Some(CellDisplay::new("42 units".into(), None, DisplaySource::ApplicationProvided)),
+    );
     assert_eq!(snap.preferred_display(), "42 units");
 }
 
 #[test]
 fn cell_snapshot_preferred_display_falls_back_to_value() {
     use sheets_diff::{CellSnapshot, CellValue};
-    let snap = CellSnapshot {
-        value: CellValue::Integer(42),
-        formula: None,
-        display: None,
-    };
+    let snap = CellSnapshot::new(CellValue::Integer(42), None, None);
     assert_eq!(snap.preferred_display(), "42");
 }
 
@@ -960,4 +934,54 @@ fn change_kind_is_stable_added_removed_modified() {
     let modified = compare_bytes(
         &wb_strings(&[(0, 0, "a")]), &wb_strings(&[(0, 0, "b")])).unwrap();
     assert_eq!(modified.sheets[0].cell_diffs[0].change_kind(), CellChangeKind::Modified);
+}
+
+// ============================================================================
+// Audit additions: RFC-004 reader API, RFC-010 TypeMismatchPolicy
+// ============================================================================
+
+#[test]
+fn compare_readers_works() {
+    use std::io::Cursor;
+    use sheets_diff::compare_readers;
+
+    let old = wb_strings(&[(0, 0, "before")]);
+    let new = wb_strings(&[(0, 0, "after")]);
+    let diff = compare_readers(Cursor::new(old), Cursor::new(new)).unwrap();
+    assert_eq!(diff.summary.cells_changed, 1);
+    assert_eq!(diff.sheets[0].cell_diffs[0].address.a1, "A1");
+}
+
+#[test]
+fn compare_readers_with_options_works() {
+    use std::io::Cursor;
+    use sheets_diff::{compare_readers_with_options, DiffOptions};
+
+    let b = wb_strings(&[(0, 0, "same")]);
+    let opts = DiffOptions::builder().build().unwrap();
+    let diff = compare_readers_with_options(
+        Cursor::new(b.clone()),
+        Cursor::new(b),
+        opts,
+    ).unwrap();
+    assert_eq!(diff.summary.cells_changed, 0);
+}
+
+#[test]
+fn type_mismatch_compare_display_string_treats_text_100_and_number_100_equal() {
+    use sheets_diff::{DiffOptions, options::TypeMismatchPolicy};
+
+    let old = wb_strings(&[(0, 0, "100")]);
+    let new = wb_numbers(&[(0, 0, 100.0)]);
+    // Default: different (TypeChanged)
+    let default_diff = compare_bytes(&old, &new).unwrap();
+    assert_eq!(default_diff.summary.values_changed, 1);
+
+    // CompareDisplayString: treat "100" == 100.0 as equal via display
+    let opts = DiffOptions::builder()
+        .type_mismatch_policy(TypeMismatchPolicy::CompareDisplayString)
+        .build().unwrap();
+    let lenient_diff = compare_bytes_with_options(&old, &new, opts).unwrap();
+    assert_eq!(lenient_diff.summary.values_changed, 0,
+        "CompareDisplayString should treat text '100' and number 100 as equal");
 }

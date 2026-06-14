@@ -1,5 +1,39 @@
 # Changelog
 
+## [2.2.3] - 2026-06-11
+
+### Fixed (audit)
+
+- **Dead code removed:**
+  - `OpenedWorkbook::sheet_names()` was never called; removed.
+  - `AlignmentModeLabel` enum and `AlignmentSummaryData.mode` field were
+    written but never read; removed.
+  - `make_renamed_workbook` in `benches/workbook_diff.rs` was unused; removed.
+  - Crate-level `#![allow(dead_code)]` removed — no longer needed.
+- **Metrics corrected:** `DiffMetrics.cells_read` now reflects the actual cell
+  count from `read_sheet_cells` (was `1` per sheet). `DiffMetrics.cells_compared`
+  now counts all coordinate pairs visited, not just changed cells.
+- **`compare` module made `pub(crate)`** — it is internal machinery. The
+  `compare_values_pub` test helper is now `#[cfg(test)]` only.
+- **Stale doc comments updated:** `WorkbookChange` / `WorkbookObjectChange` /
+  `WorkbookDiff` comments no longer reference "v2.0" or "always empty in v2.0";
+  they correctly describe the v2.2 state (RFC-021/023 surface through
+  `diagnostics`; structured variants reserved for future).
+- **`criterion::black_box` deprecation** resolved — switched to
+  `std::hint::black_box` throughout `benches/workbook_diff.rs`.
+
+### Added (audit)
+
+- `#[non_exhaustive]` added to all 26 public model types that were missing it
+  (RFC-031 compliance).
+- `CellDisplay::new()` and `CellSnapshot::new()` constructors — necessary
+  because `#[non_exhaustive]` blocks struct literal construction outside the
+  crate.
+- `DiffOptionsBuilder::number_compare_policy()` builder method.
+- Integration tests for `compare_readers` / `compare_readers_with_options`
+  (RFC-004, previously untested) and `TypeMismatchPolicy::CompareDisplayString`
+  (RFC-010, previously untested).
+
 ## [2.2.2] - 2026-06-11
 
 ### Changed
