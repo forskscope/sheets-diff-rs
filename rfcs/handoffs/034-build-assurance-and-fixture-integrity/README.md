@@ -1,7 +1,7 @@
 # Handoffs — RFC-034, Build Assurance and Fixture Integrity
 
 Companion execution documents for
-[RFC-034](../../accepted/034-build-assurance-and-fixture-integrity.md).
+[RFC-034](../../done/034-build-assurance-and-fixture-integrity.md).
 Their lifecycle state is inherited from that RFC — they have no status of their
 own, and they must not redefine it.
 

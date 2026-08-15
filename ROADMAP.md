@@ -45,9 +45,18 @@ mostly **amendment of existing RFCs** rather than new design.
 
 ## 4. Milestones
 
-### M1 — Trustworthy build *(no release)*
+### M1 — Trustworthy build *(no release)* — ✅ **CLOSED 2026-08-15**
 
-Governed by **RFC-034** (accepted). Exit criteria:
+Governed by **RFC-034** ([implemented](./rfcs/done/034-build-assurance-and-fixture-integrity.md)).
+All exit criteria met and evidenced; see
+`.git-exclude/reviewed/034-handoff-02-ci-pipeline-deliberate-failures/`.
+CI is green end to end
+([run 31888729981](https://github.com/forskscope/sheets-diff-rs/actions/runs/31888729981),
+17/17) and every guard has been observed **both green and red**.
+[PR #7](https://github.com/forskscope/sheets-diff-rs/pull/7) carries the work;
+merging to `main` is an owner decision, not yet taken.
+
+Exit criteria:
 
 - CI green on Linux + one further OS (NF-023), across every feature combination
 - `cargo clippy --all-targets` clean and gated
@@ -61,7 +70,17 @@ produced the 2.2.0 phantom feature.
 
 ### M2 — 2.3.0, "trustworthy results and a defensible posture"
 
-- MSRV 1.85.0 → **1.88**, *then* `calamine` 0.35 → 0.36 (ordering is load-bearing, §5)
+- MSRV 1.85.0 → **1.88**, *then* `calamine` 0.35 → 0.36 (ordering is load-bearing, §5).
+  **The bump is not a version-string edit.** Three files move together — the
+  `msrv` job's drift guard enforces `Cargo.toml`, `env.MSRV` and the toolchain
+  pin agreeing — and raising the floor to 1.88 newly surfaces **8
+  `clippy::collapsible_if` findings** (`src/align.rs`, `src/diff.rs` ×3,
+  `src/matcher.rs`, `src/meta.rs` ×2, `src/output/view.rs`) that do not exist at
+  1.85. Clippy gates suggestions on the declared MSRV, and 1.88 is where
+  let-chains stabilised. Independently reproduced: 0 findings at 1.85.0, 8 at
+  1.88.0. With `lint` now a hard gate these must be fixed, or deferred with a
+  recorded reason, in the same change. Discovered during M1's deliberate-failure
+  demonstrations.
 - `deny.toml`, `cargo audit`, dependency-path assertions in CI
 - Resource bounds: product-bounded alignment with positional fallback; input size bound
 - `#![forbid(unsafe_code)]`

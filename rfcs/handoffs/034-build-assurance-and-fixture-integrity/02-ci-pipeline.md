@@ -1,6 +1,6 @@
 # Handoff 02 — CI pipeline
 
-**Governing RFC.** [RFC-034](../../accepted/034-build-assurance-and-fixture-integrity.md) §5.4–5.5
+**Governing RFC.** [RFC-034](../../done/034-build-assurance-and-fixture-integrity.md) §5.4–5.5
 **Roadmap.** M1
 **Sequence.** Third. Requires the `parallel` removal and Handoff 01 to be merged
 first, or the pipeline is red on arrival.

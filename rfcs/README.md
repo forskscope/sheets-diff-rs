@@ -50,8 +50,7 @@ Design settled; implementation may start.
 | ID | Title | Note | Handoffs |
 |----|-------|------|----------|
 | 022 | [Styles and Formatting Diff Policy](./accepted/022-styles-and-formatting-diff-policy.md) | `FormatCompareMode` rejects every non-`Ignore` mode; no style diff layer exists. Blocked upstream — calamine keeps `mod formats` private through 0.36. | — |
-| 025 | [Deterministic Parallel Execution](./accepted/025-deterministic-parallel-execution.md) | The `parallel` feature does not compile (`ExecutionMode::Parallel` is absent). CHANGELOG 2.2.0 documents it as shipped; that entry is wrong. Amended 2026-08-15: implementation removed, design retained. | [yes](./handoffs/025-deterministic-parallel-execution/) — **live** |
-| 034 | [Build Assurance and Fixture Integrity](./accepted/034-build-assurance-and-fixture-integrity.md) | Accepted 2026-08-15. CI, feature matrix, fixture integrity, working goldens. Roadmap milestone M1. | [yes](./handoffs/034-build-assurance-and-fixture-integrity/) — **live** |
+| 025 | [Deterministic Parallel Execution](./accepted/025-deterministic-parallel-execution.md) | Implementation removed 2026-08-15 (it never compiled, and parallelised the wrong phase); design retained and amended with a re-introduction gate. | [yes](./handoffs/025-deterministic-parallel-execution/) — done |
 
 ## Implemented
 
@@ -95,6 +94,7 @@ Design settled; implementation may start.
 | 030 | [Extended Fixture Generators and Corpus Management](./done/030-extended-fixture-generators-and-corpus-management.md) |
 | 031 | [API Stability, SemVer, and Deprecation Policy After v2](./done/031-api-stability-semver-and-deprecation-policy.md) |
 | 032 | [Unsupported, Corrupt, and Encrypted Workbook Handling](./done/032-unsupported-corrupt-and-encrypted-workbook-handling.md) |
+| 034 | [Build Assurance and Fixture Integrity](./done/034-build-assurance-and-fixture-integrity.md) — *implemented M1, 2026-08-15; no release* |
 
 ### v1.2 series
 
