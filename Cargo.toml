@@ -2,7 +2,7 @@
 name = "sheets-diff"
 version = "2.2.3"
 edition = "2024"
-rust-version = "1.85.0"
+rust-version = "1.88.0"
 
 description = "Structured diff engine for Microsoft Excel .xlsx workbooks"
 authors = ["nabbisen"]
