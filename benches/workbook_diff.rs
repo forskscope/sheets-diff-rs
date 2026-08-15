@@ -1,6 +1,6 @@
 //! Benchmark suite for `sheets-diff` (RFC-027).
 //!
-//! Run with:  cargo bench --features bench
+//! Run with:  cargo bench
 //!
 //! Scenarios (RFC-027 §5):
 //! 1. small_business  — 5 sheets, 100 rows, 20 columns
