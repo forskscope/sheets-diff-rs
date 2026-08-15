@@ -1,0 +1,119 @@
+# Supply-chain gate (RFC-035 §5.5, roadmap decision D3).
+#
+# `RUSTSEC-2026-0194`/`-0195` sat in `quick-xml` for two months, reachable
+# through `calamine`, before this project noticed -- the consumer's own
+# `cargo audit` gate caught it first. This file is what makes the next one
+# visible on the day it lands instead of two months later. Reproduce
+# locally with `cargo deny check`; see `.github/CONTRIBUTING.md`.
+
+[graph]
+# Collect metadata with every feature enabled, so the gate covers the full
+# surface a consumer could actually compile, not just the default build.
+all-features = true
+no-default-features = false
+
+[output]
+feature-depth = 1
+
+# ---------------------------------------------------------------------------
+# advisories -- deny. This is the section that would have caught the
+# quick-xml chain the day it was published instead of two months later.
+#
+# RFC-035 Handoff 03 §2 dev-dependency decision: BLOCK.
+#
+# A compromised dev dependency runs on maintainer machines and in CI with
+# repository credentials in scope; "dev-only" is a smaller blast radius,
+# not a zero one. The one dev-only advisory in the tree as of this writing
+# -- RUSTSEC-2026-0204, crossbeam-epoch via criterion -> rayon -> rayon-core
+# -> crossbeam-deque -- turned out to cost nothing to fix: a single
+# non-breaking lockfile update (`cargo update -p crossbeam-epoch`, 0.9.18 ->
+# 0.9.20; no Cargo.toml edit, no conflict). Blocking was free here, so the
+# `ignore` list below is empty. If a future dev-only advisory is NOT this
+# cheap, the decision still stands: a reasoned, expiry-dated `ignore` entry
+# is the correct escape hatch (RFC-035 §5.7), not loosening this section.
+# ---------------------------------------------------------------------------
+[advisories]
+ignore = []
+
+# ---------------------------------------------------------------------------
+# licenses -- allowlist consistent with Apache-2.0 distribution. Every
+# entry is a permissive license (MIT/Apache-2.0-family, BSD-3-Clause,
+# Unicode-3.0, Zlib) with no copyleft or field-of-use restriction. No
+# per-crate exceptions: if a future dependency needs one, that is a
+# decision to make deliberately, not a default to fall into.
+# ---------------------------------------------------------------------------
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "Unicode-3.0",
+    "Zlib",
+]
+confidence-threshold = 0.8
+exceptions = []
+
+[licenses.private]
+ignore = false
+
+# ---------------------------------------------------------------------------
+# bans
+# ---------------------------------------------------------------------------
+[bans]
+# Denied rather than warned: a version split is a maintenance question that
+# deserves an answer, not a note nobody reads. RFC-035 §5.5 ("deny
+# duplicate versions where practical").
+multiple-versions = "deny"
+wildcards = "allow"
+highlight = "all"
+workspace-default-features = "allow"
+external-default-features = "allow"
+allow = []
+allow-workspace = false
+
+# What turns NF-015 ("the library must not access the network") from a
+# documentation claim into a build-time property. Every entry is a crate
+# whose entire purpose is opening a network connection -- HTTP client or
+# server, raw sockets, an async network reactor, DNS resolution, SMTP.
+# None has any legitimate reason to appear here, direct or transitive:
+# sheets-diff parses bytes the caller already holds. A failure here is a
+# genuine "how did this get pulled in" question, not a false positive to
+# allowlist away.
+deny = [
+    { crate = "reqwest", reason = "HTTP client -- NF-015: no network access" },
+    { crate = "hyper", reason = "HTTP client/server -- NF-015: no network access" },
+    { crate = "ureq", reason = "HTTP client -- NF-015: no network access" },
+    { crate = "curl", reason = "HTTP client (libcurl binding) -- NF-015: no network access" },
+    { crate = "curl-sys", reason = "libcurl FFI -- NF-015: no network access" },
+    { crate = "isahc", reason = "HTTP client -- NF-015: no network access" },
+    { crate = "surf", reason = "HTTP client -- NF-015: no network access" },
+    { crate = "h2", reason = "HTTP/2 implementation -- NF-015: no network access" },
+    { crate = "tonic", reason = "gRPC over HTTP/2 -- NF-015: no network access" },
+    { crate = "tokio", reason = "async runtime with a network-capable reactor -- NF-015: no network access" },
+    { crate = "async-std", reason = "async runtime with a network-capable reactor -- NF-015: no network access" },
+    { crate = "smol", reason = "async runtime with a network-capable reactor -- NF-015: no network access" },
+    { crate = "mio", reason = "cross-platform network/IO reactor underlying most async-net crates -- NF-015: no network access" },
+    { crate = "socket2", reason = "raw socket access -- NF-015: no network access" },
+    { crate = "trust-dns-resolver", reason = "DNS resolution is network access -- NF-015: no network access" },
+    { crate = "hickory-resolver", reason = "DNS resolution is network access (trust-dns' successor name) -- NF-015: no network access" },
+    { crate = "lettre", reason = "SMTP client -- NF-015: no network access" },
+]
+skip = []
+skip-tree = []
+
+# ---------------------------------------------------------------------------
+# sources -- crates.io only (RFC-035 §5.5). Denied, not warned: a git or
+# unknown-registry dependency bypasses crates.io's namespace and yank
+# protections entirely, which is a bigger supply-chain hole than any single
+# banned crate.
+# ---------------------------------------------------------------------------
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
+
+[sources.allow-org]
+github = []
+gitlab = []
+bitbucket = []
