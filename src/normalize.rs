@@ -130,12 +130,8 @@ mod tests {
 
     #[test]
     fn float_maps_to_number() {
-        // DELIBERATE FAILURE DEMO 4 (RFC-034 Handoff 02): 3.14 trips
-        // clippy::approx_constant (deny-by-default). Should fail only
-        // `lint`, since `test`/`msrv`/`tree` never run clippy. Reverted
-        // immediately after capture.
-        let v = normalize_cell_value(&Data::Float(3.14));
-        assert!(matches!(v, CellValue::Number(f) if (f - 3.14).abs() < 1e-12));
+        let v = normalize_cell_value(&Data::Float(3.5));
+        assert!(matches!(v, CellValue::Number(f) if (f - 3.5).abs() < 1e-12));
     }
 
     #[test]
