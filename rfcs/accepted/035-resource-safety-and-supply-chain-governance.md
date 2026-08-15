@@ -1,6 +1,6 @@
 # RFC-035 — Resource Safety and Supply-Chain Governance
 
-**Status.** Proposed
+**Status.** Accepted (2026-08-16) — cleared for implementation; units 03–06 are live.
 **Target:** M2 / 2.3.0
 **Created:** 2026-08-16
 **Amends:** RFC-012, RFC-016, RFC-024, RFC-026

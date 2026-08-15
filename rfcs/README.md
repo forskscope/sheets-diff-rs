@@ -41,9 +41,7 @@ active roadmap is [`ROADMAP.md`](../ROADMAP.md).
 
 ## Proposed
 
-| ID | Title | Handoffs |
-|----|-------|----------|
-| 035 | [Resource Safety and Supply-Chain Governance](./proposed/035-resource-safety-and-supply-chain-governance.md) | [yes](./handoffs/035-resource-safety-and-supply-chain-governance/) — units 01–02 written. Units 01 and 02 are governed by RFCs already in `done/` and are cleared; units 03–06 await this RFC's acceptance. |
+_None._
 
 ## Accepted
 
@@ -53,6 +51,7 @@ Design settled; implementation may start.
 |----|-------|------|----------|
 | 022 | [Styles and Formatting Diff Policy](./accepted/022-styles-and-formatting-diff-policy.md) | `FormatCompareMode` rejects every non-`Ignore` mode; no style diff layer exists. Blocked upstream — calamine keeps `mod formats` private through 0.36. | — |
 | 025 | [Deterministic Parallel Execution](./accepted/025-deterministic-parallel-execution.md) | Implementation removed 2026-08-15 (it never compiled, and parallelised the wrong phase); design retained and amended with a re-introduction gate. | [yes](./handoffs/025-deterministic-parallel-execution/) — done |
+| 035 | [Resource Safety and Supply-Chain Governance](./accepted/035-resource-safety-and-supply-chain-governance.md) | Accepted 2026-08-16. Bounded-by-default policy, supply-chain gating, threat model. Roadmap M2. | [yes](./handoffs/035-resource-safety-and-supply-chain-governance/) — **live** |
 
 ## Implemented
 

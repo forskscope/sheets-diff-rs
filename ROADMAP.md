@@ -70,14 +70,16 @@ produced the 2.2.0 phantom feature.
 
 ### M2 — 2.3.0, "trustworthy results and a defensible posture" — 🔄 **OPEN 2026-08-16**
 
-Governed by **RFC-035** ([proposed](./rfcs/proposed/035-resource-safety-and-supply-chain-governance.md))
+Governed by **RFC-035** ([accepted](./rfcs/accepted/035-resource-safety-and-supply-chain-governance.md))
 for the new policy decisions, plus existing RFCs for the dependency migration
 and the correctness defects. Execution queue:
 [`rfcs/handoffs/035-…/README.md`](./rfcs/handoffs/035-resource-safety-and-supply-chain-governance/README.md).
-**D0's contingency is discharged:** unit 01's spike confirmed by building that
-MSRV 1.88 is the true effective floor, that calamine 0.36 needs zero code
-changes, that `quick-xml` 0.39.x leaves the tree, and that no golden moves.
-Units 01–02 are written; 03–06 follow as the queue advances.
+**Units 01–02 are complete and merged** (`main` at `059ad6f`, CI 17/17): D0's
+contingency is discharged, MSRV is 1.88, and `quick-xml` 0.41 has replaced
+0.39.4 — both advisories cleared. RFC-035 was accepted 2026-08-16 and units
+03–06 are live. **This is not yet the M2 exit criterion:** our own resource
+bounds (unit 04) are outstanding, and until they land ForskScope's gate would
+pass while `align.rs` can still exhaust memory (R1).
 
 
 - MSRV 1.85.0 → **1.88**, *then* `calamine` 0.35 → 0.36 (ordering is load-bearing, §5).
