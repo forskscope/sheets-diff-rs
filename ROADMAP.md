@@ -68,7 +68,16 @@ Exit criteria:
 No release is cut until M1 is green. Publishing on an unverified build is what
 produced the 2.2.0 phantom feature.
 
-### M2 — 2.3.0, "trustworthy results and a defensible posture"
+### M2 — 2.3.0, "trustworthy results and a defensible posture" — 🔄 **OPEN 2026-08-16**
+
+Governed by **RFC-035** ([proposed](./rfcs/proposed/035-resource-safety-and-supply-chain-governance.md))
+for the new policy decisions, plus existing RFCs for the dependency migration
+and the correctness defects. Execution queue:
+[`rfcs/handoffs/035-…/README.md`](./rfcs/handoffs/035-resource-safety-and-supply-chain-governance/README.md).
+Unit 01 — the calamine 0.36 spike that discharges D0's contingency — is written;
+later units follow as the queue advances, because unit 02's shape depends on
+what 01 finds.
+
 
 - MSRV 1.85.0 → **1.88**, *then* `calamine` 0.35 → 0.36 (ordering is load-bearing, §5).
   **The bump is not a version-string edit.** Three files move together — the
