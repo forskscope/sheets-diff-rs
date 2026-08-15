@@ -200,18 +200,18 @@ fn index_match(
 ) {
     let mut used_new = vec![false; new_remaining.len()];
     for old in old_remaining {
-        if let Some(ni) = new_remaining.iter().position(|n| n.index == old.index) {
-            if !used_new[ni] {
-                used_new[ni] = true;
-                pairs.push(MatchedPair {
-                    old_sheet: Some((*old).clone()),
-                    new_sheet: Some(new_remaining[ni].clone()),
-                    change: SheetChange::Renamed {
-                        confidence: MatchConfidence::Low,
-                        reason: SheetMatchReason::IndexAndContent,
-                    },
-                });
-            }
+        if let Some(ni) = new_remaining.iter().position(|n| n.index == old.index)
+            && !used_new[ni]
+        {
+            used_new[ni] = true;
+            pairs.push(MatchedPair {
+                old_sheet: Some((*old).clone()),
+                new_sheet: Some(new_remaining[ni].clone()),
+                change: SheetChange::Renamed {
+                    confidence: MatchConfidence::Low,
+                    reason: SheetMatchReason::IndexAndContent,
+                },
+            });
         }
     }
 }

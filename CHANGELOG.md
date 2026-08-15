@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### Security
+
+- **MSRV raised from 1.85.0 to 1.88.0; `calamine` upgraded from 0.35 to
+  0.36.** This is a real compatibility event for consumers on older
+  toolchains, called out here rather than as a footnote. The driver is
+  security: `calamine` 0.35 pulled in `quick-xml` 0.39.4, which carries
+  `RUSTSEC-2026-0194` (quadratic runtime on duplicate-attribute checking) and
+  `RUSTSEC-2026-0195` (unbounded namespace-declaration allocation), both
+  denial-of-service on XML input and both fixed in `quick-xml` >= 0.41.
+  `calamine` 0.36 resolves `quick-xml` to 0.41.0 and `zip` to 8.6.0; neither
+  advisory is reachable from the dependency tree after this change.
+  Consumers that read `.xlsx` files they did not author — this crate's
+  documented threat model — were exposed to both advisories through this
+  path. Verified with `cargo audit` before and after: 0.35 shows 3
+  vulnerabilities (the two above plus one unrelated, dev-only advisory in
+  `crossbeam-epoch` via `criterion`), 0.36 shows only the unrelated one.
+  `calamine`'s public API used by this crate (`Data`, `CellErrorType`,
+  `XlsxError`, `SheetType`, `SheetVisible`, the `Reader` trait) is
+  byte-identical between versions, and the full fixture corpus — all seven
+  `expected.json` goldens — is unchanged, confirming the migration alters no
+  comparison behaviour.
+
 ### Removed
 
 - **The `parallel` feature is removed** (RFC-025, roadmap decision D2). It never

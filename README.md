@@ -75,7 +75,7 @@ for sheet in &diff.sheets {
 - **Conservative by default.** Sheet rename detection only fires when exactly
   one old and one new sheet are unmatched. Ambiguous matches surface as
   `Added`/`Removed` plus a diagnostic.
-- **`calamine` 0.35 pinned.** The `Data` enum variant set is the grounding
+- **`calamine` 0.36 pinned.** The `Data` enum variant set is the grounding
   for all `CellValue` conversions.
 
 ## More Detail

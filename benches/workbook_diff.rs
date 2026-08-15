@@ -49,7 +49,7 @@ fn make_sparse(rows: u32, cols: u16, density_pct: u32, changed: bool) -> Vec<u8>
     for r in 0..rows {
         for c in 0..cols {
             n += 1;
-            if n % (100 / density_pct) == 0 {
+            if n.is_multiple_of(100 / density_pct) {
                 let val = if changed && r == 0 && c == 0 {
                     "changed"
                 } else {

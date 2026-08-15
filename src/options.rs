@@ -84,7 +84,7 @@ pub struct ValueCompareOptions {
 
 /// Controls whether cell formatting (number format, font, fill, …) is compared.
 ///
-/// Default is `Ignore` — calamine 0.35 does not expose a cell-style API, so
+/// Default is `Ignore` — calamine 0.36 does not expose a cell-style API, so
 /// `AllAvailable` emits an `UnsupportedWorkbookFeature` diagnostic at runtime.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum FormatCompareMode {
@@ -354,7 +354,7 @@ impl DiffOptions {
         if self.comparison.format != FormatCompareMode::Ignore {
             return Err(SheetsDiffError::InvalidOptions {
                 detail: "FormatCompareMode other than Ignore is not available in v2; \
-                         calamine 0.35 does not expose a cell-style API"
+                         calamine 0.36 does not expose a cell-style API"
                     .into(),
             });
         }

@@ -55,7 +55,7 @@ pub fn normalize_cell_value(data: &Data) -> CellValue {
             #[cfg(not(feature = "chrono"))]
             let iso: Option<String> = None;
 
-            // `is_1904` is a private field on `ExcelDateTime` in calamine 0.35;
+            // `is_1904` is a private field on `ExcelDateTime` in calamine 0.36;
             // no public accessor exists on the value type. Callers needing the
             // epoch flag can query `Xlsx::has_1904_epoch()` on the open workbook
             // and adjust the serial in the pipeline when required.

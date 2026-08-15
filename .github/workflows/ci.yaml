@@ -14,7 +14,7 @@ env:
   # Keep in sync with Cargo.toml's `rust-version`. The msrv job asserts this
   # value is actually what gets used, rather than trusting a newer default
   # toolchain to happen to still compile the crate.
-  MSRV: "1.85.0"
+  MSRV: "1.88.0"
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -70,7 +70,7 @@ jobs:
             exit 1
           fi
 
-      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: dtolnay/rust-toolchain@1.88.0
 
       - name: Confirm the resolved toolchain matches the declared MSRV
         run: |
