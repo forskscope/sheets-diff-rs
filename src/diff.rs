@@ -129,7 +129,7 @@ fn run_pipeline(
     // Side metadata
     let old_info = WorkbookSideInfo {
         source: old_wb.source.clone(),
-        // calamine 0.35 exposes no workbook-level name in the public API.
+        // calamine 0.36 exposes no workbook-level name in the public API.
         workbook_name: None,
         sheet_count: old_wb.sheets.len(),
     };
@@ -407,13 +407,13 @@ fn build_sheet_diff(
         }
 
         // diffs-returned limit
-        if let Some(max) = opts.limits.max_diffs_returned {
-            if *total_diffs >= max {
-                return Err(SheetsDiffError::LimitExceeded {
-                    limit: LimitKind::DiffsReturned,
-                    observed: *total_diffs + 1,
-                });
-            }
+        if let Some(max) = opts.limits.max_diffs_returned
+            && *total_diffs >= max
+        {
+            return Err(SheetsDiffError::LimitExceeded {
+                limit: LimitKind::DiffsReturned,
+                observed: *total_diffs + 1,
+            });
         }
 
         if value_change.is_some() {
@@ -498,13 +498,13 @@ fn read_sheet_cells(
         for (col_idx, cell) in row.iter().enumerate() {
             // max_cells_read limit
             *total_cells_read += 1;
-            if let Some(max) = opts.limits.max_cells_read {
-                if *total_cells_read > max {
-                    return Err(SheetsDiffError::LimitExceeded {
-                        limit: LimitKind::CellsRead,
-                        observed: *total_cells_read,
-                    });
-                }
+            if let Some(max) = opts.limits.max_cells_read
+                && *total_cells_read > max
+            {
+                return Err(SheetsDiffError::LimitExceeded {
+                    limit: LimitKind::CellsRead,
+                    observed: *total_cells_read,
+                });
             }
 
             let value = normalize_cell_value(cell);
@@ -588,10 +588,10 @@ fn emit(opts: &mut DiffOptions, event: DiffEvent) {
 
 /// Check the cancellation predicate and return `Err(Cancelled)` if fired.
 fn check_cancel(opts: &DiffOptions) -> Result<(), SheetsDiffError> {
-    if let Some(ref cancel) = opts.execution.cancellation {
-        if cancel.is_cancelled() {
-            return Err(SheetsDiffError::Cancelled);
-        }
+    if let Some(ref cancel) = opts.execution.cancellation
+        && cancel.is_cancelled()
+    {
+        return Err(SheetsDiffError::Cancelled);
     }
     Ok(())
 }

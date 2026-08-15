@@ -31,7 +31,7 @@ have been — so they are separated by directory instead:
   series.
 
 Numbers are assigned at creation, are never reused, and never change when a
-file moves. The v2 series continues from 034; 033 is reserved for the missing
+file moves. The v2 series continues from 035; 033 is reserved for the missing
 RFC described below.
 
 Implementation companion documents live under
@@ -41,7 +41,9 @@ active roadmap is [`ROADMAP.md`](../ROADMAP.md).
 
 ## Proposed
 
-_None._
+| ID | Title | Handoffs |
+|----|-------|----------|
+| 035 | [Resource Safety and Supply-Chain Governance](./proposed/035-resource-safety-and-supply-chain-governance.md) | [yes](./handoffs/035-resource-safety-and-supply-chain-governance/) — units 01–02 written. Units 01 and 02 are governed by RFCs already in `done/` and are cleared; units 03–06 await this RFC's acceptance. |
 
 ## Accepted
 

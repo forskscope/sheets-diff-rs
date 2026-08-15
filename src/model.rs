@@ -285,7 +285,7 @@ pub enum DisplaySource {
 
 /// A number-format identifier and/or code string captured from the workbook.
 ///
-/// In calamine 0.35 neither field is available from cell data; both are
+/// In calamine 0.36 neither field is available from cell data; both are
 /// `None` in v2.2. The struct is reserved so RFC-022 can populate it
 /// without an API break.
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
@@ -308,7 +308,7 @@ pub struct CellNumberFormat {
 pub struct CellDisplay {
     /// The display string — deterministic and locale-neutral by default.
     pub text: String,
-    /// Number-format metadata when available (always `None` in calamine 0.35).
+    /// Number-format metadata when available (always `None` in calamine 0.36).
     pub format: Option<CellNumberFormat>,
     pub source: DisplaySource,
 }
@@ -426,7 +426,7 @@ pub struct FormulaChange {
     pub new: Option<FormulaText>,
 }
 
-/// Reserved for RFC-022 (style/format diffs).  Always `None` — calamine 0.35
+/// Reserved for RFC-022 (style/format diffs).  Always `None` — calamine 0.36
 /// does not expose a cell-style API. Set via `FormatCompareMode` (currently
 /// only `Ignore` is accepted).
 #[derive(Clone, PartialEq, Eq, Debug)]

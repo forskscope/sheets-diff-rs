@@ -1,6 +1,6 @@
 //! Workbook-level metadata comparison: defined names, sheet visibility (RFC-021).
 //!
-//! calamine 0.35 exposes:
+//! calamine 0.36 exposes:
 //!   - `defined_names() -> &[(String, String)]`  — flat (name, target) pairs, no scope
 //!   - `sheets_metadata() -> &[Sheet]`            — name, typ, visible
 //!
@@ -79,7 +79,7 @@ fn diff_defined_names(
                 sheet_name: None,
                 address: None,
             },
-            message: "defined-name scope is unavailable in calamine 0.35; \
+            message: "defined-name scope is unavailable in calamine 0.36; \
                       names are matched by normalized name only"
                 .into(),
         });
@@ -125,24 +125,24 @@ fn diff_defined_names(
 
     // Changed targets
     for (name, old_target) in &old_names {
-        if let Some(new_target) = new_names.get(name) {
-            if old_target != new_target {
-                diagnostics.push(Diagnostic {
-                    severity: Severity::Info,
-                    kind: DiagnosticKind::UnsupportedWorkbookMetadata {
-                        category: format!("defined_name_changed:{name}"),
-                    },
-                    location: DiagnosticLocation {
-                        stage: DiffStage::Metadata,
-                        sheet_order: None,
-                        sheet_name: None,
-                        address: None,
-                    },
-                    message: format!(
-                        "defined name '{name}' target changed: '{old_target}' → '{new_target}'"
-                    ),
-                });
-            }
+        if let Some(new_target) = new_names.get(name)
+            && old_target != new_target
+        {
+            diagnostics.push(Diagnostic {
+                severity: Severity::Info,
+                kind: DiagnosticKind::UnsupportedWorkbookMetadata {
+                    category: format!("defined_name_changed:{name}"),
+                },
+                location: DiagnosticLocation {
+                    stage: DiffStage::Metadata,
+                    sheet_order: None,
+                    sheet_name: None,
+                    address: None,
+                },
+                message: format!(
+                    "defined name '{name}' target changed: '{old_target}' → '{new_target}'"
+                ),
+            });
         }
     }
 }
@@ -171,22 +171,22 @@ fn diff_sheet_visibility(
         .collect();
 
     for (name, old_v) in &old_vis {
-        if let Some(new_v) = new_vis.get(name) {
-            if old_v != new_v {
-                diagnostics.push(Diagnostic {
-                    severity: Severity::Info,
-                    kind: DiagnosticKind::UnsupportedWorkbookMetadata {
-                        category: format!("sheet_visibility_changed:{name}"),
-                    },
-                    location: DiagnosticLocation {
-                        stage: DiffStage::Metadata,
-                        sheet_order: None,
-                        sheet_name: Some(name.clone()),
-                        address: None,
-                    },
-                    message: format!("sheet '{name}' visibility: {old_v} → {new_v}"),
-                });
-            }
+        if let Some(new_v) = new_vis.get(name)
+            && old_v != new_v
+        {
+            diagnostics.push(Diagnostic {
+                severity: Severity::Info,
+                kind: DiagnosticKind::UnsupportedWorkbookMetadata {
+                    category: format!("sheet_visibility_changed:{name}"),
+                },
+                location: DiagnosticLocation {
+                    stage: DiffStage::Metadata,
+                    sheet_order: None,
+                    sheet_name: Some(name.clone()),
+                    address: None,
+                },
+                message: format!("sheet '{name}' visibility: {old_v} → {new_v}"),
+            });
         }
     }
 }

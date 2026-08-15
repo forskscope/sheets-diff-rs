@@ -296,10 +296,10 @@ fn compute_row_signatures(
 ) -> BTreeMap<u32, RowKey> {
     let mut rows: BTreeMap<u32, RowKey> = BTreeMap::new();
     for ((r, c), val) in cells {
-        if let Some(cols) = sample_cols {
-            if !cols.contains(c) {
-                continue;
-            }
+        if let Some(cols) = sample_cols
+            && !cols.contains(c)
+        {
+            continue;
         }
         rows.entry(*r)
             .or_default()

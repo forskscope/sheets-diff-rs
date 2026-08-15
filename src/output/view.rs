@@ -177,10 +177,10 @@ impl<'a> DiffView<'a> {
     pub fn rows(&'a self, filter: &ViewFilter) -> Vec<CellChangeRow<'a>> {
         let mut out = Vec::new();
         for (sheet_idx, sd) in self.workbook.sheets.iter().enumerate() {
-            if let Some(ref allowed) = filter.sheets {
-                if !allowed.contains(&sheet_idx) {
-                    continue;
-                }
+            if let Some(ref allowed) = filter.sheets
+                && !allowed.contains(&sheet_idx)
+            {
+                continue;
             }
             let sheet_name = sd
                 .new_sheet

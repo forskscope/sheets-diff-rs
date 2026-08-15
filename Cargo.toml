@@ -2,7 +2,7 @@
 name = "sheets-diff"
 version = "2.2.3"
 edition = "2024"
-rust-version = "1.85.0"
+rust-version = "1.88.0"
 
 description = "Structured diff engine for Microsoft Excel .xlsx workbooks"
 authors = ["nabbisen"]
@@ -39,8 +39,8 @@ path = "src/main.rs"
 required-features = ["cli"]
 
 [dependencies]
-# RFC-026: pin to 0.35 — API grounding for Data enum, ExcelDateTime, XlsxError::Password
-calamine = "0.35"
+# RFC-026: pin to 0.36 — API grounding for Data enum, ExcelDateTime, XlsxError::Password
+calamine = "0.36"
 serde     = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
 chrono    = { version = "0.4", optional = true }
