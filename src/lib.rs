@@ -157,21 +157,3 @@ where
 {
     diff::run_compare_readers(old, new, opts)
 }
-
-// DELIBERATE FAILURE DEMO 1 (RFC-034 Handoff 02, deliberate-failure
-// demonstrations) — references ExecutionMode::Parallel, which does not
-// exist (this is exactly the RFC-025 defect the `parallel` feature was
-// removed for). Gated to windows-latest + the "chrono"-only feature
-// combination specifically (chrono, but not serde and not cli — the
-// matrix's other chrono-enabling combination is serde+chrono+cli, which
-// this excludes), so exactly one `test` matrix leg should go red.
-// Reverted immediately after capture.
-#[cfg(all(
-    feature = "chrono",
-    not(feature = "serde"),
-    not(feature = "cli"),
-    windows
-))]
-fn _deliberate_demo_1_nonexistent_variant() -> options::ExecutionMode {
-    options::ExecutionMode::Parallel
-}
