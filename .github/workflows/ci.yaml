@@ -1,0 +1,163 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# RFC-034 §5.4: read-only by default. No job in this workflow needs more.
+permissions:
+  contents: read
+
+env:
+  # Keep in sync with Cargo.toml's `rust-version`. The msrv job asserts this
+  # value is actually what gets used, rather than trusting a newer default
+  # toolchain to happen to still compile the crate.
+  MSRV: "1.85.0"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # test — RFC-034 §5.4: the highest-value job. A matrix that builds every
+  # feature combination would have caught the `parallel` break (2.2.0); it
+  # must not be reduced to default-features-only for speed.
+  # ---------------------------------------------------------------------------
+  test:
+    name: test (${{ matrix.os }}, ${{ matrix.features.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        features:
+          - name: no-default-features
+            flag: --no-default-features
+          - name: serde
+            flag: --features serde
+          - name: chrono
+            flag: --features chrono
+          - name: cli
+            flag: --features cli
+          - name: serde+chrono+cli
+            flag: --features serde,chrono,cli
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo build
+        run: cargo build ${{ matrix.features.flag }}
+
+      - name: cargo test
+        run: cargo test ${{ matrix.features.flag }}
+
+  # ---------------------------------------------------------------------------
+  # msrv — build at the declared floor, not merely a newer default toolchain.
+  # ---------------------------------------------------------------------------
+  msrv:
+    name: msrv
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Confirm the workflow's pinned MSRV matches Cargo.toml
+        run: |
+          cargo_toml_msrv="$(grep -m1 '^rust-version' Cargo.toml | sed -E 's/^rust-version *= *"([^"]+)".*/\1/')"
+          echo "Cargo.toml rust-version: $cargo_toml_msrv"
+          echo "workflow env.MSRV:       ${MSRV}"
+          if [ "$cargo_toml_msrv" != "${MSRV}" ]; then
+            echo "::error::MSRV drift — Cargo.toml declares rust-version = \"$cargo_toml_msrv\" but .github/workflows/ci.yaml's env.MSRV (and its dtolnay/rust-toolchain@ pin) is \"${MSRV}\". Update both files together."
+            exit 1
+          fi
+
+      - uses: dtolnay/rust-toolchain@1.85.0
+
+      - name: Confirm the resolved toolchain matches the declared MSRV
+        run: |
+          resolved="$(rustc --version)"
+          echo "resolved: $resolved"
+          case "$resolved" in
+            "rustc ${MSRV}"*) ;;
+            *)
+              echo "::error::resolved toolchain '$resolved' does not match declared MSRV ${MSRV}"
+              exit 1
+              ;;
+          esac
+
+      - name: cargo check --all-features at MSRV
+        run: cargo check --all-features
+
+  # ---------------------------------------------------------------------------
+  # lint — a gate, not advice. No #[allow(...)] silencing; findings get fixed
+  # or reported (RFC-034 §5.4, prohibited shortcuts).
+  # ---------------------------------------------------------------------------
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: cargo fmt --check
+        run: cargo fmt --all --check
+
+      - name: cargo clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  # ---------------------------------------------------------------------------
+  # tree — the permanent guard against Handoff 01's regression class: the
+  # test suite must not rewrite the fixture corpus (or anything else tracked).
+  # ---------------------------------------------------------------------------
+  tree:
+    name: tree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo test --features serde,chrono,cli
+        run: cargo test --features serde,chrono,cli
+
+      - name: Fail if the working tree is dirty
+        run: |
+          git status --porcelain
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::cargo test left the working tree dirty — see 'git status --porcelain' output above"
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
+  # fuzz-smoke — RFC-028. A bounded smoke run per target, not a full fuzz
+  # campaign. Distinguishes infrastructure failure (toolchain/install, does
+  # not block) from an actual crash found by the fuzzer (blocks): only the
+  # cargo-fuzz install step tolerates failure; a crash surfaced by `cargo
+  # fuzz run` itself still fails the job.
+  # ---------------------------------------------------------------------------
+  fuzz-smoke:
+    name: fuzz-smoke (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - fuzz_open_xlsx_bytes
+          - fuzz_addr_roundtrip
+          - fuzz_range_merge
+          - fuzz_diff_options_builder
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install cargo-fuzz
+        id: install
+        continue-on-error: true
+        run: cargo install cargo-fuzz --locked
+
+      - name: cargo fuzz run (bounded)
+        if: steps.install.outcome == 'success'
+        run: cargo fuzz run ${{ matrix.target }} -- -runs=20000

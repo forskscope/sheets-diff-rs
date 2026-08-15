@@ -33,7 +33,10 @@ pub enum NumberComparePolicy {
     Exact,
     AbsoluteTolerance(f64),
     RelativeTolerance(f64),
-    AbsoluteOrRelative { abs: f64, rel: f64 },
+    AbsoluteOrRelative {
+        abs: f64,
+        rel: f64,
+    },
 }
 
 /// Whether `Integer` vs `Number` is treated as a type change.
@@ -186,11 +189,23 @@ pub struct Limits {
 #[derive(Clone, Debug)]
 pub enum DiffEvent {
     Started,
-    OpeningWorkbook { side: crate::model::Side },
-    WorkbookOpened { side: crate::model::Side, sheet_count: usize },
+    OpeningWorkbook {
+        side: crate::model::Side,
+    },
+    WorkbookOpened {
+        side: crate::model::Side,
+        sheet_count: usize,
+    },
     MatchingSheets,
-    SheetStarted { index: usize, total: usize, name: String },
-    SheetFinished { index: usize, changed_cells: usize },
+    SheetStarted {
+        index: usize,
+        total: usize,
+        name: String,
+    },
+    SheetFinished {
+        index: usize,
+        changed_cells: usize,
+    },
     Finished,
 }
 
@@ -249,29 +264,27 @@ impl<F: Fn() -> bool + Send + Sync> Cancellation for F {
 }
 
 /// Execution-mode configuration.
+///
+/// Reserved, currently has no effect: `Sequential` is the only variant and
+/// the only path the pipeline runs. A parallel mode was removed (RFC-025,
+/// roadmap decision D2) because its implementation parallelised the wrong
+/// phase; the type is kept so a future, differently-designed re-introduction
+/// does not need a public API break. See RFC-025 for the full rationale and
+/// the re-introduction gate.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum ExecutionMode {
     /// Single-threaded, deterministic.  Default.
     #[default]
     Sequential,
-    // Parallel added by RFC-025.
 }
 
 /// Execution, progress, and cancellation options.
+#[derive(Default)]
 pub struct ExecutionOptions {
     pub progress: Option<Box<dyn ProgressSink>>,
     pub cancellation: Option<Box<dyn Cancellation>>,
+    /// Reserved, currently has no effect — see [`ExecutionMode`] (RFC-025).
     pub mode: ExecutionMode,
-}
-
-impl Default for ExecutionOptions {
-    fn default() -> Self {
-        Self {
-            progress: None,
-            cancellation: None,
-            mode: ExecutionMode::default(),
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -297,7 +310,9 @@ pub struct OutputOptions {
 
 impl Default for OutputOptions {
     fn default() -> Self {
-        Self { objects: crate::objects::ObjectCompareMode::WarnIfPresent }
+        Self {
+            objects: crate::objects::ObjectCompareMode::WarnIfPresent,
+        }
     }
 }
 
@@ -308,6 +323,7 @@ impl Default for OutputOptions {
 /// The top-level configuration entry point for a v2 comparison.
 ///
 /// Construct via `DiffOptions::default()` or `DiffOptions::builder()`.
+#[derive(Default)]
 pub struct DiffOptions {
     pub comparison: ComparisonOptions,
     pub matching: MatchingOptions,
@@ -315,19 +331,6 @@ pub struct DiffOptions {
     pub execution: ExecutionOptions,
     pub diagnostics: DiagnosticOptions,
     pub output: OutputOptions,
-}
-
-impl Default for DiffOptions {
-    fn default() -> Self {
-        Self {
-            comparison: ComparisonOptions::default(),
-            matching: MatchingOptions::default(),
-            limits: Limits::default(),
-            execution: ExecutionOptions::default(),
-            diagnostics: DiagnosticOptions::default(),
-            output: OutputOptions::default(),
-        }
-    }
 }
 
 impl DiffOptions {
@@ -373,7 +376,9 @@ pub struct DiffOptionsBuilder {
 
 impl DiffOptionsBuilder {
     pub fn new() -> Self {
-        Self { opts: DiffOptions::default() }
+        Self {
+            opts: DiffOptions::default(),
+        }
     }
 
     // Comparison
@@ -394,7 +399,9 @@ impl DiffOptionsBuilder {
         self
     }
 
-    /// Set the execution mode (RFC-025).
+    /// Set the execution mode.
+    ///
+    /// Reserved, currently has no effect — see [`ExecutionMode`] (RFC-025).
     pub fn execution_mode(mut self, mode: ExecutionMode) -> Self {
         self.opts.execution.mode = mode;
         self
@@ -462,7 +469,10 @@ impl DiffOptionsBuilder {
     }
 
     /// Build with a fully specified `MatchingOptions` (convenience for alignment tests).
-    pub fn build_with_matching(mut self, matching: MatchingOptions) -> Result<DiffOptions, SheetsDiffError> {
+    pub fn build_with_matching(
+        mut self,
+        matching: MatchingOptions,
+    ) -> Result<DiffOptions, SheetsDiffError> {
         self.opts.matching = matching;
         self.opts.validate()?;
         Ok(self.opts)

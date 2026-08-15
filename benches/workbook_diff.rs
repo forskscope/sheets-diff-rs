@@ -1,6 +1,6 @@
 //! Benchmark suite for `sheets-diff` (RFC-027).
 //!
-//! Run with:  cargo bench --features bench
+//! Run with:  cargo bench
 //!
 //! Scenarios (RFC-027 §5):
 //! 1. small_business  — 5 sheets, 100 rows, 20 columns
@@ -67,7 +67,7 @@ fn make_formula_workbook(rows: u32) -> Vec<u8> {
     let ws = wb.add_worksheet();
     for r in 0..rows {
         ws.write_number(r, 0, r as f64).unwrap();
-        ws.write_formula(r, 1, Formula::new(&format!("=A{}", r + 1)))
+        ws.write_formula(r, 1, Formula::new(format!("=A{}", r + 1)))
             .unwrap();
     }
     wb.save_to_buffer().unwrap()
@@ -81,8 +81,8 @@ fn make_insertion_workbook(rows: u32, inserted: bool) -> Vec<u8> {
         ws.write_string(0, 0, "inserted_row").unwrap();
     }
     for r in 0..rows {
-        ws.write_string(r + offset, 0, &format!("id_{r}")).unwrap();
-        ws.write_string(r + offset, 1, &format!("val_{r}")).unwrap();
+        ws.write_string(r + offset, 0, format!("id_{r}")).unwrap();
+        ws.write_string(r + offset, 1, format!("val_{r}")).unwrap();
     }
     wb.save_to_buffer().unwrap()
 }
@@ -134,7 +134,7 @@ fn bench_many_sheets(c: &mut Criterion) {
         let mut wb = Workbook::new();
         for i in 0..50u32 {
             let ws = wb.add_worksheet();
-            ws.set_name(&format!("Sheet{i}")).unwrap();
+            ws.set_name(format!("Sheet{i}")).unwrap();
             ws.write_string(0, 0, "val").unwrap();
         }
         wb.save_to_buffer().unwrap()
@@ -143,7 +143,7 @@ fn bench_many_sheets(c: &mut Criterion) {
         let mut wb = Workbook::new();
         for i in 0..50u32 {
             let ws = wb.add_worksheet();
-            ws.set_name(&format!("Sheet{i}")).unwrap();
+            ws.set_name(format!("Sheet{i}")).unwrap();
             ws.write_string(0, 0, if i == 0 { "changed" } else { "val" })
                 .unwrap();
         }

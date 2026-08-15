@@ -13,8 +13,7 @@ use std::collections::BTreeMap;
 use calamine::Reader;
 
 use crate::model::{
-    Diagnostic, DiagnosticKind, DiagnosticLocation, DiffStage, Severity,
-    WorkbookChange,
+    Diagnostic, DiagnosticKind, DiagnosticLocation, DiffStage, Severity, WorkbookChange,
 };
 use crate::open::OpenedWorkbook;
 use crate::options::DiffOptions;
@@ -55,13 +54,15 @@ fn diff_defined_names(
     new_wb: &mut OpenedWorkbook,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let old_names: BTreeMap<String, String> = old_wb.reader
+    let old_names: BTreeMap<String, String> = old_wb
+        .reader
         .defined_names()
         .iter()
         .map(|(n, t)| (n.to_lowercase(), t.clone()))
         .collect();
 
-    let new_names: BTreeMap<String, String> = new_wb.reader
+    let new_names: BTreeMap<String, String> = new_wb
+        .reader
         .defined_names()
         .iter()
         .map(|(n, t)| (n.to_lowercase(), t.clone()))
@@ -155,13 +156,15 @@ fn diff_sheet_visibility(
     new_wb: &mut OpenedWorkbook,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let old_vis: BTreeMap<String, String> = old_wb.reader
+    let old_vis: BTreeMap<String, String> = old_wb
+        .reader
         .sheets_metadata()
         .iter()
         .map(|s| (s.name.clone(), format!("{:?}", s.visible)))
         .collect();
 
-    let new_vis: BTreeMap<String, String> = new_wb.reader
+    let new_vis: BTreeMap<String, String> = new_wb
+        .reader
         .sheets_metadata()
         .iter()
         .map(|s| (s.name.clone(), format!("{:?}", s.visible)))
@@ -181,9 +184,7 @@ fn diff_sheet_visibility(
                         sheet_name: Some(name.clone()),
                         address: None,
                     },
-                    message: format!(
-                        "sheet '{name}' visibility: {old_v} → {new_v}"
-                    ),
+                    message: format!("sheet '{name}' visibility: {old_v} → {new_v}"),
                 });
             }
         }

@@ -80,8 +80,7 @@ pub fn render_unified(diff: &WorkbookDiff) -> String {
 
     for sd in &diff.sheets {
         let has_cell_changes = !sd.cell_diffs.is_empty();
-        let is_structural =
-            matches!(sd.change, SheetChange::Added | SheetChange::Removed);
+        let is_structural = matches!(sd.change, SheetChange::Added | SheetChange::Removed);
 
         if !has_cell_changes && !is_structural {
             continue;
@@ -98,8 +97,16 @@ pub fn render_unified(diff: &WorkbookDiff) -> String {
                 writeln!(out, "-[sheet removed]").unwrap();
             }
             SheetChange::Renamed { .. } | SheetChange::RenamedAndMoved { .. } => {
-                let old_n = sd.old_sheet.as_ref().map(|s| s.name.as_str()).unwrap_or("?");
-                let new_n = sd.new_sheet.as_ref().map(|s| s.name.as_str()).unwrap_or("?");
+                let old_n = sd
+                    .old_sheet
+                    .as_ref()
+                    .map(|s| s.name.as_str())
+                    .unwrap_or("?");
+                let new_n = sd
+                    .new_sheet
+                    .as_ref()
+                    .map(|s| s.name.as_str())
+                    .unwrap_or("?");
                 writeln!(out, " [renamed: '{old_n}' → '{new_n}']").unwrap();
             }
             _ => {}

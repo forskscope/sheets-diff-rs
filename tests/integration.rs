@@ -10,9 +10,8 @@ use rust_xlsxwriter::Workbook;
 use support::*;
 
 use sheets_diff::{
-    CellChangeKind, CellValue, DiffEvent, DiffOptions, FormulaCompareMode,
-    SheetChange, SheetMatchingMode, SheetsDiffError,
-    compare_bytes, compare_bytes_with_options,
+    CellChangeKind, CellValue, DiffEvent, DiffOptions, FormulaCompareMode, SheetChange,
+    SheetMatchingMode, SheetsDiffError, compare_bytes, compare_bytes_with_options,
     output::text::{render_summary, render_unified},
 };
 
@@ -48,7 +47,10 @@ fn cell_added_to_empty_sheet() {
     let new = wb_strings(&[(0, 0, "new")]);
     let d = compare_bytes(&old, &new).unwrap();
     assert_eq!(d.summary.cells_changed, 1);
-    assert_eq!(d.sheets[0].cell_diffs[0].change_kind(), CellChangeKind::Added);
+    assert_eq!(
+        d.sheets[0].cell_diffs[0].change_kind(),
+        CellChangeKind::Added
+    );
 }
 
 #[test]
@@ -56,7 +58,10 @@ fn cell_removed_from_sheet() {
     let old = wb_strings(&[(0, 0, "gone")]);
     let new = wb_empty();
     let d = compare_bytes(&old, &new).unwrap();
-    assert_eq!(d.sheets[0].cell_diffs[0].change_kind(), CellChangeKind::Removed);
+    assert_eq!(
+        d.sheets[0].cell_diffs[0].change_kind(),
+        CellChangeKind::Removed
+    );
 }
 
 #[test]
@@ -88,7 +93,11 @@ fn cell_diffs_sorted_by_row_then_col() {
     let old = wb_strings(&[(0, 0, "a"), (0, 1, "b"), (9, 0, "c")]);
     let new = wb_strings(&[(0, 0, "x"), (0, 1, "y"), (9, 0, "z")]);
     let d = compare_bytes(&old, &new).unwrap();
-    let addrs: Vec<&str> = d.sheets[0].cell_diffs.iter().map(|c| c.address.a1.as_str()).collect();
+    let addrs: Vec<&str> = d.sheets[0]
+        .cell_diffs
+        .iter()
+        .map(|c| c.address.a1.as_str())
+        .collect();
     assert_eq!(addrs, ["A1", "B1", "A10"]);
 }
 
@@ -122,8 +131,10 @@ fn corrupt_file_fixture_structured_error() {
     let good = wb_empty();
     let result = compare_bytes(&corrupt, &good);
     assert!(result.is_err(), "expected error for corrupt fixture");
-    assert!(!std::panic::catch_unwind(|| compare_bytes(&corrupt, &good)).is_err(),
-        "must not panic");
+    assert!(
+        !std::panic::catch_unwind(|| compare_bytes(&corrupt, &good)).is_err(),
+        "must not panic"
+    );
 }
 
 // ============================================================================
@@ -133,13 +144,13 @@ fn corrupt_file_fixture_structured_error() {
 #[test]
 fn wide_column_a1_encoding() {
     use sheets_diff::address::col_to_label;
-    assert_eq!(col_to_label(1),      "A");
-    assert_eq!(col_to_label(26),     "Z");
-    assert_eq!(col_to_label(27),     "AA");
-    assert_eq!(col_to_label(52),     "AZ");
-    assert_eq!(col_to_label(53),     "BA");
-    assert_eq!(col_to_label(702),    "ZZ");
-    assert_eq!(col_to_label(703),    "AAA");
+    assert_eq!(col_to_label(1), "A");
+    assert_eq!(col_to_label(26), "Z");
+    assert_eq!(col_to_label(27), "AA");
+    assert_eq!(col_to_label(52), "AZ");
+    assert_eq!(col_to_label(53), "BA");
+    assert_eq!(col_to_label(702), "ZZ");
+    assert_eq!(col_to_label(703), "AAA");
     assert_eq!(col_to_label(16_384), "XFD");
 }
 
@@ -167,7 +178,7 @@ fn cell_address_bounds() {
 #[test]
 fn a10_sorts_after_a2_not_lexicographically() {
     use sheets_diff::CellAddress;
-    let a2  = CellAddress::new(2, 1).unwrap();
+    let a2 = CellAddress::new(2, 1).unwrap();
     let a10 = CellAddress::new(10, 1).unwrap();
     assert!(a2 < a10);
 }
@@ -221,9 +232,13 @@ fn numeric_tolerance_treats_near_equal_as_same() {
     let new = wb_numbers(&[(0, 0, 1.005)]);
     let opts = DiffOptions::builder()
         .number_compare_policy(NumberComparePolicy::AbsoluteTolerance(0.01))
-        .build().unwrap();
+        .build()
+        .unwrap();
     let d = compare_bytes_with_options(&old, &new, opts).unwrap();
-    assert_eq!(d.summary.values_changed, 0, "should be equal within tolerance");
+    assert_eq!(
+        d.summary.values_changed, 0,
+        "should be equal within tolerance"
+    );
 }
 
 #[test]
@@ -233,9 +248,13 @@ fn numeric_tolerance_detects_difference_outside_tolerance() {
     let new = wb_numbers(&[(0, 0, 1.005)]);
     let opts = DiffOptions::builder()
         .number_compare_policy(NumberComparePolicy::AbsoluteTolerance(0.001))
-        .build().unwrap();
+        .build()
+        .unwrap();
     let d = compare_bytes_with_options(&old, &new, opts).unwrap();
-    assert_eq!(d.summary.values_changed, 1, "should detect difference outside tolerance");
+    assert_eq!(
+        d.summary.values_changed, 1,
+        "should detect difference outside tolerance"
+    );
 }
 
 // ============================================================================
@@ -261,7 +280,8 @@ fn formula_ignore_skips_formula_changes() {
     let new = wb_with_formula(0, 0, "x", 1, 0, "=A1&\"\"");
     let opts = DiffOptions::builder()
         .formula_compare(FormulaCompareMode::Ignore)
-        .build().unwrap();
+        .build()
+        .unwrap();
     let d = compare_bytes_with_options(&old, &new, opts).unwrap();
     assert_eq!(d.summary.formulas_changed, 0);
 }
@@ -270,13 +290,19 @@ fn formula_ignore_skips_formula_changes() {
 fn value_and_formula_both_changed_is_one_cell_diff() {
     // Change both the string value and the formula in the same cell position.
     let old = wb_with_formula(0, 0, "before", 0, 0, "=1");
-    let new = wb_with_formula(0, 0, "after",  0, 0, "=2");
+    let new = wb_with_formula(0, 0, "after", 0, 0, "=2");
     let d = compare_bytes(&old, &new).unwrap();
     // A1 contains either the string or the formula depending on write order;
     // the key invariant is at most one CellDiff per address.
-    let a1_diffs: Vec<_> = d.sheets[0].cell_diffs.iter()
-        .filter(|c| c.address.a1 == "A1").collect();
-    assert!(a1_diffs.len() <= 1, "must be at most one CellDiff per address");
+    let a1_diffs: Vec<_> = d.sheets[0]
+        .cell_diffs
+        .iter()
+        .filter(|c| c.address.a1 == "A1")
+        .collect();
+    assert!(
+        a1_diffs.len() <= 1,
+        "must be at most one CellDiff per address"
+    );
 }
 
 // ============================================================================
@@ -289,7 +315,11 @@ fn sheet_rename_detected_conservative() {
     let new = wb_sheets(&[("NewName", &[(0, 0, "v")])]);
     let d = compare_bytes(&old, &new).unwrap();
     assert_eq!(d.summary.sheets_renamed, 1);
-    assert!(d.sheets.iter().any(|s| matches!(s.change, SheetChange::Renamed { .. })));
+    assert!(
+        d.sheets
+            .iter()
+            .any(|s| matches!(s.change, SheetChange::Renamed { .. }))
+    );
 }
 
 #[test]
@@ -297,7 +327,11 @@ fn renamed_sheet_preserves_cell_diffs() {
     let old = wb_sheets(&[("OldName", &[(0, 0, "before")])]);
     let new = wb_sheets(&[("NewName", &[(0, 0, "after")])]);
     let d = compare_bytes(&old, &new).unwrap();
-    let renamed = d.sheets.iter().find(|s| matches!(s.change, SheetChange::Renamed { .. })).unwrap();
+    let renamed = d
+        .sheets
+        .iter()
+        .find(|s| matches!(s.change, SheetChange::Renamed { .. }))
+        .unwrap();
     assert_eq!(renamed.cell_diffs.len(), 1);
     assert_eq!(renamed.old_sheet.as_ref().unwrap().name, "OldName");
     assert_eq!(renamed.new_sheet.as_ref().unwrap().name, "NewName");
@@ -325,7 +359,8 @@ fn exact_name_only_no_rename() {
     let new = wb_sheets(&[("NewName", &[])]);
     let opts = DiffOptions::builder()
         .sheet_matching(SheetMatchingMode::ExactNameOnly)
-        .build().unwrap();
+        .build()
+        .unwrap();
     let d = compare_bytes_with_options(&old, &new, opts).unwrap();
     assert_eq!(d.summary.sheets_renamed, 0);
     assert_eq!(d.summary.sheets_added, 1);
@@ -339,9 +374,11 @@ fn ambiguous_renames_become_add_remove_with_diagnostic() {
     let new = wb_sheets(&[("C", &[]), ("D", &[])]);
     let d = compare_bytes(&old, &new).unwrap();
     assert_eq!(d.summary.sheets_renamed, 0);
-    assert!(d.diagnostics.iter().any(|diag| {
-        diag.kind.code() == "ambiguous_sheet_match"
-    }));
+    assert!(
+        d.diagnostics
+            .iter()
+            .any(|diag| { diag.kind.code() == "ambiguous_sheet_match" })
+    );
 }
 
 // ============================================================================
@@ -361,7 +398,12 @@ fn empty_vs_nonempty_all_cells_added() {
     let new = wb_strings(&[(0, 0, "x"), (5, 5, "y")]);
     let d = compare_bytes(&old, &new).unwrap();
     assert_eq!(d.summary.cells_changed, 2);
-    assert!(d.sheets[0].cell_diffs.iter().all(|c| c.change_kind() == CellChangeKind::Added));
+    assert!(
+        d.sheets[0]
+            .cell_diffs
+            .iter()
+            .all(|c| c.change_kind() == CellChangeKind::Added)
+    );
 }
 
 #[test]
@@ -370,7 +412,12 @@ fn nonempty_vs_empty_all_cells_removed() {
     let new = wb_empty();
     let d = compare_bytes(&old, &new).unwrap();
     assert_eq!(d.summary.cells_changed, 2);
-    assert!(d.sheets[0].cell_diffs.iter().all(|c| c.change_kind() == CellChangeKind::Removed));
+    assert!(
+        d.sheets[0]
+            .cell_diffs
+            .iter()
+            .all(|c| c.change_kind() == CellChangeKind::Removed)
+    );
 }
 
 #[test]
@@ -391,7 +438,7 @@ fn compared_range_covers_both_sides() {
     let cr = &d.sheets[0].compared_range;
     let (sr, sc) = cr.start.unwrap();
     let (er, ec) = cr.end.unwrap();
-    assert_eq!((sr, sc), (1, 1));  // A1 (1-based)
+    assert_eq!((sr, sc), (1, 1)); // A1 (1-based)
     assert_eq!((er, ec), (10, 10)); // J10 (1-based)
 }
 
@@ -403,7 +450,10 @@ fn compared_range_covers_both_sides() {
 fn max_diffs_returned_triggers() {
     let old = wb_strings(&[(0, 0, "a"), (0, 1, "b"), (0, 2, "c")]);
     let new = wb_strings(&[(0, 0, "x"), (0, 1, "y"), (0, 2, "z")]);
-    let opts = DiffOptions::builder().max_diffs_returned(2).build().unwrap();
+    let opts = DiffOptions::builder()
+        .max_diffs_returned(2)
+        .build()
+        .unwrap();
     assert!(matches!(
         compare_bytes_with_options(&old, &new, opts),
         Err(SheetsDiffError::LimitExceeded { .. })
@@ -426,7 +476,10 @@ fn invalid_option_rejected_before_io() {
     let result = DiffOptions::builder()
         .formula_compare(FormulaCompareMode::NormalizedText)
         .build();
-    assert!(matches!(result, Err(SheetsDiffError::InvalidOptions { .. })));
+    assert!(matches!(
+        result,
+        Err(SheetsDiffError::InvalidOptions { .. })
+    ));
 }
 
 // ============================================================================
@@ -453,7 +506,8 @@ fn progress_events_fired_in_order() {
             };
             log2.lock().unwrap().push(tag);
         })
-        .build().unwrap();
+        .build()
+        .unwrap();
 
     let b = wb_strings(&[(0, 0, "x")]);
     compare_bytes_with_options(&b, &b, opts).unwrap();
@@ -467,7 +521,10 @@ fn progress_events_fired_in_order() {
 
 #[test]
 fn cancellation_returns_cancelled() {
-    let opts = DiffOptions::builder().cancellation(|| true).build().unwrap();
+    let opts = DiffOptions::builder()
+        .cancellation(|| true)
+        .build()
+        .unwrap();
     let b = wb_sheets(&[("S1", &[(0, 0, "a")]), ("S2", &[(0, 0, "b")])]);
     assert!(matches!(
         compare_bytes_with_options(&b, &b, opts),
@@ -548,15 +605,14 @@ fn json_includes_reserved_empty_arrays() {
     let json = sheets_diff::output::json::to_json(&d).unwrap();
     let v: serde_json::Value = serde_json::from_str(&json).unwrap();
     assert_eq!(v["workbook_changes"], serde_json::json!([]));
-    assert_eq!(v["object_changes"],   serde_json::json!([]));
+    assert_eq!(v["object_changes"], serde_json::json!([]));
 }
 
 // ============================================================================
-// large workbook (ignored by default)
+// large workbook (RFC-034 Handoff 01 item 6: was #[ignore]d, never run)
 // ============================================================================
 
 #[test]
-#[ignore]
 fn large_workbook_completes_within_limit() {
     // 10 000 rows × 10 cols = 100 000 cells; changed on one side.
     let old = wb_large(10_000, 10, "old");
@@ -566,11 +622,13 @@ fn large_workbook_completes_within_limit() {
 }
 
 #[test]
-#[ignore]
 fn large_workbook_limit_exceeded_cleanly() {
     let old = wb_large(10_000, 10, "old");
     let new = wb_large(10_000, 10, "new");
-    let opts = DiffOptions::builder().max_diffs_returned(1_000).build().unwrap();
+    let opts = DiffOptions::builder()
+        .max_diffs_returned(1_000)
+        .build()
+        .unwrap();
     assert!(matches!(
         compare_bytes_with_options(&old, &new, opts),
         Err(SheetsDiffError::LimitExceeded { .. })
@@ -592,24 +650,34 @@ fn row_key_alignment_reduces_cascade() {
     let old = {
         let mut wb = Workbook::new();
         let ws = wb.add_worksheet();
-        ws.write_string(0, 0, "id1").unwrap(); ws.write_string(0, 1, "val_a").unwrap();
-        ws.write_string(1, 0, "id2").unwrap(); ws.write_string(1, 1, "val_b").unwrap();
-        ws.write_string(2, 0, "id3").unwrap(); ws.write_string(2, 1, "val_c").unwrap();
+        ws.write_string(0, 0, "id1").unwrap();
+        ws.write_string(0, 1, "val_a").unwrap();
+        ws.write_string(1, 0, "id2").unwrap();
+        ws.write_string(1, 1, "val_b").unwrap();
+        ws.write_string(2, 0, "id3").unwrap();
+        ws.write_string(2, 1, "val_c").unwrap();
         wb.save_to_buffer().unwrap()
     };
     let new = {
         let mut wb = Workbook::new();
         let ws = wb.add_worksheet();
-        ws.write_string(0, 0, "id1").unwrap();    ws.write_string(0, 1, "val_a").unwrap();
-        ws.write_string(1, 0, "id_new").unwrap(); ws.write_string(1, 1, "val_x").unwrap();
-        ws.write_string(2, 0, "id2").unwrap();    ws.write_string(2, 1, "val_b").unwrap();
-        ws.write_string(3, 0, "id3").unwrap();    ws.write_string(3, 1, "val_c").unwrap();
+        ws.write_string(0, 0, "id1").unwrap();
+        ws.write_string(0, 1, "val_a").unwrap();
+        ws.write_string(1, 0, "id_new").unwrap();
+        ws.write_string(1, 1, "val_x").unwrap();
+        ws.write_string(2, 0, "id2").unwrap();
+        ws.write_string(2, 1, "val_b").unwrap();
+        ws.write_string(3, 0, "id3").unwrap();
+        ws.write_string(3, 1, "val_c").unwrap();
         wb.save_to_buffer().unwrap()
     };
 
     // Positional: all 3 data rows appear changed (cascade)
     let pos_diff = compare_bytes(&old, &new).unwrap();
-    assert!(pos_diff.summary.cells_changed >= 3, "positional should show cascade");
+    assert!(
+        pos_diff.summary.cells_changed >= 3,
+        "positional should show cascade"
+    );
 
     // RowKey on column A (col index 1, 1-based): only id_new is truly new
     let opts = DiffOptions::builder()
@@ -623,10 +691,14 @@ fn row_key_alignment_reduces_cascade() {
     assert!(
         aligned_diff.summary.cells_changed < pos_diff.summary.cells_changed,
         "aligned diff should report fewer changes than positional: aligned={}, positional={}",
-        aligned_diff.summary.cells_changed, pos_diff.summary.cells_changed
+        aligned_diff.summary.cells_changed,
+        pos_diff.summary.cells_changed
     );
     let sheet = &aligned_diff.sheets[0];
-    assert!(sheet.alignment_summary.is_some(), "alignment summary should be set");
+    assert!(
+        sheet.alignment_summary.is_some(),
+        "alignment summary should be set"
+    );
 }
 
 // ============================================================================
@@ -677,8 +749,10 @@ fn diff_view_filter_excludes_formulas() {
     let diff = compare_bytes(&old, &new).unwrap();
     let view = DiffView::new(&diff);
 
-    let mut filter = ViewFilter::default();
-    filter.include_values = false;
+    let filter = ViewFilter {
+        include_values: false,
+        ..Default::default()
+    };
     // With values excluded and no formula changes, should be empty.
     assert_eq!(view.rows(&filter).len(), 0);
 }
@@ -708,7 +782,10 @@ fn format_compare_non_ignore_returns_invalid_options() {
     let result = DiffOptions::builder()
         .format_compare(FormatCompareMode::NumberFormatOnly)
         .build();
-    assert!(matches!(result, Err(SheetsDiffError::InvalidOptions { .. })));
+    assert!(matches!(
+        result,
+        Err(SheetsDiffError::InvalidOptions { .. })
+    ));
 }
 
 // ============================================================================
@@ -721,7 +798,9 @@ fn object_coverage_note_emitted_by_default() {
     let b = wb_empty();
     let diff = compare_bytes(&b, &b).unwrap();
     assert!(
-        diff.diagnostics.iter().any(|d| d.kind.code() == "unsupported_workbook_feature"),
+        diff.diagnostics
+            .iter()
+            .any(|d| d.kind.code() == "unsupported_workbook_feature"),
         "expected coverage diagnostic in workbook diagnostics"
     );
 }
@@ -731,11 +810,15 @@ fn object_coverage_suppressed_with_ignore_mode() {
     use sheets_diff::{DiffOptions, ObjectCompareMode};
     let opts = DiffOptions::builder()
         .object_mode(ObjectCompareMode::Ignore)
-        .build().unwrap();
+        .build()
+        .unwrap();
     let b = wb_empty();
     let diff = compare_bytes_with_options(&b, &b, opts).unwrap();
     assert!(
-        !diff.diagnostics.iter().any(|d| d.kind.code() == "unsupported_workbook_feature"),
+        !diff
+            .diagnostics
+            .iter()
+            .any(|d| d.kind.code() == "unsupported_workbook_feature"),
         "no coverage diagnostics expected in Ignore mode"
     );
 }
@@ -751,7 +834,10 @@ fn diff_metrics_populated() {
     let diff = compare_bytes(&old, &new).unwrap();
     assert_eq!(diff.metrics.sheets_read, 1);
     assert_eq!(diff.metrics.diffs_emitted, 1);
-    assert!(diff.metrics.diagnostics_emitted > 0, "coverage note should count");
+    assert!(
+        diff.metrics.diagnostics_emitted > 0,
+        "coverage note should count"
+    );
 }
 
 #[test]
@@ -760,36 +846,6 @@ fn diff_metrics_zero_when_identical() {
     let diff = compare_bytes(&b, &b).unwrap();
     assert_eq!(diff.metrics.diffs_emitted, 0);
     assert_eq!(diff.metrics.sheets_read, 1);
-}
-
-// ============================================================================
-// v2.2 — RFC-025 parallel feature
-// ============================================================================
-
-#[test]
-#[cfg(feature = "parallel")]
-fn parallel_mode_produces_same_result_as_sequential() {
-    use sheets_diff::options::ExecutionMode;
-
-    let old = wb_sheets(&[("S1", &[(0,0,"a")]), ("S2", &[(0,0,"b")])]);
-    let new = wb_sheets(&[("S1", &[(0,0,"x")]), ("S2", &[(0,0,"b")])]);
-
-    let seq = compare_bytes(&old, &new).unwrap();
-
-    let par_opts = DiffOptions::builder()
-        .execution_mode(ExecutionMode::Parallel)
-        .build().unwrap();
-    let par = compare_bytes_with_options(&old, &new, par_opts).unwrap();
-
-    assert_eq!(seq.summary.cells_changed, par.summary.cells_changed);
-    assert_eq!(seq.sheets.len(), par.sheets.len());
-    // Ordering must be identical
-    for (s, p) in seq.sheets.iter().zip(par.sheets.iter()) {
-        let s_name = s.new_sheet.as_ref().map(|r| r.name.as_str()).unwrap_or("");
-        let p_name = p.new_sheet.as_ref().map(|r| r.name.as_str()).unwrap_or("");
-        assert_eq!(s_name, p_name, "sheet order must match");
-        assert_eq!(s.cell_diffs.len(), p.cell_diffs.len());
-    }
 }
 
 // ============================================================================
@@ -809,9 +865,9 @@ fn cell_display_from_value_text() {
 #[test]
 fn cell_display_from_value_number() {
     use sheets_diff::{CellDisplay, CellValue};
-    let v = CellValue::Number(3.14);
+    let v = CellValue::Number(3.5);
     let d = CellDisplay::from_value(&v);
-    assert!(d.text.starts_with("3.14"));
+    assert!(d.text.starts_with("3.5"));
 }
 
 #[test]
@@ -825,8 +881,11 @@ fn cell_value_display_default_and_display_string_agree() {
         CellValue::Bool(true),
     ];
     for v in cases {
-        assert_eq!(v.display_default(), v.display_string(),
-            "display_default must equal display_string for {v:?}");
+        assert_eq!(
+            v.display_default(),
+            v.display_string(),
+            "display_default must equal display_string for {v:?}"
+        );
     }
 }
 
@@ -836,7 +895,11 @@ fn cell_snapshot_preferred_display_prefers_display_text() {
     let snap = CellSnapshot::new(
         CellValue::Integer(42),
         None,
-        Some(CellDisplay::new("42 units".into(), None, DisplaySource::ApplicationProvided)),
+        Some(CellDisplay::new(
+            "42 units".into(),
+            None,
+            DisplaySource::ApplicationProvided,
+        )),
     );
     assert_eq!(snap.preferred_display(), "42 units");
 }
@@ -890,14 +953,16 @@ fn view_row_exposes_formula_text() {
     // Find a row that has a formula change, if the writer stored formula text.
     if let Some(r) = rows.iter().find(|r| r.formula_changed) {
         // old_formula / new_formula should be populated (Q2)
-        assert!(r.old_formula.is_some() || r.new_formula.is_some(),
-            "formula_changed row should carry formula text");
+        assert!(
+            r.old_formula.is_some() || r.new_formula.is_some(),
+            "formula_changed row should carry formula text"
+        );
     }
 }
 
 #[test]
 fn view_row_to_owned_outlives_diff() {
-    use sheets_diff::output::view::{DiffView, ViewFilter, OwnedCellChangeRow};
+    use sheets_diff::output::view::{DiffView, OwnedCellChangeRow, ViewFilter};
 
     let owned: Vec<OwnedCellChangeRow> = {
         let old = wb_strings(&[(0, 0, "a")]);
@@ -923,17 +988,25 @@ fn change_kind_is_stable_added_removed_modified() {
     use sheets_diff::CellChangeKind;
 
     // Added: empty old → value new
-    let added = compare_bytes(&wb_empty(), &wb_strings(&[(0, 0, "new")])).unwrap();
-    assert_eq!(added.sheets[0].cell_diffs[0].change_kind(), CellChangeKind::Added);
+    let added = compare_bytes(wb_empty(), wb_strings(&[(0, 0, "new")])).unwrap();
+    assert_eq!(
+        added.sheets[0].cell_diffs[0].change_kind(),
+        CellChangeKind::Added
+    );
 
     // Removed: value old → empty new
-    let removed = compare_bytes(&wb_strings(&[(0, 0, "gone")]), &wb_empty()).unwrap();
-    assert_eq!(removed.sheets[0].cell_diffs[0].change_kind(), CellChangeKind::Removed);
+    let removed = compare_bytes(wb_strings(&[(0, 0, "gone")]), wb_empty()).unwrap();
+    assert_eq!(
+        removed.sheets[0].cell_diffs[0].change_kind(),
+        CellChangeKind::Removed
+    );
 
     // Modified: value old → different value new
-    let modified = compare_bytes(
-        &wb_strings(&[(0, 0, "a")]), &wb_strings(&[(0, 0, "b")])).unwrap();
-    assert_eq!(modified.sheets[0].cell_diffs[0].change_kind(), CellChangeKind::Modified);
+    let modified = compare_bytes(wb_strings(&[(0, 0, "a")]), wb_strings(&[(0, 0, "b")])).unwrap();
+    assert_eq!(
+        modified.sheets[0].cell_diffs[0].change_kind(),
+        CellChangeKind::Modified
+    );
 }
 
 // ============================================================================
@@ -942,8 +1015,8 @@ fn change_kind_is_stable_added_removed_modified() {
 
 #[test]
 fn compare_readers_works() {
-    use std::io::Cursor;
     use sheets_diff::compare_readers;
+    use std::io::Cursor;
 
     let old = wb_strings(&[(0, 0, "before")]);
     let new = wb_strings(&[(0, 0, "after")]);
@@ -954,16 +1027,12 @@ fn compare_readers_works() {
 
 #[test]
 fn compare_readers_with_options_works() {
+    use sheets_diff::{DiffOptions, compare_readers_with_options};
     use std::io::Cursor;
-    use sheets_diff::{compare_readers_with_options, DiffOptions};
 
     let b = wb_strings(&[(0, 0, "same")]);
     let opts = DiffOptions::builder().build().unwrap();
-    let diff = compare_readers_with_options(
-        Cursor::new(b.clone()),
-        Cursor::new(b),
-        opts,
-    ).unwrap();
+    let diff = compare_readers_with_options(Cursor::new(b.clone()), Cursor::new(b), opts).unwrap();
     assert_eq!(diff.summary.cells_changed, 0);
 }
 
@@ -980,8 +1049,126 @@ fn type_mismatch_compare_display_string_treats_text_100_and_number_100_equal() {
     // CompareDisplayString: treat "100" == 100.0 as equal via display
     let opts = DiffOptions::builder()
         .type_mismatch_policy(TypeMismatchPolicy::CompareDisplayString)
-        .build().unwrap();
+        .build()
+        .unwrap();
     let lenient_diff = compare_bytes_with_options(&old, &new, opts).unwrap();
-    assert_eq!(lenient_diff.summary.values_changed, 0,
-        "CompareDisplayString should treat text '100' and number 100 as equal");
+    assert_eq!(
+        lenient_diff.summary.values_changed, 0,
+        "CompareDisplayString should treat text '100' and number 100 as equal"
+    );
+}
+
+// ============================================================================
+// RFC-034 Handoff 01 — generated fixture corpus
+//
+// Generation lives in examples/gen-fixtures.rs and is never invoked by
+// `cargo test`; these tests only read the fixture pairs already committed
+// under tests/fixtures/generated/.
+// ============================================================================
+
+fn generated_fixture_dirs() -> Vec<std::path::PathBuf> {
+    let base = std::path::Path::new("tests/fixtures/generated");
+    let mut dirs: Vec<_> = std::fs::read_dir(base)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.is_dir())
+        .collect();
+    dirs.sort();
+    dirs
+}
+
+fn read_fixture_pair(name: &str) -> (Vec<u8>, Vec<u8>) {
+    let dir = std::path::Path::new("tests/fixtures/generated").join(name);
+    let old = std::fs::read(dir.join("old.xlsx")).unwrap();
+    let new = std::fs::read(dir.join("new.xlsx")).unwrap();
+    (old, new)
+}
+
+/// Every committed fixture pair compares without error, and — under the
+/// `serde` feature — its serialised `WorkbookDiff` matches the committed
+/// `expected.json` golden. Without `serde`, only the error-free comparison
+/// is checked; the golden assertion is skipped because `output::json` does
+/// not exist in that build.
+///
+/// Re-bless after confirming a changed output is correct, never before:
+///   BLESS=1 cargo test --features serde -- generated_fixtures_match_golden
+#[test]
+fn generated_fixtures_match_golden() {
+    for dir in generated_fixture_dirs() {
+        let old = std::fs::read(dir.join("old.xlsx")).unwrap();
+        let new = std::fs::read(dir.join("new.xlsx")).unwrap();
+        #[allow(unused_variables)]
+        let diff = compare_bytes(&old, &new).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
+
+        #[cfg(feature = "serde")]
+        {
+            let actual = sheets_diff::output::json::to_json_pretty(&diff).unwrap();
+            let expected_path = dir.join("expected.json");
+            if std::env::var("BLESS").as_deref() == Ok("1") {
+                std::fs::write(&expected_path, &actual).unwrap();
+                continue;
+            }
+            let expected = std::fs::read_to_string(&expected_path)
+                .unwrap_or_else(|e| panic!("{}: {e}", expected_path.display()));
+            assert_eq!(
+                actual,
+                expected,
+                "{} golden mismatch — if the new output is correct, re-bless with \
+                 BLESS=1 cargo test --features serde -- generated_fixtures_match_golden",
+                dir.display()
+            );
+        }
+    }
+}
+
+// The assertions below were originally inline in tests/gen.rs::generate_fixtures
+// (RFC-030); RFC-034 Handoff 01 moves them here to run against the committed
+// fixtures instead of freshly regenerated bytes.
+
+#[test]
+fn wide_columns_fixture_reaches_xfd() {
+    let (old, new) = read_fixture_pair("wide_columns");
+    let diff = compare_bytes(&old, &new).unwrap();
+    assert_eq!(diff.sheets[0].cell_diffs[0].address.a1, "XFD1");
+}
+
+#[test]
+fn renamed_sheet_fixture_preserves_cell_diff() {
+    let (old, new) = read_fixture_pair("renamed_sheet");
+    let diff = compare_bytes(&old, &new).unwrap();
+    assert_eq!(diff.summary.sheets_renamed, 1);
+    assert_eq!(diff.summary.cells_changed, 1);
+}
+
+#[test]
+fn typed_values_fixture_reports_two_value_changes() {
+    let (old, new) = read_fixture_pair("typed_values");
+    let diff = compare_bytes(&old, &new).unwrap();
+    assert_eq!(diff.summary.values_changed, 2);
+}
+
+#[test]
+fn empty_sheet_fixture_has_no_diffs() {
+    let (old, new) = read_fixture_pair("empty_sheet");
+    let diff = compare_bytes(&old, &new).unwrap();
+    assert_eq!(diff.summary.cells_changed, 0);
+}
+
+#[test]
+fn sparse_range_fixture_reports_one_change() {
+    let (old, new) = read_fixture_pair("sparse_range");
+    let diff = compare_bytes(&old, &new).unwrap();
+    assert_eq!(diff.summary.cells_changed, 1);
+}
+
+#[test]
+fn row_insertion_cascade_fixture_reports_cascade() {
+    let (old, new) = read_fixture_pair("row_insertion_cascade");
+    let diff = compare_bytes(&old, &new).unwrap();
+    assert!(
+        diff.summary.cells_changed >= 20,
+        "positional cascade expected, got {}",
+        diff.summary.cells_changed
+    );
 }

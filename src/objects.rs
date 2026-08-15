@@ -12,9 +12,7 @@
 
 use calamine::{Reader, SheetType};
 
-use crate::model::{
-    Diagnostic, DiagnosticKind, DiagnosticLocation, DiffStage, Severity,
-};
+use crate::model::{Diagnostic, DiagnosticKind, DiagnosticLocation, DiffStage, Severity};
 use crate::open::OpenedWorkbook;
 
 // ---------------------------------------------------------------------------
@@ -65,11 +63,11 @@ pub fn report_object_coverage(
 fn detect_non_worksheet_sheets(wb: &mut OpenedWorkbook, diagnostics: &mut Vec<Diagnostic>) {
     for (index, sheet) in wb.reader.sheets_metadata().iter().enumerate() {
         let kind = match sheet.typ {
-            SheetType::ChartSheet  => Some("chart sheet"),
-            SheetType::MacroSheet  => Some("macro sheet"),
-            SheetType::Vba         => Some("VBA module"),
+            SheetType::ChartSheet => Some("chart sheet"),
+            SheetType::MacroSheet => Some("macro sheet"),
+            SheetType::Vba => Some("VBA module"),
             SheetType::DialogSheet => Some("dialog sheet"),
-            SheetType::WorkSheet   => None, // ordinary — no warning needed
+            SheetType::WorkSheet => None, // ordinary — no warning needed
         };
         if let Some(kind_label) = kind {
             diagnostics.push(Diagnostic {

@@ -132,9 +132,15 @@ pub enum SheetChange {
     /// Name-matched, but the tab index moved between the two workbooks.
     Moved,
     /// Name changed; heuristically matched.
-    Renamed { confidence: MatchConfidence, reason: SheetMatchReason },
+    Renamed {
+        confidence: MatchConfidence,
+        reason: SheetMatchReason,
+    },
     /// Both renamed and moved.
-    RenamedAndMoved { confidence: MatchConfidence, reason: SheetMatchReason },
+    RenamedAndMoved {
+        confidence: MatchConfidence,
+        reason: SheetMatchReason,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -241,12 +247,8 @@ impl CellValue {
             CellValue::Integer(i) => i.to_string(),
             CellValue::Number(f) => f.to_string(),
             CellValue::Bool(b) => b.to_string(),
-            CellValue::DateTime(dt) => {
-                dt.iso.clone().unwrap_or_else(|| dt.serial.to_string())
-            }
-            CellValue::Duration(d) => {
-                d.iso.clone().unwrap_or_else(|| d.serial.to_string())
-            }
+            CellValue::DateTime(dt) => dt.iso.clone().unwrap_or_else(|| dt.serial.to_string()),
+            CellValue::Duration(d) => d.iso.clone().unwrap_or_else(|| d.serial.to_string()),
             CellValue::Error(e) => e.to_string(),
             CellValue::Unsupported { display, .. } => display.clone(),
         }
@@ -314,7 +316,11 @@ pub struct CellDisplay {
 impl CellDisplay {
     /// Construct a `CellDisplay` from its components.
     pub fn new(text: String, format: Option<CellNumberFormat>, source: DisplaySource) -> Self {
-        Self { text, format, source }
+        Self {
+            text,
+            format,
+            source,
+        }
     }
 
     /// Build a default display from a `CellValue`.
@@ -343,8 +349,16 @@ pub struct CellSnapshot {
 
 impl CellSnapshot {
     /// Construct a `CellSnapshot` from its components.
-    pub fn new(value: CellValue, formula: Option<FormulaText>, display: Option<CellDisplay>) -> Self {
-        Self { value, formula, display }
+    pub fn new(
+        value: CellValue,
+        formula: Option<FormulaText>,
+        display: Option<CellDisplay>,
+    ) -> Self {
+        Self {
+            value,
+            formula,
+            display,
+        }
     }
 
     /// Return the best available display string: `display.text` when present,
@@ -467,10 +481,26 @@ impl CellDiff {
     /// a major version, so downstream code may depend on it rather than
     /// re-deriving presence classification from the sub-fields.
     pub fn change_kind(&self) -> CellChangeKind {
-        let has_old = self.value.as_ref().map(|v| !v.old.is_empty()).unwrap_or(false)
-            || self.formula.as_ref().map(|f| f.old.is_some()).unwrap_or(false);
-        let has_new = self.value.as_ref().map(|v| !v.new.is_empty()).unwrap_or(false)
-            || self.formula.as_ref().map(|f| f.new.is_some()).unwrap_or(false);
+        let has_old = self
+            .value
+            .as_ref()
+            .map(|v| !v.old.is_empty())
+            .unwrap_or(false)
+            || self
+                .formula
+                .as_ref()
+                .map(|f| f.old.is_some())
+                .unwrap_or(false);
+        let has_new = self
+            .value
+            .as_ref()
+            .map(|v| !v.new.is_empty())
+            .unwrap_or(false)
+            || self
+                .formula
+                .as_ref()
+                .map(|f| f.new.is_some())
+                .unwrap_or(false);
         match (has_old, has_new) {
             (false, true) => CellChangeKind::Added,
             (true, false) => CellChangeKind::Removed,

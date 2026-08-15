@@ -4,9 +4,7 @@
 //! on demand.  No GUI framework dependency is introduced.
 
 use crate::address::CellAddress;
-use crate::model::{
-    CellChangeKind, CellDiff, SheetChange, Severity, WorkbookDiff,
-};
+use crate::model::{CellChangeKind, CellDiff, Severity, SheetChange, WorkbookDiff};
 
 // ---------------------------------------------------------------------------
 // Filtering
@@ -151,16 +149,22 @@ impl<'a> DiffView<'a> {
 
     /// Iterate sheet summary rows in workbook display order.
     pub fn sheets(&self) -> impl Iterator<Item = SheetSummaryRow<'a>> {
-        self.workbook.sheets.iter().enumerate().map(|(i, sd)| {
-            SheetSummaryRow {
+        self.workbook
+            .sheets
+            .iter()
+            .enumerate()
+            .map(|(i, sd)| SheetSummaryRow {
                 sheet_index: i,
-                name: sd.new_sheet.as_ref().or(sd.old_sheet.as_ref())
-                    .map(|s| s.name.as_str()).unwrap_or("?"),
+                name: sd
+                    .new_sheet
+                    .as_ref()
+                    .or(sd.old_sheet.as_ref())
+                    .map(|s| s.name.as_str())
+                    .unwrap_or("?"),
                 change: &sd.change,
                 cells_changed: sd.summary.cells_changed,
                 has_diagnostics: !sd.diagnostics.is_empty(),
-            }
-        })
+            })
     }
 
     // ------------------------------------------------------------------
@@ -174,10 +178,16 @@ impl<'a> DiffView<'a> {
         let mut out = Vec::new();
         for (sheet_idx, sd) in self.workbook.sheets.iter().enumerate() {
             if let Some(ref allowed) = filter.sheets {
-                if !allowed.contains(&sheet_idx) { continue; }
+                if !allowed.contains(&sheet_idx) {
+                    continue;
+                }
             }
-            let sheet_name = sd.new_sheet.as_ref().or(sd.old_sheet.as_ref())
-                .map(|s| s.name.as_str()).unwrap_or("?");
+            let sheet_name = sd
+                .new_sheet
+                .as_ref()
+                .or(sd.old_sheet.as_ref())
+                .map(|s| s.name.as_str())
+                .unwrap_or("?");
             for cd in &sd.cell_diffs {
                 if let Some(row) = cell_to_row(cd, sheet_idx, sheet_name, filter) {
                     out.push(row);
@@ -216,7 +226,11 @@ impl<'a> DiffView<'a> {
     }
 
     /// Return the anchor immediately before `current`, or `None` if at start.
-    pub fn previous_before(&self, current: &ChangeAnchor, filter: &ViewFilter) -> Option<ChangeAnchor> {
+    pub fn previous_before(
+        &self,
+        current: &ChangeAnchor,
+        filter: &ViewFilter,
+    ) -> Option<ChangeAnchor> {
         let mut prev: Option<ChangeAnchor> = None;
         for row in self.rows(filter).into_iter() {
             if &row.anchor == current {
@@ -232,11 +246,7 @@ impl<'a> DiffView<'a> {
     // ------------------------------------------------------------------
 
     /// All cell-change rows for one sheet (by 0-based sheet index).
-    pub fn sheet_rows(
-        &'a self,
-        sheet_index: usize,
-        filter: &ViewFilter,
-    ) -> Vec<CellChangeRow<'a>> {
+    pub fn sheet_rows(&'a self, sheet_index: usize, filter: &ViewFilter) -> Vec<CellChangeRow<'a>> {
         let mut f = filter.clone();
         f.sheets = Some(vec![sheet_index]);
         self.rows(&f)
@@ -260,16 +270,18 @@ fn cell_to_row<'a>(
         return None;
     }
 
-    let old_display = cd.value.as_ref()
+    let old_display = cd
+        .value
+        .as_ref()
         .map(|vc| vc.old.display_string())
         .unwrap_or_default();
-    let new_display = cd.value.as_ref()
+    let new_display = cd
+        .value
+        .as_ref()
         .map(|vc| vc.new.display_string())
         .unwrap_or_default();
 
-    let max_severity = cd.diagnostics.iter()
-        .map(|d| d.severity)
-        .max();
+    let max_severity = cd.diagnostics.iter().map(|d| d.severity).max();
 
     // Borrow formula text from the underlying change, if present (Q2).
     let (old_formula, new_formula) = match &cd.formula {

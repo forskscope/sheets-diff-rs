@@ -11,7 +11,7 @@ use std::process;
 use clap::{Parser, ValueEnum};
 
 use sheets_diff::{
-    DiffOptions, SheetsDiffError,
+    DiffOptions,
     output::text::{render_summary, render_unified},
 };
 

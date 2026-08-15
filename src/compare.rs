@@ -1,16 +1,10 @@
 //! Cell-level value and formula comparison (RFC-010, RFC-018, RFC-019).
 
-use crate::model::{
-    CellValue, FormulaChange, FormulaText, ValueChange, ValueDifferenceKind,
-};
+use crate::model::{CellValue, FormulaChange, FormulaText, ValueChange, ValueDifferenceKind};
 use crate::options::{
     DateComparePolicy, FormulaCompareMode, NumberComparePolicy, NumericTypePolicy,
     TypeMismatchPolicy, ValueCompareOptions,
 };
-
-/// Re-export for integration tests only.
-#[cfg(test)]
-pub use self::compare_values as compare_values_pub;
 
 // ---------------------------------------------------------------------------
 // Value comparison
@@ -38,10 +32,7 @@ pub fn compare_values(
         (Bool(_), Bool(_)) => ValueDifferenceKind::ContentChanged,
         (Integer(a), Integer(b)) if a == b => return None,
         (Integer(_), Integer(_)) => ValueDifferenceKind::ContentChanged,
-        (Number(a), Number(b)) => match compare_floats(*a, *b, &opts.number) {
-            Some(r) => r,
-            None => return None,
-        },
+        (Number(a), Number(b)) => compare_floats(*a, *b, &opts.number)?,
         (Error(a), Error(b)) if a == b => return None,
         (Error(_), Error(_)) => ValueDifferenceKind::ErrorKindChanged,
         (DateTime(a), DateTime(b)) => {
@@ -65,23 +56,19 @@ pub fn compare_values(
             }
             ValueDifferenceKind::ContentChanged
         }
-        (Unsupported { display: a, .. }, Unsupported { display: b, .. }) if a == b => {
-            return None
-        }
+        (Unsupported { display: a, .. }, Unsupported { display: b, .. }) if a == b => return None,
         (Unsupported { .. }, Unsupported { .. }) => ValueDifferenceKind::ContentChanged,
 
         // Cross-type: Integer vs Number
-        (Integer(i), Number(f)) | (Number(f), Integer(i)) => {
-            match opts.numeric_type {
-                NumericTypePolicy::PreserveType => ValueDifferenceKind::TypeChanged,
-                NumericTypePolicy::CompareMathematicalValue => {
-                    if *i as f64 == *f {
-                        return None;
-                    }
-                    ValueDifferenceKind::ContentChanged
+        (Integer(i), Number(f)) | (Number(f), Integer(i)) => match opts.numeric_type {
+            NumericTypePolicy::PreserveType => ValueDifferenceKind::TypeChanged,
+            NumericTypePolicy::CompareMathematicalValue => {
+                if *i as f64 == *f {
+                    return None;
                 }
+                ValueDifferenceKind::ContentChanged
             }
-        }
+        },
 
         // Cross-type: everything else
         _ => match opts.type_mismatch {
@@ -97,14 +84,14 @@ pub fn compare_values(
         },
     };
 
-    Some(ValueChange { old: old.clone(), new: new.clone(), reason })
+    Some(ValueChange {
+        old: old.clone(),
+        new: new.clone(),
+        reason,
+    })
 }
 
-fn compare_floats(
-    a: f64,
-    b: f64,
-    policy: &NumberComparePolicy,
-) -> Option<ValueDifferenceKind> {
+fn compare_floats(a: f64, b: f64, policy: &NumberComparePolicy) -> Option<ValueDifferenceKind> {
     let equal = match policy {
         NumberComparePolicy::Exact => a == b || (a.is_nan() && b.is_nan()),
         NumberComparePolicy::AbsoluteTolerance(tol) => (a - b).abs() <= *tol,
@@ -168,7 +155,10 @@ pub fn compare_formulas(
         return None;
     }
 
-    Some(FormulaChange { old: old_text, new: new_text })
+    Some(FormulaChange {
+        old: old_text,
+        new: new_text,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -187,7 +177,11 @@ mod tests {
 
     #[test]
     fn equal_texts_produce_no_change() {
-        let r = compare_values(&CellValue::Text("x".into()), &CellValue::Text("x".into()), &opts());
+        let r = compare_values(
+            &CellValue::Text("x".into()),
+            &CellValue::Text("x".into()),
+            &opts(),
+        );
         assert!(r.is_none());
     }
 
@@ -253,8 +247,12 @@ mod tests {
 
     #[test]
     fn different_formulas_return_change() {
-        let r = compare_formulas(Some("=A1+B1"), Some("=A1+B1+C1"), FormulaCompareMode::RawText)
-            .unwrap();
+        let r = compare_formulas(
+            Some("=A1+B1"),
+            Some("=A1+B1+C1"),
+            FormulaCompareMode::RawText,
+        )
+        .unwrap();
         assert_eq!(r.old.as_ref().unwrap().raw, "=A1+B1");
         assert_eq!(r.new.as_ref().unwrap().raw, "=A1+B1+C1");
     }

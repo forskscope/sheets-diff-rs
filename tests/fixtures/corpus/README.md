@@ -21,15 +21,37 @@ tests/fixtures/
 
 ## Generating fixtures
 
-Fixtures in `generated/` are produced by the test suite itself using
-`rust_xlsxwriter`. Run:
+Adding or changing a scenario is **two explicit steps**, and both are
+reviewed like any other change — neither is a silent, automatic pass.
+
+**Step 1 — regenerate `old.xlsx` / `new.xlsx` / `scenario.toml`.** Produced
+by an example, not by the test suite (RFC-034 Handoff 01) — `cargo test`
+never writes into this directory, and neither does this example write
+`expected.json`; see "A generator that also blesses is a bug" below.
 
 ```sh
-cargo test -- generate_fixtures
+cargo run --example gen-fixtures
 ```
 
-This writes `old.xlsx`, `new.xlsx`, and (when `--features serde` is active)
-`expected.json` into the appropriate subdirectory.
+Every generated workbook carries a fixed creation timestamp, so re-running
+the generator against *unchanged* scenario definitions reproduces the same
+bytes. That makes a silent `git status --porcelain tests/fixtures/generated`
+after this step meaningful for one narrow question only — "did I just
+regenerate an unchanged scenario by mistake?" — not "is everything fine."
+It says nothing about `expected.json`, which this step never touches.
+
+**Step 2 — bless `expected.json`.** The *only* thing that writes or updates a
+golden is:
+
+```sh
+BLESS=1 cargo test --features serde -- generated_fixtures_match_golden
+```
+
+This asserts the new output against the existing golden first; `BLESS=1`
+only takes effect for scenarios that don't already match (or don't yet have
+an `expected.json`). **Read the resulting diff of `expected.json` before
+committing it** — that diff is the regression check for this scenario, and
+skimming past it defeats the corpus's purpose.
 
 ## Scenario metadata
 
@@ -42,12 +64,17 @@ description = "Covers A1 addressing through column XFD (column 16384)."
 notes       = ""
 ```
 
-`expected.json` is the golden serialised `WorkbookDiff` when the `serde`
-feature is enabled. Regenerate with:
+## A generator that also blesses is a bug
 
-```sh
-cargo test --features serde -- bless_fixtures
-```
+`examples/gen-fixtures.rs` does not depend on `sheets-diff`'s comparison
+logic and cannot write `expected.json`, by design. A generator that both
+produces fixtures *and* silently rewrites their goldens defeats regression
+protection at exactly the moment it matters: change comparison behaviour,
+regenerate, and the goldens would rewrite themselves to match the new
+(possibly wrong) behaviour before anyone compares against the old one. If a
+future change reintroduces golden-writing into the generator, that is a
+regression against RFC-034's explicit prohibition ("do not make blessing
+implicit, or on-mismatch-rewrite") — treat it as a bug, not a convenience.
 
 ## Contributing a reproducer
 

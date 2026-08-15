@@ -7,8 +7,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use crate::model::{
-    CellValue, Diagnostic, DiagnosticKind, DiagnosticLocation, DiffStage,
-    MatchConfidence, Severity,
+    CellValue, Diagnostic, DiagnosticKind, DiagnosticLocation, DiffStage, MatchConfidence, Severity,
 };
 use crate::options::AlignmentMode;
 
@@ -66,17 +65,28 @@ pub fn compute_row_mapping(
     match mode {
         AlignmentMode::Positional => None,
 
-        AlignmentMode::RowKey { columns } => {
-            Some(row_key_alignment(old_cells, new_cells, columns, max_rows, diagnostics))
-        }
+        AlignmentMode::RowKey { columns } => Some(row_key_alignment(
+            old_cells,
+            new_cells,
+            columns,
+            max_rows,
+            diagnostics,
+        )),
 
-        AlignmentMode::RowSignature { sample_columns } => {
-            Some(row_signature_alignment(old_cells, new_cells, sample_columns.as_deref(), max_rows, diagnostics))
-        }
+        AlignmentMode::RowSignature { sample_columns } => Some(row_signature_alignment(
+            old_cells,
+            new_cells,
+            sample_columns.as_deref(),
+            max_rows,
+            diagnostics,
+        )),
 
-        AlignmentMode::HeaderColumn => {
-            Some(header_column_alignment(old_cells, new_cells, max_rows, diagnostics))
-        }
+        AlignmentMode::HeaderColumn => Some(header_column_alignment(
+            old_cells,
+            new_cells,
+            max_rows,
+            diagnostics,
+        )),
     }
 }
 
@@ -104,7 +114,8 @@ fn row_key_alignment(
                 detail: format!(
                     "duplicate row keys detected ({} in old, {} in new); \
                      affected rows compared positionally",
-                    old_dups.len(), new_dups.len()
+                    old_dups.len(),
+                    new_dups.len()
                 ),
             },
             location: DiagnosticLocation {
@@ -222,11 +233,15 @@ fn lcs_match(
         }
     }
 
-    let removed: Vec<u32> = old_rows.iter().enumerate()
+    let removed: Vec<u32> = old_rows
+        .iter()
+        .enumerate()
         .filter(|(idx, _)| !old_used[*idx])
         .map(|(_, (r, _))| *r)
         .collect();
-    let inserted: Vec<u32> = new_rows.iter().enumerate()
+    let inserted: Vec<u32> = new_rows
+        .iter()
+        .enumerate()
         .filter(|(idx, _)| !new_used[*idx])
         .map(|(_, (r, _))| *r)
         .collect();
@@ -286,7 +301,9 @@ fn compute_row_signatures(
                 continue;
             }
         }
-        rows.entry(*r).or_default().push(format!("{c}:{}", val.display_string()));
+        rows.entry(*r)
+            .or_default()
+            .push(format!("{c}:{}", val.display_string()));
     }
     rows
 }
@@ -296,7 +313,10 @@ fn find_duplicate_keys(keys: &BTreeMap<u32, RowKey>) -> Vec<RowKey> {
     for k in keys.values() {
         *seen.entry(k).or_insert(0) += 1;
     }
-    seen.into_iter().filter(|(_, count)| *count > 1).map(|(k, _)| k.clone()).collect()
+    seen.into_iter()
+        .filter(|(_, count)| *count > 1)
+        .map(|(k, _)| k.clone())
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -317,7 +337,8 @@ mod tests {
     fn positional_mode_returns_none() {
         let cells = make_cells(&[(1, 1, "a")]);
         let mut diag = vec![];
-        let result = compute_row_mapping(&cells, &cells, &AlignmentMode::Positional, None, &mut diag);
+        let result =
+            compute_row_mapping(&cells, &cells, &AlignmentMode::Positional, None, &mut diag);
         assert!(result.is_none());
     }
 
@@ -327,10 +348,13 @@ mod tests {
         let new = make_cells(&[(1, 1, "id1"), (2, 1, "id2"), (3, 1, "id3")]);
         let mut diag = vec![];
         let mapping = compute_row_mapping(
-            &old, &new,
+            &old,
+            &new,
             &AlignmentMode::RowKey { columns: vec![1] },
-            None, &mut diag,
-        ).unwrap();
+            None,
+            &mut diag,
+        )
+        .unwrap();
         assert_eq!(mapping.matched.len(), 3);
         assert!(mapping.removed.is_empty());
         assert!(mapping.inserted.is_empty());
@@ -341,14 +365,20 @@ mod tests {
         // old: id1, id2, id3 — new: id1, id_new, id2, id3 (one inserted at row 2)
         let old = make_cells(&[(1, 1, "id1"), (2, 1, "id2"), (3, 1, "id3")]);
         let new = make_cells(&[
-            (1, 1, "id1"), (2, 1, "id_new"), (3, 1, "id2"), (4, 1, "id3"),
+            (1, 1, "id1"),
+            (2, 1, "id_new"),
+            (3, 1, "id2"),
+            (4, 1, "id3"),
         ]);
         let mut diag = vec![];
         let mapping = compute_row_mapping(
-            &old, &new,
+            &old,
+            &new,
             &AlignmentMode::RowKey { columns: vec![1] },
-            None, &mut diag,
-        ).unwrap();
+            None,
+            &mut diag,
+        )
+        .unwrap();
         // id1/id2/id3 all matched; id_new is inserted
         assert_eq!(mapping.matched.len(), 3);
         assert_eq!(mapping.inserted.len(), 1);
@@ -361,10 +391,13 @@ mod tests {
         let new = make_cells(&[(1, 1, "id1"), (2, 1, "id3")]);
         let mut diag = vec![];
         let mapping = compute_row_mapping(
-            &old, &new,
+            &old,
+            &new,
             &AlignmentMode::RowKey { columns: vec![1] },
-            None, &mut diag,
-        ).unwrap();
+            None,
+            &mut diag,
+        )
+        .unwrap();
         assert_eq!(mapping.matched.len(), 2); // id1, id3
         assert_eq!(mapping.removed.len(), 1); // id2
         assert!(mapping.inserted.is_empty());
@@ -376,9 +409,11 @@ mod tests {
         let new = make_cells(&[(1, 1, "dup"), (2, 1, "unique")]);
         let mut diag = vec![];
         let _ = compute_row_mapping(
-            &old, &new,
+            &old,
+            &new,
             &AlignmentMode::RowKey { columns: vec![1] },
-            None, &mut diag,
+            None,
+            &mut diag,
         );
         assert!(!diag.is_empty(), "expected diagnostic for duplicate keys");
     }

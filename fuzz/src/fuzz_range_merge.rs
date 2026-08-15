@@ -8,7 +8,7 @@ fuzz_target!(|data: &[u8]| {
         return;
     }
     fn read_opt(b: &[u8]) -> Option<(u32, u32)> {
-        if b[0] == 0 { return None; }
+        if b.len() < 9 || b[0] == 0 { return None; }
         let r = u32::from_le_bytes([b[1], b[2], b[3], b[4]]);
         let c = u32::from_le_bytes([b[5], b[6], b[7], b[8]]);
         Some((r.max(1), c.max(1)))
