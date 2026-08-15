@@ -1,0 +1,18 @@
+# tests/fixtures/generated/*/expected.json is a byte-exact golden, asserted
+# against freshly serialised JSON (serde_json, LF) in
+# tests/integration.rs::generated_fixtures_match_golden. Git's default
+# checkout produces CRLF for text files on Windows, which broke every
+# scenario on that platform (RFC-034 Handoff 02 correction 02, F-01). Force
+# LF at checkout so content is what's actually compared, on every platform.
+tests/fixtures/generated/*/expected.json text eol=lf
+
+# .xlsx fixtures are compared byte-for-byte (idempotent generation in
+# examples/gen-fixtures.rs, corpus hash checked across every review unit).
+# Autodetection already treats them as binary correctly — proven by the
+# non-serde Windows CI legs passing while the serde ones failed on the
+# goldens above — but relying on autodetection for a property the test
+# suite actually checks is thin. Make it explicit.
+*.xlsx binary
+
+# Fuzz corpus seeds are raw byte inputs, not text.
+fuzz/corpus/** binary
