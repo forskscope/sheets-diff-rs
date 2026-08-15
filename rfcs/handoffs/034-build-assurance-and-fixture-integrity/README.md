@@ -1,7 +1,7 @@
 # Handoffs — RFC-034, Build Assurance and Fixture Integrity
 
 Companion execution documents for
-[RFC-034](../../proposed/034-build-assurance-and-fixture-integrity.md).
+[RFC-034](../../accepted/034-build-assurance-and-fixture-integrity.md).
 Their lifecycle state is inherited from that RFC — they have no status of their
 own, and they must not redefine it.
 
@@ -22,11 +22,10 @@ does not compile is still declared.
 Unit 01 must precede unit 02 because the `tree` job asserts a clean working tree,
 which today's fixture harness violates on every run.
 
-## Blocked on acceptance
+## Status
 
-RFC-034 is in `proposed/`. Under the 5-folder lifecycle, implementation should
-not begin until it moves to `accepted/`. These handoffs are written and ready;
-they are not yet cleared to execute.
+RFC-034 was **accepted on 2026-08-15** and is in `accepted/`. These handoffs are
+live: implementation may begin, starting at the top of the queue above.
 
 ## Standing constraints for all units
 

@@ -1,6 +1,6 @@
 # Handoff 01 — Fixture integrity
 
-**Governing RFC.** [RFC-034](../../proposed/034-build-assurance-and-fixture-integrity.md) §5.1–5.3
+**Governing RFC.** [RFC-034](../../accepted/034-build-assurance-and-fixture-integrity.md) §5.1–5.3
 **Roadmap.** M1
 **Sequence.** Second, after the `parallel` removal. Must precede CI (Handoff 02),
 or the first CI run fails on a dirty tree.

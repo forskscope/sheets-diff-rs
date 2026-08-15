@@ -1,6 +1,6 @@
 # RFC-034 — Build Assurance and Fixture Integrity
 
-**Status.** Proposed
+**Status.** Accepted (2026-08-15) — cleared for implementation; handoffs are live.
 **Target:** M1 (no release)
 **Created:** 2026-08-15
 **Related:** RFC-015, RFC-026, RFC-028, RFC-030, RFC-031, RFC 1.2/006

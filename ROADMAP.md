@@ -47,7 +47,7 @@ mostly **amendment of existing RFCs** rather than new design.
 
 ### M1 — Trustworthy build *(no release)*
 
-Governed by **RFC-034** (proposed). Exit criteria:
+Governed by **RFC-034** (accepted). Exit criteria:
 
 - CI green on Linux + one further OS (NF-023), across every feature combination
 - `cargo clippy --all-targets` clean and gated

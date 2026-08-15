@@ -41,18 +41,17 @@ active roadmap is [`ROADMAP.md`](../ROADMAP.md).
 
 ## Proposed
 
-| ID | Title | Handoffs |
-|----|-------|----------|
-| 034 | [Build Assurance and Fixture Integrity](./proposed/034-build-assurance-and-fixture-integrity.md) | [yes](./handoffs/034-build-assurance-and-fixture-integrity/) — written, not cleared to execute until this RFC is accepted |
+_None._
 
 ## Accepted
 
-Design settled, implementation not complete as of 2.2.3.
+Design settled; implementation may start.
 
 | ID | Title | Note | Handoffs |
 |----|-------|------|----------|
 | 022 | [Styles and Formatting Diff Policy](./accepted/022-styles-and-formatting-diff-policy.md) | `FormatCompareMode` rejects every non-`Ignore` mode; no style diff layer exists. Blocked upstream — calamine keeps `mod formats` private through 0.36. | — |
-| 025 | [Deterministic Parallel Execution](./accepted/025-deterministic-parallel-execution.md) | The `parallel` feature does not compile (`ExecutionMode::Parallel` is absent). CHANGELOG 2.2.0 documents it as shipped; that entry is wrong. Amended 2026-08-15: implementation removed, design retained. | [yes](./handoffs/025-deterministic-parallel-execution/) |
+| 025 | [Deterministic Parallel Execution](./accepted/025-deterministic-parallel-execution.md) | The `parallel` feature does not compile (`ExecutionMode::Parallel` is absent). CHANGELOG 2.2.0 documents it as shipped; that entry is wrong. Amended 2026-08-15: implementation removed, design retained. | [yes](./handoffs/025-deterministic-parallel-execution/) — **live** |
+| 034 | [Build Assurance and Fixture Integrity](./accepted/034-build-assurance-and-fixture-integrity.md) | Accepted 2026-08-15. CI, feature matrix, fixture integrity, working goldens. Roadmap milestone M1. | [yes](./handoffs/034-build-assurance-and-fixture-integrity/) — **live** |
 
 ## Implemented
 
