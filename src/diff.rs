@@ -2,10 +2,6 @@
 //!
 //! Public entry points live in `lib.rs`; this module owns the pipeline logic.
 
-// RFC-025: rayon parallel execution (optional feature)
-#[cfg(feature = "parallel")]
-use rayon::prelude::*;
-
 use std::collections::BTreeMap;
 use std::io::{Read, Seek};
 
@@ -158,93 +154,41 @@ fn run_pipeline(
     let mut total_cells_read: u64 = 0;
     let mut metrics = DiffMetrics::default();
 
-    #[cfg(feature = "parallel")]
-    let use_parallel = opts.execution.mode == crate::options::ExecutionMode::Parallel;
-    #[cfg(not(feature = "parallel"))]
-    let use_parallel = false;
+    for (idx, pair) in matched.into_iter().enumerate() {
+        check_cancel(&opts)?;
 
-    if use_parallel {
-        #[cfg(feature = "parallel")]
-        {
-            // Pre-read all sheet cell data sequentially (calamine reader is not Sync),
-            // then compare sheets in parallel, then sort results by workbook order.
-            let mut indexed_data: Vec<(usize, MatchedPair,
-                (CellMap, Option<(u32,u32)>, Option<(u32,u32)>),
-                (CellMap, Option<(u32,u32)>, Option<(u32,u32)>))> = Vec::new();
-            let mut par_cells_read: u64 = 0;
-            for (idx, pair) in matched.into_iter().enumerate() {
-                check_cancel(&opts)?;
-                let mut diag = vec![];
-                let old_data = match &pair.old_sheet {
-                    Some(s) => read_sheet_cells(&mut old_wb, s, Side::Old,
-                                   &opts, &mut par_cells_read, &mut diag)?,
-                    None => (CellMap::new(), None, None),
-                };
-                let new_data = match &pair.new_sheet {
-                    Some(s) => read_sheet_cells(&mut new_wb, s, Side::New,
-                                   &opts, &mut par_cells_read, &mut diag)?,
-                    None => (CellMap::new(), None, None),
-                };
-                workbook_diagnostics.extend(diag);
-                indexed_data.push((idx, pair, old_data, new_data));
-            }
-            total_cells_read = par_cells_read;
-            // Parallel comparison phase
-            let results: Vec<(usize, Result<SheetDiff, SheetsDiffError>)> =
-                indexed_data.into_par_iter().map(|(idx, pair, old_data, new_data)| {
-                    let result = compare_pre_read_pair(
-                        &pair, old_data, new_data, &opts, &mut 0, &mut 0);
-                    (idx, result)
-                }).collect();
-            // Sort by original workbook order and collect
-            let mut sorted = results;
-            sorted.sort_by_key(|(idx, _)| *idx);
-            for (idx, result) in sorted {
-                let sheet_diff = result?;
-                let changed = sheet_diff.cell_diffs.len();
-                metrics.sheets_read += 1;
-                metrics.diffs_emitted += changed as u64;
-                emit(&mut opts, DiffEvent::SheetFinished { index: idx, changed_cells: changed });
-                sheet_diffs.push(sheet_diff);
-            }
-        }
-    } else {
-        for (idx, pair) in matched.into_iter().enumerate() {
-            check_cancel(&opts)?;
+        let sheet_name = pair
+            .new_sheet
+            .as_ref()
+            .or(pair.old_sheet.as_ref())
+            .map(|s| s.name.clone())
+            .unwrap_or_default();
 
-            let sheet_name = pair
-                .new_sheet
-                .as_ref()
-                .or(pair.old_sheet.as_ref())
-                .map(|s| s.name.clone())
-                .unwrap_or_default();
+        emit(&mut opts, DiffEvent::SheetStarted {
+            index: idx,
+            total: total_sheets,
+            name: sheet_name,
+        });
 
-            emit(&mut opts, DiffEvent::SheetStarted {
-                index: idx,
-                total: total_sheets,
-                name: sheet_name,
-            });
+        let sheet_diff = process_sheet_pair(
+            &pair,
+            &mut old_wb,
+            &mut new_wb,
+            &opts,
+            &mut total_diffs,
+            &mut total_cells_read,
+        )?;
 
-            let sheet_diff = process_sheet_pair(
-                &pair,
-                &mut old_wb,
-                &mut new_wb,
-                &opts,
-                &mut total_diffs,
-                &mut total_cells_read,
-            )?;
+        let changed = sheet_diff.cell_diffs.len();
+        metrics.sheets_read += 1;
+        // cells_read is accumulated in read_sheet_cells via total_cells_read
+        metrics.cells_compared += sheet_diff.summary.cells_changed as u64
+            + sheet_diff.cell_diffs.iter()
+                .filter(|cd| cd.value.is_none() && cd.formula.is_none()).count() as u64;
+        metrics.diffs_emitted += changed as u64;
+        emit(&mut opts, DiffEvent::SheetFinished { index: idx, changed_cells: changed });
 
-            let changed = sheet_diff.cell_diffs.len();
-            metrics.sheets_read += 1;
-            // cells_read is accumulated in read_sheet_cells via total_cells_read
-            metrics.cells_compared += sheet_diff.summary.cells_changed as u64
-                + sheet_diff.cell_diffs.iter()
-                    .filter(|cd| cd.value.is_none() && cd.formula.is_none()).count() as u64;
-            metrics.diffs_emitted += changed as u64;
-            emit(&mut opts, DiffEvent::SheetFinished { index: idx, changed_cells: changed });
-
-            sheet_diffs.push(sheet_diff);
-        }
+        sheet_diffs.push(sheet_diff);
     }
 
     // Sort sheets: old-workbook order first, then new-only (Added) sheets.
@@ -460,28 +404,6 @@ fn build_sheet_diff(
         diagnostics: std::mem::take(sheet_diag),
         summary,
     })
-}
-
-// ---------------------------------------------------------------------------
-// Pre-read comparison (RFC-025 parallel path)
-// ---------------------------------------------------------------------------
-
-#[cfg(feature = "parallel")]
-/// Compare two already-read cell maps. Used by both the sequential and
-/// parallel paths so the comparison logic is not duplicated.
-fn compare_pre_read_pair(
-    pair: &MatchedPair,
-    old_data: (CellMap, Option<(u32, u32)>, Option<(u32, u32)>),
-    new_data: (CellMap, Option<(u32, u32)>, Option<(u32, u32)>),
-    opts: &DiffOptions,
-    total_diffs: &mut u64,
-    _total_cells_read: &mut u64,
-) -> Result<SheetDiff, SheetsDiffError> {
-    let mut sheet_diag: Vec<Diagnostic> = Vec::new();
-    let (old_map, old_start, old_end) = old_data;
-    let (new_map, new_start, new_end) = new_data;
-    build_sheet_diff(pair, old_map, old_start, old_end, new_map, new_start, new_end,
-        opts, total_diffs, &mut sheet_diag)
 }
 
 // ---------------------------------------------------------------------------

@@ -249,18 +249,25 @@ impl<F: Fn() -> bool + Send + Sync> Cancellation for F {
 }
 
 /// Execution-mode configuration.
+///
+/// Reserved, currently has no effect: `Sequential` is the only variant and
+/// the only path the pipeline runs. A parallel mode was removed (RFC-025,
+/// roadmap decision D2) because its implementation parallelised the wrong
+/// phase; the type is kept so a future, differently-designed re-introduction
+/// does not need a public API break. See RFC-025 for the full rationale and
+/// the re-introduction gate.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum ExecutionMode {
     /// Single-threaded, deterministic.  Default.
     #[default]
     Sequential,
-    // Parallel added by RFC-025.
 }
 
 /// Execution, progress, and cancellation options.
 pub struct ExecutionOptions {
     pub progress: Option<Box<dyn ProgressSink>>,
     pub cancellation: Option<Box<dyn Cancellation>>,
+    /// Reserved, currently has no effect — see [`ExecutionMode`] (RFC-025).
     pub mode: ExecutionMode,
 }
 
@@ -394,7 +401,9 @@ impl DiffOptionsBuilder {
         self
     }
 
-    /// Set the execution mode (RFC-025).
+    /// Set the execution mode.
+    ///
+    /// Reserved, currently has no effect — see [`ExecutionMode`] (RFC-025).
     pub fn execution_mode(mut self, mode: ExecutionMode) -> Self {
         self.opts.execution.mode = mode;
         self

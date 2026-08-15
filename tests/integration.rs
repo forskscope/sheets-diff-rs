@@ -763,36 +763,6 @@ fn diff_metrics_zero_when_identical() {
 }
 
 // ============================================================================
-// v2.2 — RFC-025 parallel feature
-// ============================================================================
-
-#[test]
-#[cfg(feature = "parallel")]
-fn parallel_mode_produces_same_result_as_sequential() {
-    use sheets_diff::options::ExecutionMode;
-
-    let old = wb_sheets(&[("S1", &[(0,0,"a")]), ("S2", &[(0,0,"b")])]);
-    let new = wb_sheets(&[("S1", &[(0,0,"x")]), ("S2", &[(0,0,"b")])]);
-
-    let seq = compare_bytes(&old, &new).unwrap();
-
-    let par_opts = DiffOptions::builder()
-        .execution_mode(ExecutionMode::Parallel)
-        .build().unwrap();
-    let par = compare_bytes_with_options(&old, &new, par_opts).unwrap();
-
-    assert_eq!(seq.summary.cells_changed, par.summary.cells_changed);
-    assert_eq!(seq.sheets.len(), par.sheets.len());
-    // Ordering must be identical
-    for (s, p) in seq.sheets.iter().zip(par.sheets.iter()) {
-        let s_name = s.new_sheet.as_ref().map(|r| r.name.as_str()).unwrap_or("");
-        let p_name = p.new_sheet.as_ref().map(|r| r.name.as_str()).unwrap_or("");
-        assert_eq!(s_name, p_name, "sheet order must match");
-        assert_eq!(s.cell_diffs.len(), p.cell_diffs.len());
-    }
-}
-
-// ============================================================================
 // v2.3 — RFC-020 display formatting types
 // ============================================================================
 

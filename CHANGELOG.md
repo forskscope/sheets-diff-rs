@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Removed
+
+- **The `parallel` feature is removed** (RFC-025, roadmap decision D2). It never
+  compiled: `src/diff.rs` referenced `ExecutionMode::Parallel`, which
+  `src/options.rs` never defined, so `cargo build --features parallel` has
+  failed since 2.2.0. The design remains sound and RFC-025 stays `accepted/`,
+  amended with the corrected rationale and a re-introduction gate. See the
+  2.2.0 entry below, which is annotated rather than deleted.
+
 ## [2.2.3] - 2026-06-11
 
 ### Fixed (audit)
@@ -95,6 +106,10 @@ Additive response to integration feedback from ForskScope. No breaking changes.
   sorts results by original workbook order to guarantee identical output.
   Enable with `--features parallel`; select via
   `DiffOptionsBuilder::execution_mode(ExecutionMode::Parallel)`.
+  **Correction (see Unreleased):** this entry is wrong. The feature never
+  compiled — `ExecutionMode::Parallel` did not exist in `src/options.rs` — and
+  its only test was gated on the same feature, so it never ran. The feature
+  was removed rather than fixed; see RFC-025's amendment for why.
 - **RFC-027 — Benchmarks** (`bench` feature): `benches/workbook_diff.rs`
   covers all eight RFC-027 scenarios (small-business, wide, tall, sparse,
   many-sheets, formula, rename, alignment cascade). Run with
