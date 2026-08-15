@@ -3,6 +3,15 @@
 //!
 //! All helpers return `Vec<u8>` so tests stay I/O-free; `compare_bytes` is
 //! the preferred entry point for fixture-driven tests.
+//!
+//! `examples/gen-fixtures.rs` duplicates a subset of the builders below
+//! rather than sharing this module (an example cannot depend on `tests/`).
+//! That copy deliberately pins a fixed document-creation timestamp on every
+//! workbook it builds — the builders here do not, and must not, because
+//! these back ad-hoc in-memory comparisons with no byte-reproducibility
+//! requirement, while the example's output is the committed fixture corpus.
+//! If you change a builder signature here that has a counterpart there,
+//! check whether the other needs the same change.
 
 use rust_xlsxwriter::{Formula, Workbook};
 

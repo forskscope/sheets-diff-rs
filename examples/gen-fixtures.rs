@@ -1,19 +1,109 @@
-//! Fixture generator for the `sheets-diff` test corpus (RFC-030).
+//! Fixture generator for the `sheets-diff` test corpus (RFC-030, RFC-034).
 //!
 //! Run with:
-//!   cargo test -p sheets-diff --test gen -- --nocapture
+//!   cargo run --example gen-fixtures
 //!
-//! With the serde feature, also writes `expected.json` golden files:
-//!   cargo test --features serde --test gen -- --nocapture
-
-mod support;
-use support::*;
+//! This is a plain example, not a test: `cargo test` never runs it, so a
+//! checkout only changes the fixture corpus when this is invoked explicitly.
+//! Every generated workbook carries a fixed creation timestamp so re-running
+//! this generator against unchanged scenario definitions produces
+//! byte-identical `.xlsx` files (RFC-034 §5.2).
+//!
+//! This generator writes `old.xlsx`, `new.xlsx`, and `scenario.toml` only. It
+//! does not write `expected.json` and does not depend on `sheets-diff`'s
+//! comparison logic at all — see correction request 01 on Handoff 01: a
+//! generator that also produces goldens is a second, silent bless path. The
+//! only way `expected.json` changes is
+//! `BLESS=1 cargo test --features serde -- generated_fixtures_match_golden`
+//! (`tests/integration.rs`), which asserts before it ever writes.
 
 use std::path::Path;
-use sheets_diff::compare_bytes;
+
+use rust_xlsxwriter::{DocProperties, ExcelDateTime, Formula, Workbook};
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Fixed-timestamp workbook construction
+// ---------------------------------------------------------------------------
+
+/// One fixed creation date for every generated fixture, so byte content
+/// depends only on the scenario definition below, never on wall-clock time.
+fn fixture_properties() -> DocProperties {
+    let date = ExcelDateTime::from_ymd(2020, 1, 1).expect("valid fixed fixture date");
+    DocProperties::new().set_creation_datetime(&date)
+}
+
+fn new_workbook() -> Workbook {
+    let mut wb = Workbook::new();
+    wb.set_properties(&fixture_properties());
+    wb
+}
+
+// ---------------------------------------------------------------------------
+// Builder helpers
+//
+// These deliberately duplicate a subset of tests/support.rs rather than
+// sharing it — an example cannot depend on the tests/ integration-test
+// module without a workspace restructure (RFC-034 §8 already weighed and
+// rejected the equivalent xtask option on the same cost/benefit grounds).
+// The duplication is not accidental: unlike tests/support.rs's builders,
+// every builder here pins fixture_properties() so the committed corpus is
+// byte-reproducible. tests/support.rs's builders must NOT gain a pinned
+// timestamp — they back ~60 non-corpus tests that don't write tracked files
+// and have no reproducibility requirement. If you change one file's builder
+// signatures, check whether the other needs the same change.
+// ---------------------------------------------------------------------------
+
+fn wb_wide_column(row: u32, col: u16, value: &str) -> Vec<u8> {
+    let mut wb = new_workbook();
+    let ws = wb.add_worksheet();
+    ws.write_string(row, col, value).unwrap();
+    wb.save_to_buffer().unwrap()
+}
+
+fn wb_sheets(sheets: &[(&str, &[(u32, u16, &str)])]) -> Vec<u8> {
+    let mut wb = new_workbook();
+    for (name, cells) in sheets {
+        let ws = wb.add_worksheet();
+        ws.set_name(*name).unwrap();
+        for (row, col, val) in *cells {
+            ws.write_string(*row, *col, *val).unwrap();
+        }
+    }
+    wb.save_to_buffer().unwrap()
+}
+
+fn wb_with_formula(
+    value_row: u32,
+    value_col: u16,
+    value: &str,
+    formula_row: u32,
+    formula_col: u16,
+    formula: &str,
+) -> Vec<u8> {
+    let mut wb = new_workbook();
+    let ws = wb.add_worksheet();
+    ws.write_string(value_row, value_col, value).unwrap();
+    ws.write_formula(formula_row, formula_col, Formula::new(formula)).unwrap();
+    wb.save_to_buffer().unwrap()
+}
+
+fn wb_empty() -> Vec<u8> {
+    let mut wb = new_workbook();
+    wb.add_worksheet();
+    wb.save_to_buffer().unwrap()
+}
+
+fn wb_strings(cells: &[(u32, u16, &str)]) -> Vec<u8> {
+    let mut wb = new_workbook();
+    let ws = wb.add_worksheet();
+    for (row, col, val) in cells {
+        ws.write_string(*row, *col, *val).unwrap();
+    }
+    wb.save_to_buffer().unwrap()
+}
+
+// ---------------------------------------------------------------------------
+// Scenario output helpers
 // ---------------------------------------------------------------------------
 
 fn write_scenario(dir: &Path, name: &str, kind: &str, description: &str) {
@@ -25,25 +115,16 @@ fn write_scenario(dir: &Path, name: &str, kind: &str, description: &str) {
 }
 
 fn write_fixture_pair(dir: &Path, old: &[u8], new: &[u8]) {
+    std::fs::create_dir_all(dir).unwrap();
     std::fs::write(dir.join("old.xlsx"), old).unwrap();
     std::fs::write(dir.join("new.xlsx"), new).unwrap();
 }
 
-#[cfg(feature = "serde")]
-fn write_expected(dir: &Path, diff: &sheets_diff::WorkbookDiff) {
-    let json = sheets_diff::output::json::to_json_pretty(diff).unwrap();
-    std::fs::write(dir.join("expected.json"), json).unwrap();
-}
-
-#[cfg(not(feature = "serde"))]
-fn write_expected(_dir: &Path, _diff: &sheets_diff::WorkbookDiff) {}
-
 // ---------------------------------------------------------------------------
-// Scenario generators
+// Scenarios
 // ---------------------------------------------------------------------------
 
-#[test]
-fn generate_fixtures() {
+fn main() {
     let base = Path::new("tests/fixtures/generated");
 
     // 1. Wide columns — tests A1 encoding through XFD
@@ -56,9 +137,6 @@ fn generate_fixtures() {
             "regression",
             "Covers A1 addressing through column XFD (column 16384). \
              Tests the v1 address-encoding bug.");
-        let diff = compare_bytes(&old, &new).unwrap();
-        assert_eq!(diff.sheets[0].cell_diffs[0].address.a1, "XFD1");
-        write_expected(&dir, &diff);
         println!("✓ wide_columns");
     }
 
@@ -72,49 +150,33 @@ fn generate_fixtures() {
             "feature",
             "A single renamed sheet with one cell changed. Verifies conservative \
              rename detection and cell diff preservation across rename.");
-        let diff = compare_bytes(&old, &new).unwrap();
-        assert_eq!(diff.summary.sheets_renamed, 1);
-        assert_eq!(diff.summary.cells_changed, 1);
-        write_expected(&dir, &diff);
         println!("✓ renamed_sheet");
     }
 
     // 3. Typed values — text vs number vs bool distinctness
     {
         let dir = base.join("typed_values");
-        // old: text "100", true, "2024-01-01"
-        // new: number 100.0, false, text "2024-01-01"
-        let old = wb_strings(&[(0, 0, "100"), (0, 2, "2024-01-01")]);
-        let old2 = {
-            let _old = old.clone(); // not used directly — building fresh below
-            let old_full = {
-                use rust_xlsxwriter::Workbook;
-                let mut wb = Workbook::new();
-                let ws = wb.add_worksheet();
-                ws.write_string(0, 0, "100").unwrap();
-                ws.write_boolean(0, 1, true).unwrap();
-                ws.write_string(0, 2, "2024-01-01").unwrap();
-                wb.save_to_buffer().unwrap()
-            };
-            old_full
+        let old = {
+            let mut wb = new_workbook();
+            let ws = wb.add_worksheet();
+            ws.write_string(0, 0, "100").unwrap();
+            ws.write_boolean(0, 1, true).unwrap();
+            ws.write_string(0, 2, "2024-01-01").unwrap();
+            wb.save_to_buffer().unwrap()
         };
-        let new2 = {
-            use rust_xlsxwriter::Workbook;
-            let mut wb = Workbook::new();
+        let new = {
+            let mut wb = new_workbook();
             let ws = wb.add_worksheet();
             ws.write_number(0, 0, 100.0).unwrap();
             ws.write_boolean(0, 1, false).unwrap();
             ws.write_string(0, 2, "2024-01-01").unwrap();
             wb.save_to_buffer().unwrap()
         };
-        write_fixture_pair(&dir, &old2, &new2);
+        write_fixture_pair(&dir, &old, &new);
         write_scenario(&dir, "typed_values_text_vs_number_vs_bool",
             "feature",
             "Text \"100\" and number 100 are different. Bool true→false is a \
              content change. String \"2024-01-01\" unchanged.");
-        let diff = compare_bytes(&old2, &new2).unwrap();
-        assert_eq!(diff.summary.values_changed, 2); // A1 (text→number) + B1 (true→false)
-        write_expected(&dir, &diff);
         println!("✓ typed_values");
     }
 
@@ -128,10 +190,6 @@ fn generate_fixtures() {
             "feature",
             "Formula text changes (=1+1 → =2+0) with equivalent result. \
              Tests formula-layer detection independent of value change.");
-        let diff = compare_bytes(&old, &new).unwrap();
-        // Formula change may or may not be detected depending on xlsx writer storing formula text.
-        // The fixture is the canonical example regardless.
-        write_expected(&dir, &diff);
         println!("✓ formula");
     }
 
@@ -143,25 +201,19 @@ fn generate_fixtures() {
         write_scenario(&dir, "empty_sheet_identical",
             "edge_case",
             "Both workbooks have a single empty sheet. Result: no diffs.");
-        let diff = compare_bytes(&b, &b).unwrap();
-        assert_eq!(diff.summary.cells_changed, 0);
-        write_expected(&dir, &diff);
         println!("✓ empty_sheet");
     }
 
     // 6. Sparse range — only a few cells far apart
     {
         let dir = base.join("sparse_range");
-        let old = wb_sparse(&[(0, 0, "A1"), (99, 25, "Z100")]);
-        let new = wb_sparse(&[(0, 0, "A1_changed"), (99, 25, "Z100")]);
+        let old = wb_strings(&[(0, 0, "A1"), (99, 25, "Z100")]);
+        let new = wb_strings(&[(0, 0, "A1_changed"), (99, 25, "Z100")]);
         write_fixture_pair(&dir, &old, &new);
         write_scenario(&dir, "sparse_range_one_change",
             "feature",
             "Large used range with only two populated cells far apart. \
              Only A1 changes; Z100 stays the same.");
-        let diff = compare_bytes(&old, &new).unwrap();
-        assert_eq!(diff.summary.cells_changed, 1);
-        write_expected(&dir, &diff);
         println!("✓ sparse_range");
     }
 
@@ -169,8 +221,7 @@ fn generate_fixtures() {
     {
         let dir = base.join("row_insertion_cascade");
         let old = {
-            use rust_xlsxwriter::Workbook;
-            let mut wb = Workbook::new();
+            let mut wb = new_workbook();
             let ws = wb.add_worksheet();
             for r in 0u32..20 {
                 ws.write_string(r, 0, &format!("id_{r}")).unwrap();
@@ -179,8 +230,7 @@ fn generate_fixtures() {
             wb.save_to_buffer().unwrap()
         };
         let new = {
-            use rust_xlsxwriter::Workbook;
-            let mut wb = Workbook::new();
+            let mut wb = new_workbook();
             let ws = wb.add_worksheet();
             ws.write_string(0, 0, "id_inserted").unwrap();
             ws.write_string(0, 1, "val_inserted").unwrap();
@@ -196,14 +246,10 @@ fn generate_fixtures() {
             "One row inserted at the top of a 20-row sheet. Positional diff \
              reports all 20 rows as changed (cascade). Row-key alignment should \
              report only the inserted row.");
-        let pos_diff = compare_bytes(&old, &new).unwrap();
-        // positional: all 20 original rows shift → reported as changed
-        assert!(pos_diff.summary.cells_changed >= 20,
-            "positional cascade expected, got {}", pos_diff.summary.cells_changed);
-        write_expected(&dir, &pos_diff);
-        println!("✓ row_insertion_cascade  (positional={} cell diffs)",
-            pos_diff.summary.cells_changed);
+        println!("✓ row_insertion_cascade");
     }
 
     println!("\nAll fixtures generated in {}", base.display());
+    println!("expected.json is not written here — bless goldens with:");
+    println!("  BLESS=1 cargo test --features serde -- generated_fixtures_match_golden");
 }
