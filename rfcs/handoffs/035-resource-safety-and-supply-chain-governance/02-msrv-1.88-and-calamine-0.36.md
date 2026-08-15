@@ -129,6 +129,17 @@ after the lint fixes, which the spike did not include.
 6. `cargo test` still leaves the tree clean (`tree` job green).
 7. No `src/` change other than the eight `collapsible_if` fixes.
 
+> **Correction, 2026-08-16 (architect).** Criterion 7 as written above
+> contradicts §4, which explicitly requires updating stale `0.35` references in
+> `src/` doc comments. That is a drafting error in this handoff, not a
+> requirement the implementer failed. **Criterion 7 means: no comparison-logic,
+> public-API, or fixture change** — the same thing the non-change scope states
+> in prose. Version-number corrections in comments and message strings are
+> compliant. Recorded here rather than by editing the criterion, since
+> rewriting a requirement after the fact to match an implementation is
+> prohibited even when the requirement was at fault. See
+> `.git-exclude/reviewed/035-handoff-02-msrv-calamine/README.md` §2.
+
 ## Prohibited shortcuts
 
 - Do not bump `calamine` before `rust-version`; see §1.
