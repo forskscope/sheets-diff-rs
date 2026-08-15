@@ -79,27 +79,38 @@ pub fn match_sheets(
         }
 
         SheetMatchingMode::ExactNameThenConservativeRename => {
-            conservative_rename(
-                &old_remaining,
-                &new_remaining_refs,
-                &mut pairs,
-                diagnostics,
-            );
+            conservative_rename(&old_remaining, &new_remaining_refs, &mut pairs, diagnostics);
         }
 
         SheetMatchingMode::ExactNameThenIndex => {
             index_match(&old_remaining, &mut new_remaining_refs, &mut pairs);
             // Remaining are Added / Removed
-            let still_unmatched_old: Vec<&SheetRef> =
-                old_remaining.iter().copied().filter(|s| {
-                    !pairs.iter().any(|p| p.old_sheet.as_ref().map(|r| r.name == s.name).unwrap_or(false)
-                        && !matches!(p.change, SheetChange::Removed))
-                }).collect();
-            let still_unmatched_new: Vec<&SheetRef> =
-                new_remaining_refs.iter().copied().filter(|s| {
-                    !pairs.iter().any(|p| p.new_sheet.as_ref().map(|r| r.name == s.name).unwrap_or(false)
-                        && !matches!(p.change, SheetChange::Added))
-                }).collect();
+            let still_unmatched_old: Vec<&SheetRef> = old_remaining
+                .iter()
+                .copied()
+                .filter(|s| {
+                    !pairs.iter().any(|p| {
+                        p.old_sheet
+                            .as_ref()
+                            .map(|r| r.name == s.name)
+                            .unwrap_or(false)
+                            && !matches!(p.change, SheetChange::Removed)
+                    })
+                })
+                .collect();
+            let still_unmatched_new: Vec<&SheetRef> = new_remaining_refs
+                .iter()
+                .copied()
+                .filter(|s| {
+                    !pairs.iter().any(|p| {
+                        p.new_sheet
+                            .as_ref()
+                            .map(|r| r.name == s.name)
+                            .unwrap_or(false)
+                            && !matches!(p.change, SheetChange::Added)
+                    })
+                })
+                .collect();
             push_removed(&still_unmatched_old, &mut pairs);
             push_added(&still_unmatched_new, &mut pairs);
         }
@@ -238,7 +249,10 @@ mod tests {
     use super::*;
 
     fn sref(name: &str, index: usize) -> SheetRef {
-        SheetRef { name: name.into(), index }
+        SheetRef {
+            name: name.into(),
+            index,
+        }
     }
 
     #[test]
@@ -246,9 +260,17 @@ mod tests {
         let old = vec![sref("Sheet1", 0)];
         let new = vec![sref("Sheet1", 0)];
         let mut diag = vec![];
-        let pairs = match_sheets(&old, &new, SheetMatchingMode::ExactNameThenConservativeRename, &mut diag);
+        let pairs = match_sheets(
+            &old,
+            &new,
+            SheetMatchingMode::ExactNameThenConservativeRename,
+            &mut diag,
+        );
         assert_eq!(pairs.len(), 1);
-        assert!(matches!(pairs[0].change, SheetChange::Unchanged | SheetChange::Moved));
+        assert!(matches!(
+            pairs[0].change,
+            SheetChange::Unchanged | SheetChange::Moved
+        ));
         assert!(diag.is_empty());
     }
 
@@ -257,7 +279,12 @@ mod tests {
         let old = vec![];
         let new = vec![sref("Sheet1", 0)];
         let mut diag = vec![];
-        let pairs = match_sheets(&old, &new, SheetMatchingMode::ExactNameThenConservativeRename, &mut diag);
+        let pairs = match_sheets(
+            &old,
+            &new,
+            SheetMatchingMode::ExactNameThenConservativeRename,
+            &mut diag,
+        );
         assert_eq!(pairs.len(), 1);
         assert!(matches!(pairs[0].change, SheetChange::Added));
     }
@@ -267,7 +294,12 @@ mod tests {
         let old = vec![sref("Sheet1", 0)];
         let new = vec![];
         let mut diag = vec![];
-        let pairs = match_sheets(&old, &new, SheetMatchingMode::ExactNameThenConservativeRename, &mut diag);
+        let pairs = match_sheets(
+            &old,
+            &new,
+            SheetMatchingMode::ExactNameThenConservativeRename,
+            &mut diag,
+        );
         assert_eq!(pairs.len(), 1);
         assert!(matches!(pairs[0].change, SheetChange::Removed));
     }
@@ -277,7 +309,12 @@ mod tests {
         let old = vec![sref("OldName", 0)];
         let new = vec![sref("NewName", 0)];
         let mut diag = vec![];
-        let pairs = match_sheets(&old, &new, SheetMatchingMode::ExactNameThenConservativeRename, &mut diag);
+        let pairs = match_sheets(
+            &old,
+            &new,
+            SheetMatchingMode::ExactNameThenConservativeRename,
+            &mut diag,
+        );
         assert_eq!(pairs.len(), 1);
         assert!(matches!(pairs[0].change, SheetChange::Renamed { .. }));
         assert!(diag.is_empty());
@@ -288,11 +325,23 @@ mod tests {
         let old = vec![sref("A", 0), sref("B", 1)];
         let new = vec![sref("C", 0), sref("D", 1)];
         let mut diag = vec![];
-        let pairs = match_sheets(&old, &new, SheetMatchingMode::ExactNameThenConservativeRename, &mut diag);
+        let pairs = match_sheets(
+            &old,
+            &new,
+            SheetMatchingMode::ExactNameThenConservativeRename,
+            &mut diag,
+        );
         // All become Added + Removed
-        assert!(pairs.iter().all(|p| matches!(p.change, SheetChange::Added | SheetChange::Removed)));
+        assert!(
+            pairs
+                .iter()
+                .all(|p| matches!(p.change, SheetChange::Added | SheetChange::Removed))
+        );
         assert_eq!(diag.len(), 1);
-        assert!(matches!(diag[0].kind, DiagnosticKind::AmbiguousSheetMatch { .. }));
+        assert!(matches!(
+            diag[0].kind,
+            DiagnosticKind::AmbiguousSheetMatch { .. }
+        ));
     }
 
     #[test]

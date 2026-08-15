@@ -61,7 +61,8 @@ pub fn wb_with_formula(
     let mut wb = Workbook::new();
     let ws = wb.add_worksheet();
     ws.write_string(value_row, value_col, value).unwrap();
-    ws.write_formula(formula_row, formula_col, Formula::new(formula)).unwrap();
+    ws.write_formula(formula_row, formula_col, Formula::new(formula))
+        .unwrap();
     wb.save_to_buffer().unwrap()
 }
 
@@ -72,8 +73,11 @@ pub fn wb_empty() -> Vec<u8> {
     wb.save_to_buffer().unwrap()
 }
 
+/// One named sheet's cells, as `(name, cells)`.
+pub type SheetSpec<'a> = (&'a str, &'a [(u32, u16, &'a str)]);
+
 /// Workbook with multiple named sheets, each optionally populated.
-pub fn wb_sheets(sheets: &[(&str, &[(u32, u16, &str)])]) -> Vec<u8> {
+pub fn wb_sheets(sheets: &[SheetSpec]) -> Vec<u8> {
     let mut wb = Workbook::new();
     for (name, cells) in sheets {
         let ws = wb.add_worksheet();
@@ -104,7 +108,7 @@ pub fn wb_large(rows: u32, cols: u16, prefix: &str) -> Vec<u8> {
     let ws = wb.add_worksheet();
     for r in 0..rows {
         for c in 0..cols {
-            ws.write_string(r, c, &format!("{prefix}_{r}_{c}")).unwrap();
+            ws.write_string(r, c, format!("{prefix}_{r}_{c}")).unwrap();
         }
     }
     wb.save_to_buffer().unwrap()

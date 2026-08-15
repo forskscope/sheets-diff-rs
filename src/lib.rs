@@ -33,8 +33,8 @@ mod diff;
 mod error;
 mod matcher;
 mod meta;
-mod objects;
 mod normalize;
+mod objects;
 mod open;
 
 pub(crate) mod compare;
@@ -61,44 +61,12 @@ pub use error::{LimitKind, OpenErrorKind, ReadErrorKind, SheetsDiffError};
 
 // Model
 pub use model::{
-    AlignmentSummary,
-    DiffMetrics,
-    CellChangeKind,
-    CellDateTime,
-    CellDiff,
-    CellDisplay,
-    CellDuration,
-    CellError,
-    CellNumberFormat,
-    CellSnapshot,
-    CellValue,
-    DateTimeKind,
-    DiagnosticKind,
-    DiagnosticLocation,
-    DiagnosticSummary,
-    Diagnostic,
-    DiffStage,
-    DiffSummary,
-    DisplaySource,
-    FormatChange,
-    FormulaChange,
-    FormulaText,
-    MatchConfidence,
-    Severity,
-    SheetChange,
-    SheetDiff,
-    SheetMatchReason,
-    SheetRef,
-    SheetSummary,
-    Side,
-    SourceDescription,
-    SourceKind,
-    ValueChange,
-    ValueDifferenceKind,
-    WorkbookChange,
-    WorkbookDiff,
-    WorkbookObjectChange,
-    WorkbookSideInfo,
+    AlignmentSummary, CellChangeKind, CellDateTime, CellDiff, CellDisplay, CellDuration, CellError,
+    CellNumberFormat, CellSnapshot, CellValue, DateTimeKind, Diagnostic, DiagnosticKind,
+    DiagnosticLocation, DiagnosticSummary, DiffMetrics, DiffStage, DiffSummary, DisplaySource,
+    FormatChange, FormulaChange, FormulaText, MatchConfidence, Severity, SheetChange, SheetDiff,
+    SheetMatchReason, SheetRef, SheetSummary, Side, SourceDescription, SourceKind, ValueChange,
+    ValueDifferenceKind, WorkbookChange, WorkbookDiff, WorkbookObjectChange, WorkbookSideInfo,
 };
 
 // Address
@@ -107,27 +75,10 @@ pub use address::{CellAddress, ComparedRange, MAX_COL, MAX_COL_LABEL, MAX_ROW};
 // Options
 pub use objects::ObjectCompareMode;
 pub use options::{
-    AlignmentMode,
-    Cancellation,
-    ComparisonOptions,
-    DateComparePolicy,
-    DiagnosticOptions,
-    DiffEvent,
-    DiffOptions,
-    DiffOptionsBuilder,
-    ExecutionMode,
-    ExecutionOptions,
-    FormatCompareMode,
-    FormulaCompareMode,
-    Limits,
-    MatchingOptions,
-    NumberComparePolicy,
-    NumericTypePolicy,
-    OutputOptions,
-    ProgressSink,
-    SheetMatchingMode,
-    TypeMismatchPolicy,
-    ValueCompareOptions,
+    AlignmentMode, Cancellation, ComparisonOptions, DateComparePolicy, DiagnosticOptions,
+    DiffEvent, DiffOptions, DiffOptionsBuilder, ExecutionMode, ExecutionOptions, FormatCompareMode,
+    FormulaCompareMode, Limits, MatchingOptions, NumberComparePolicy, NumericTypePolicy,
+    OutputOptions, ProgressSink, SheetMatchingMode, TypeMismatchPolicy, ValueCompareOptions,
 };
 
 // ---------------------------------------------------------------------------
@@ -186,10 +137,7 @@ pub fn compare_bytes_with_options(
 /// Compare two workbooks given `Read + Seek` readers.
 ///
 /// `.xlsx` is ZIP-based and requires seeking.
-pub fn compare_readers<R1, R2>(
-    old: R1,
-    new: R2,
-) -> Result<WorkbookDiff, SheetsDiffError>
+pub fn compare_readers<R1, R2>(old: R1, new: R2) -> Result<WorkbookDiff, SheetsDiffError>
 where
     R1: Read + Seek,
     R2: Read + Seek,

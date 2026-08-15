@@ -143,18 +143,26 @@ pub enum SheetsDiffError {
 impl fmt::Display for SheetsDiffError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SheetsDiffError::OpenWorkbook { side, source, kind, .. } => {
-                let name = source
-                    .display_name
-                    .as_deref()
-                    .unwrap_or("<unknown>");
+            SheetsDiffError::OpenWorkbook {
+                side, source, kind, ..
+            } => {
+                let name = source.display_name.as_deref().unwrap_or("<unknown>");
                 write!(f, "cannot open {side} workbook '{name}': {kind}")
             }
-            SheetsDiffError::ReadSheet { side, sheet, kind, .. } => {
-                write!(f, "cannot read sheet '{}' from {side} workbook: {kind}", sheet.name)
+            SheetsDiffError::ReadSheet {
+                side, sheet, kind, ..
+            } => {
+                write!(
+                    f,
+                    "cannot read sheet '{}' from {side} workbook: {kind}",
+                    sheet.name
+                )
             }
             SheetsDiffError::UnsupportedFormat { side, detail } => {
-                write!(f, "{side} workbook is not a supported xlsx format: {detail}")
+                write!(
+                    f,
+                    "{side} workbook is not a supported xlsx format: {detail}"
+                )
             }
             SheetsDiffError::EncryptedWorkbook { side } => {
                 write!(f, "{side} workbook is password-protected")

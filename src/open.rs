@@ -19,18 +19,15 @@ pub struct OpenedWorkbook {
     pub source: SourceDescription,
 }
 
-
 // ---------------------------------------------------------------------------
 // Open from path
 // ---------------------------------------------------------------------------
 
 /// Open a workbook from a filesystem path.
-pub fn open_path(
-    path: impl AsRef<Path>,
-    side: Side,
-) -> Result<OpenedWorkbook, SheetsDiffError> {
+pub fn open_path(path: impl AsRef<Path>, side: Side) -> Result<OpenedWorkbook, SheetsDiffError> {
     let path = path.as_ref();
-    let display_name = path.file_name()
+    let display_name = path
+        .file_name()
         .and_then(|n| n.to_str())
         .map(|s| s.to_owned());
     let source = SourceDescription {
@@ -96,19 +93,28 @@ fn open_bytes_inner(
     source: SourceDescription,
 ) -> Result<OpenedWorkbook, SheetsDiffError> {
     let cursor = Cursor::new(bytes);
-    let wb: Xlsx<Cursor<Vec<u8>>> = open_workbook_from_cursor(cursor)
-        .map_err(|e| from_open_error(side, source.clone(), e))?;
+    let wb: Xlsx<Cursor<Vec<u8>>> =
+        open_workbook_from_cursor(cursor).map_err(|e| from_open_error(side, source.clone(), e))?;
 
     let sheet_meta = wb.sheets_metadata().to_vec();
     let sheets: Vec<SheetRef> = sheet_meta
         .into_iter()
         .enumerate()
-        .map(|(index, meta)| SheetRef { name: meta.name.clone(), index })
+        .map(|(index, meta)| SheetRef {
+            name: meta.name.clone(),
+            index,
+        })
         .collect();
 
-    Ok(OpenedWorkbook { reader: wb, sheets, source })
+    Ok(OpenedWorkbook {
+        reader: wb,
+        sheets,
+        source,
+    })
 }
 
-fn open_workbook_from_cursor(cursor: Cursor<Vec<u8>>) -> Result<Xlsx<Cursor<Vec<u8>>>, calamine::XlsxError> {
+fn open_workbook_from_cursor(
+    cursor: Cursor<Vec<u8>>,
+) -> Result<Xlsx<Cursor<Vec<u8>>>, calamine::XlsxError> {
     Xlsx::new(cursor)
 }

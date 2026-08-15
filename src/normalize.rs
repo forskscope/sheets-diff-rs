@@ -5,9 +5,7 @@
 
 use calamine::{CellErrorType, Data};
 
-use crate::model::{
-    CellDateTime, CellDuration, CellError, CellValue, DateTimeKind,
-};
+use crate::model::{CellDateTime, CellDuration, CellError, CellValue, DateTimeKind};
 
 // ---------------------------------------------------------------------------
 // calamine::Data → CellValue
@@ -42,16 +40,16 @@ pub fn normalize_cell_value(data: &Data) -> CellValue {
             #[cfg(feature = "chrono")]
             let iso: Option<String> = {
                 if dt.is_duration() {
-                    dt.as_duration()
-                        .map(|d| {
-                            let secs = d.num_seconds();
-                            let h = secs / 3600;
-                            let m = (secs % 3600) / 60;
-                            let s = secs % 60;
-                            format!("PT{h:02}H{m:02}M{s:02}S")
-                        })
+                    dt.as_duration().map(|d| {
+                        let secs = d.num_seconds();
+                        let h = secs / 3600;
+                        let m = (secs % 3600) / 60;
+                        let s = secs % 60;
+                        format!("PT{h:02}H{m:02}M{s:02}S")
+                    })
                 } else {
-                    dt.as_datetime().map(|ndt| ndt.format("%Y-%m-%dT%H:%M:%S").to_string())
+                    dt.as_datetime()
+                        .map(|ndt| ndt.format("%Y-%m-%dT%H:%M:%S").to_string())
                 }
             };
             #[cfg(not(feature = "chrono"))]
@@ -79,12 +77,10 @@ pub fn normalize_cell_value(data: &Data) -> CellValue {
             })
         }
 
-        Data::DurationIso(s) => {
-            CellValue::Duration(CellDuration {
-                serial: 0.0,
-                iso: Some(s.clone()),
-            })
-        }
+        Data::DurationIso(s) => CellValue::Duration(CellDuration {
+            serial: 0.0,
+            iso: Some(s.clone()),
+        }),
 
         Data::Error(e) => CellValue::Error(normalize_cell_error(e)),
     }
@@ -114,7 +110,10 @@ mod tests {
 
     #[test]
     fn empty_maps_to_empty() {
-        assert!(matches!(normalize_cell_value(&Data::Empty), CellValue::Empty));
+        assert!(matches!(
+            normalize_cell_value(&Data::Empty),
+            CellValue::Empty
+        ));
     }
 
     #[test]
@@ -131,14 +130,20 @@ mod tests {
 
     #[test]
     fn float_maps_to_number() {
-        let v = normalize_cell_value(&Data::Float(3.14));
-        assert!(matches!(v, CellValue::Number(f) if (f - 3.14).abs() < 1e-12));
+        let v = normalize_cell_value(&Data::Float(3.5));
+        assert!(matches!(v, CellValue::Number(f) if (f - 3.5).abs() < 1e-12));
     }
 
     #[test]
     fn bool_maps_to_bool() {
-        assert!(matches!(normalize_cell_value(&Data::Bool(true)), CellValue::Bool(true)));
-        assert!(matches!(normalize_cell_value(&Data::Bool(false)), CellValue::Bool(false)));
+        assert!(matches!(
+            normalize_cell_value(&Data::Bool(true)),
+            CellValue::Bool(true)
+        ));
+        assert!(matches!(
+            normalize_cell_value(&Data::Bool(false)),
+            CellValue::Bool(false)
+        ));
     }
 
     #[test]

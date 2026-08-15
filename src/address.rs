@@ -84,7 +84,10 @@ pub struct ComparedRange {
 
 impl ComparedRange {
     pub fn empty() -> Self {
-        Self { start: None, end: None }
+        Self {
+            start: None,
+            end: None,
+        }
     }
 
     /// Expand to contain both sides' used ranges.
