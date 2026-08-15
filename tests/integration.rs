@@ -1172,3 +1172,19 @@ fn row_insertion_cascade_fixture_reports_cascade() {
         diff.summary.cells_changed
     );
 }
+
+// DELIBERATE FAILURE DEMO 3 (RFC-034 Handoff 02, deliberate-failure
+// demonstrations) -- reintroduces exactly the defect Handoff 01 removed:
+// a test that writes into the tracked fixture corpus. The write itself
+// succeeds (this test passes), but it should dirty the tree and make the
+// `tree` job's `git status --porcelain` check fail, without affecting the
+// `test` matrix (which never checks tree cleanliness) or any other job.
+// Reverted immediately after capture.
+#[test]
+fn deliberate_demo_3_generator_writes_during_test() {
+    std::fs::write(
+        "tests/fixtures/generated/empty_sheet/scenario.toml",
+        "deliberately dirtied by RFC-034 Handoff 02 demo 3\n",
+    )
+    .unwrap();
+}
