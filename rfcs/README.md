@@ -43,7 +43,7 @@ active roadmap is [`ROADMAP.md`](../ROADMAP.md).
 
 | ID | Title | Handoffs |
 |----|-------|----------|
-| 035 | [Resource Safety and Supply-Chain Governance](./proposed/035-resource-safety-and-supply-chain-governance.md) | [yes](./handoffs/035-resource-safety-and-supply-chain-governance/) — written for unit 01, not cleared to execute until this RFC is accepted |
+| 035 | [Resource Safety and Supply-Chain Governance](./proposed/035-resource-safety-and-supply-chain-governance.md) | [yes](./handoffs/035-resource-safety-and-supply-chain-governance/) — units 01–02 written. Units 01 and 02 are governed by RFCs already in `done/` and are cleared; units 03–06 await this RFC's acceptance. |
 
 ## Accepted
 

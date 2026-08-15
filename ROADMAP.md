@@ -53,8 +53,8 @@ All exit criteria met and evidenced; see
 CI is green end to end
 ([run 31888729981](https://github.com/forskscope/sheets-diff-rs/actions/runs/31888729981),
 17/17) and every guard has been observed **both green and red**.
-[PR #7](https://github.com/forskscope/sheets-diff-rs/pull/7) carries the work;
-merging to `main` is an owner decision, not yet taken.
+[PR #7](https://github.com/forskscope/sheets-diff-rs/pull/7) is **merged**;
+`main` is at `5ed0644` with CI green 17/17.
 
 Exit criteria:
 
@@ -74,20 +74,22 @@ Governed by **RFC-035** ([proposed](./rfcs/proposed/035-resource-safety-and-supp
 for the new policy decisions, plus existing RFCs for the dependency migration
 and the correctness defects. Execution queue:
 [`rfcs/handoffs/035-…/README.md`](./rfcs/handoffs/035-resource-safety-and-supply-chain-governance/README.md).
-Unit 01 — the calamine 0.36 spike that discharges D0's contingency — is written;
-later units follow as the queue advances, because unit 02's shape depends on
-what 01 finds.
+**D0's contingency is discharged:** unit 01's spike confirmed by building that
+MSRV 1.88 is the true effective floor, that calamine 0.36 needs zero code
+changes, that `quick-xml` 0.39.x leaves the tree, and that no golden moves.
+Units 01–02 are written; 03–06 follow as the queue advances.
 
 
 - MSRV 1.85.0 → **1.88**, *then* `calamine` 0.35 → 0.36 (ordering is load-bearing, §5).
   **The bump is not a version-string edit.** Three files move together — the
   `msrv` job's drift guard enforces `Cargo.toml`, `env.MSRV` and the toolchain
-  pin agreeing — and raising the floor to 1.88 newly surfaces **8
-  `clippy::collapsible_if` findings** (`src/align.rs`, `src/diff.rs` ×3,
-  `src/matcher.rs`, `src/meta.rs` ×2, `src/output/view.rs`) that do not exist at
-  1.85. Clippy gates suggestions on the declared MSRV, and 1.88 is where
-  let-chains stabilised. Independently reproduced: 0 findings at 1.85.0, 8 at
-  1.88.0. With `lint` now a hard gate these must be fixed, or deferred with a
+  pin agreeing — and raising the floor to 1.88 newly surfaces **9 clippy
+  findings** that do not exist at 1.85 — 8 × `collapsible_if` (`src/align.rs`,
+  `src/diff.rs` ×3, `src/matcher.rs`, `src/meta.rs` ×2, `src/output/view.rs`)
+  and 1 × `manual_is_multiple_of` (`benches/workbook_diff.rs:52`). Clippy gates
+  suggestions on the declared MSRV. Independently reproduced: 0 findings at
+  1.85.0, 9 at 1.88.0. The ninth is easy to miss because clippy's summary line
+  counts the lib target only, while `lint` runs `--all-targets`. With `lint` now a hard gate these must be fixed, or deferred with a
   recorded reason, in the same change. Discovered during M1's deliberate-failure
   demonstrations.
 - `deny.toml`, `cargo audit`, dependency-path assertions in CI
@@ -138,7 +140,7 @@ release rather than after it.
 | | Risk | Mitigation |
 |---|---|---|
 | R1 | Dependency fix reads as an all-clear while first-party resource risks persist | M2 exit includes first-party bounds, not only `cargo audit` clean |
-| R2 | `calamine` 0.35→0.36 delta larger than expected | Spike before committing the MSRV number |
+| R2 | ~~`calamine` 0.35→0.36 delta larger than expected~~ | **Closed 2026-08-16** — unit 01's spike proved zero API delta and a 1.88 floor |
 | R3 | Status-verification pass finds further partials; scope grows | Timebox; record deferrals in `Status` fields rather than fixing all |
 | R4 | Correctness fixes change output; consumer adapters see behaviour change | Goldens must exist (M1) before fixes land; document as behaviour changes |
 | R5 | Single-maintainer capacity against a large queue | Scope reduction is the lever — see D2 |
