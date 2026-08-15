@@ -1,5 +1,6 @@
 # sheets-diff
 
+[![CI](https://github.com/forskscope/sheets-diff-rs/actions/workflows/ci.yaml/badge.svg)](https://github.com/forskscope/sheets-diff-rs/actions/workflows/ci.yaml)
 [![crates.io](https://img.shields.io/crates/v/sheets-diff.svg)](https://crates.io/crates/sheets-diff)
 [![docs.rs](https://docs.rs/sheets-diff/badge.svg)](https://docs.rs/sheets-diff)
 [![deps.rs](https://deps.rs/crate/sheets-diff/latest/status.svg)](https://deps.rs/crate/sheets-diff)
