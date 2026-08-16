@@ -424,13 +424,13 @@ impl DiffOptions {
 
     /// Validate option combinations before I/O begins.
     pub(crate) fn validate(&self) -> Result<(), SheetsDiffError> {
-        // NormalizedText requires a normaliser; none exists in v2.0.
+        // NormalizedText requires a normaliser; none exists.
         if self.comparison.formula == FormulaCompareMode::NormalizedText
             || self.comparison.formula == FormulaCompareMode::RawAndNormalized
         {
             return Err(SheetsDiffError::InvalidOptions {
                 detail: "FormulaCompareMode::NormalizedText / RawAndNormalized is not \
-                         available in v2.0; no formula normaliser is implemented yet"
+                         available; no formula normaliser is implemented yet"
                     .into(),
             });
         }
