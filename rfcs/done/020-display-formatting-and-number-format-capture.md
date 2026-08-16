@@ -1,6 +1,6 @@
 # RFC-020 — Display Formatting and Number-Format Capture
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Partially implemented (2.0.0–2.2.3) — verified 2026-08-16. Deferred: `CellNumberFormat` is always `None`; the number-format capture described in the design was never implemented.
 **Target:** v2.0 decision, v2.1 implementation candidate  
 **Related:** RFC-003, RFC-007, RFC-014, RFC-022
 

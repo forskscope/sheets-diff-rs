@@ -1,6 +1,6 @@
 # RFC-007: Typed Cell Values and Normalization
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Partially implemented (2.0.0–2.2.3) — verified 2026-08-16. Deferred: `CellValue::Integer`, `::Duration` and `::Unsupported` are unreachable through any `.xlsx` input this crate accepts; only six of the nine variants are live in practice.
 **Target:** v2.0.0  
 **Created:** 2026-06-11  
 **Category:** Cell model  

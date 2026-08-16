@@ -1,6 +1,6 @@
 # RFC-027 — Benchmark and Performance Governance
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Partially implemented (2.0.0–2.2.3) — verified 2026-08-16. Deferred: no benchmark documentation compares v1.2 and v2 performance, as required.
 **Target:** v2.0 guardrail  
 **Related:** RFC-011, RFC-012, RFC-024, RFC-025
 

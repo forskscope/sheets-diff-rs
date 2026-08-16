@@ -254,14 +254,21 @@ release tag in which the work shipped:
 For Superseded RFCs, the field names the replacement:
 
 ```markdown
-**Status.** Superseded by RFC 042
+**Status.** Superseded by RFC 998
 ```
 
 For Withdrawn RFCs, the field carries a one-line reason:
 
 ```markdown
-**Status.** Withdrawn — overlapped with RFC 035; merged there.
+**Status.** Withdrawn — overlapped with RFC 999; merged there.
 ```
+
+(998 and 999 here are illustrative placeholders, not real RFCs — chosen
+deliberately out of this project's actual numbering range so an example
+never reads as a live cross-reference. M3 track B, unit 02, found the
+previous examples — 042 and 035 — had drifted into collision: 035 became a
+real, accepted RFC, and the Withdrawn example above read as if it made a
+factual claim about it.)
 
 Two reasons to keep this redundancy with the folder:
 

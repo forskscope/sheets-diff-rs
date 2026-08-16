@@ -1,6 +1,6 @@
 # RFC-009: Sheet Matching, Renames, and Moves
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Implemented (2.0.0–2.2.3) — verified 2026-08-16 against the implementation.
 **Target:** v2.0.0 conservative, v2.x extensible  
 **Created:** 2026-06-11  
 **Category:** Sheet comparison  

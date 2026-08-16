@@ -1,6 +1,6 @@
 # RFC-030 — Extended Fixture Generators and Corpus Management
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Implemented (2.0.0–2.2.3) — verified 2026-08-16 against the implementation.
 **Target:** v2.0+  
 **Related:** RFC-015, RFC-027, RFC-028
 

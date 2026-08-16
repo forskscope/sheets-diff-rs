@@ -1,6 +1,6 @@
 # RFC-016: Security, Privacy, and No-Side-Effects Policy
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Partially implemented (2.0.0–2.2.3) — verified 2026-08-16. Deferred: no static check enforces the `println!`/`eprintln!`/`dbg!` prohibition in CI, and no test verifies source-path privacy (non-UTF-8/display-name handling is untested).
 **Target:** v2.0.0  
 **Created:** 2026-06-11  
 **Category:** Security/privacy  

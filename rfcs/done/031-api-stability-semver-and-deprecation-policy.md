@@ -1,6 +1,6 @@
 # RFC-031 — API Stability, SemVer, and Deprecation Policy After v2
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Implemented (2.0.0–2.2.3) — verified 2026-08-16 against the implementation.
 **Target:** v2.0 decision  
 **Related:** RFC-001, RFC-002, RFC-003, RFC-014, RFC-017, RFC-026
 

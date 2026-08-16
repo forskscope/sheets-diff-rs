@@ -1,6 +1,6 @@
 # RFC-019 — Numeric, Date, and Tolerance Comparison Policies
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Partially implemented (2.0.0–2.2.3) — verified 2026-08-16. Deferred: `CellValue::Duration` values are unreachable through any `.xlsx` input this crate accepts, so duration-tolerance comparison is unexercised in practice.
 **Target:** v2.0 decision  
 **Related:** RFC-006, RFC-007, RFC-010, RFC-014
 
