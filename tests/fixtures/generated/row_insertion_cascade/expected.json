@@ -857,7 +857,7 @@
         "sheet_name": null,
         "address": null
       },
-      "message": "charts, images, comments, hyperlinks, tables, pivot tables, data validation, and conditional formatting are not compared in this version (calamine 0.35 does not expose object content)"
+      "message": "not compared: charts, images, comments, data validation, and conditional formatting (unavailable in calamine 0.36's API); hyperlinks, merged regions, tables, and pivot tables (available upstream, not yet used by this crate)"
     }
   ],
   "summary": {

@@ -66,6 +66,8 @@ pub enum LimitKind {
     CellsRead,
     CellsCompared,
     DiffsReturned,
+    /// RFC-035 §5.4: the input size bound, checked before any read begins.
+    InputBytes,
 }
 
 impl fmt::Display for LimitKind {
@@ -75,6 +77,7 @@ impl fmt::Display for LimitKind {
             LimitKind::CellsRead => f.write_str("max_cells_read"),
             LimitKind::CellsCompared => f.write_str("max_cells_compared"),
             LimitKind::DiffsReturned => f.write_str("max_diffs_returned"),
+            LimitKind::InputBytes => f.write_str("max_input_bytes"),
         }
     }
 }

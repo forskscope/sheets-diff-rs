@@ -128,8 +128,9 @@ pub fn col_to_label(mut col: u32) -> String {
         col = (col - 1) / 26;
     }
     bytes.reverse();
-    // Safety: only ASCII uppercase letters were pushed.
-    unsafe { String::from_utf8_unchecked(bytes) }
+    // Only ASCII uppercase letters were pushed, so this can never fail —
+    // RFC-035 §5.6: no `unsafe` buys anything the safe constructor doesn't.
+    String::from_utf8(bytes).expect("col_to_label only pushes ASCII uppercase bytes")
 }
 
 /// Convert a 1-based `(row, col)` pair to an Excel A1 address string.

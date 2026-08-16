@@ -50,6 +50,15 @@ clap      = { version = "4", features = ["derive"], optional = true }
 rust_xlsxwriter = "0"
 serde_json = "1"
 criterion = { version = "0.8", features = ["html_reports"] }
+# Test-only: patches a generated xlsx's internal XML (e.g. workbookPr
+# date1904, a raw t="d" cell) to reach calamine code paths rust_xlsxwriter's
+# public API cannot produce (RFC-035 Handoff 05, D-01/D-02 reachability).
+# Version and feature set matched exactly to calamine's own `zip` dependency
+# (version = "8.6", features = ["deflate"], default-features = false) so
+# this reuses the already-resolved 8.6.0 with no new transitive deps —
+# `zip`'s default features pull in ppmd/lzma/bzip2/aes codecs this crate
+# does not use and one of which (ppmd-rust) fails the license allowlist.
+zip = { version = "8.6", features = ["deflate"], default-features = false }
 
 [[bench]]
 name = "workbook_diff"

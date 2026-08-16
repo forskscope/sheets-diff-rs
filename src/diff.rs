@@ -43,6 +43,60 @@ fn cell_map_to_align(cells: &CellMap) -> AlignCellMap {
 }
 
 // ---------------------------------------------------------------------------
+// Coordinate-set key (D-03: keeps old-row and new-row numbering distinct)
+// ---------------------------------------------------------------------------
+
+/// A coordinate to compare, tagged with which row-numbering space it came
+/// from so a numeric coincidence between an old-row and a new-row number can
+/// never merge two distinct logical cells (see `build_sheet_diff`).
+///
+/// Ordering is by `(row, col)` only — the variant is a tie-breaker, never
+/// the primary sort key — so output stays sorted by row then column
+/// regardless of which space a coordinate came from.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CoordKey {
+    /// Matched or removed — `row`/`col` are in the OLD sheet's row space.
+    Old(u32, u32),
+    /// Inserted — `row`/`col` are in the NEW sheet's row space; no old-side
+    /// counterpart exists.
+    InsertedNew(u32, u32),
+    /// No alignment mapping: old and new share the same row-number space.
+    Positional(u32, u32),
+}
+
+impl CoordKey {
+    fn addr(&self) -> (u32, u32) {
+        match *self {
+            CoordKey::Old(r, c) | CoordKey::InsertedNew(r, c) | CoordKey::Positional(r, c) => {
+                (r, c)
+            }
+        }
+    }
+
+    fn variant_rank(&self) -> u8 {
+        match self {
+            CoordKey::Old(..) => 0,
+            CoordKey::InsertedNew(..) => 1,
+            CoordKey::Positional(..) => 2,
+        }
+    }
+}
+
+impl PartialOrd for CoordKey {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for CoordKey {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.addr()
+            .cmp(&other.addr())
+            .then_with(|| self.variant_rank().cmp(&other.variant_rank()))
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Public pipeline entry points (called from lib.rs)
 // ---------------------------------------------------------------------------
 
@@ -52,8 +106,8 @@ pub fn run_compare_paths(
     opts: DiffOptions,
 ) -> Result<WorkbookDiff, SheetsDiffError> {
     opts.validate()?;
-    let old_wb = open_path(old, Side::Old)?;
-    let new_wb = open_path(new, Side::New)?;
+    let old_wb = open_path(old, Side::Old, opts.limits.max_input_bytes)?;
+    let new_wb = open_path(new, Side::New, opts.limits.max_input_bytes)?;
     run_pipeline(old_wb, new_wb, opts)
 }
 
@@ -63,8 +117,8 @@ pub fn run_compare_bytes(
     opts: DiffOptions,
 ) -> Result<WorkbookDiff, SheetsDiffError> {
     opts.validate()?;
-    let old_wb = open_bytes(old, Side::Old, None)?;
-    let new_wb = open_bytes(new, Side::New, None)?;
+    let old_wb = open_bytes(old, Side::Old, None, opts.limits.max_input_bytes)?;
+    let new_wb = open_bytes(new, Side::New, None, opts.limits.max_input_bytes)?;
     run_pipeline(old_wb, new_wb, opts)
 }
 
@@ -78,8 +132,8 @@ where
     R2: Read + Seek,
 {
     opts.validate()?;
-    let old_wb = open_reader(old, Side::Old, None)?;
-    let new_wb = open_reader(new, Side::New, None)?;
+    let old_wb = open_reader(old, Side::Old, None, opts.limits.max_input_bytes)?;
+    let new_wb = open_reader(new, Side::New, None, opts.limits.max_input_bytes)?;
     run_pipeline(old_wb, new_wb, opts)
 }
 
@@ -319,7 +373,7 @@ fn build_sheet_diff(
             &old_align,
             &new_align,
             &opts.matching.alignment,
-            opts.limits.max_cells_compared,
+            opts.limits.max_alignment_product,
             sheet_diag,
         )
     } else {
@@ -327,39 +381,61 @@ fn build_sheet_diff(
     };
 
     // Build the coordinate set, remapping new-side rows when aligned.
-    let mut coords: std::collections::BTreeSet<(u32, u32)> = std::collections::BTreeSet::new();
-    if let Some(ref mapping) = align_mapping {
-        // Add matched pairs (using old coords as the canonical address).
-        for (old_row, new_row) in &mapping.matched {
-            let old_cols: Vec<u32> = old_map
-                .keys()
-                .filter(|(r, _)| r == old_row)
-                .map(|(_, c)| *c)
-                .collect();
-            let new_cols: Vec<u32> = new_map
-                .keys()
-                .filter(|(r, _)| r == new_row)
-                .map(|(_, c)| *c)
-                .collect();
-            for c in old_cols.iter().chain(new_cols.iter()) {
-                coords.insert((*old_row, *c));
+    //
+    // D-03: matched/removed rows are numbered in the OLD sheet's row space;
+    // inserted rows have no old-side counterpart and are numbered in the NEW
+    // sheet's row space. These are two independent numbering sequences — an
+    // inserted new-row number can (and in practice often does) coincide with
+    // an unrelated matched/removed old-row number. Collapsing both into one
+    // `(row, col)` `BTreeSet` let the set silently dedupe two distinct
+    // logical cells into one, and then had the lookup resolve the wrong
+    // side's row for whichever survived (or leaked an unrelated new-side
+    // cell into a removed row's comparison, and vice versa). `CoordKey`
+    // keeps every source unambiguous; only the row/col *address* — not the
+    // source — determines sort order, so the existing row-then-col output
+    // ordering is unchanged.
+    let mut coords: std::collections::BTreeSet<CoordKey> = std::collections::BTreeSet::new();
+    match &align_mapping {
+        Some(mapping) => {
+            // Matched pairs — canonical address is the OLD row; union of
+            // both sides' columns (a matched row's new side may have
+            // columns absent from the old side, or vice versa).
+            for (old_row, new_row) in &mapping.matched {
+                let old_cols: Vec<u32> = old_map
+                    .keys()
+                    .filter(|(r, _)| r == old_row)
+                    .map(|(_, c)| *c)
+                    .collect();
+                let new_cols: Vec<u32> = new_map
+                    .keys()
+                    .filter(|(r, _)| r == new_row)
+                    .map(|(_, c)| *c)
+                    .collect();
+                for c in old_cols.iter().chain(new_cols.iter()) {
+                    coords.insert(CoordKey::Old(*old_row, *c));
+                }
+            }
+            // Removed rows — old side only; no new-side counterpart exists.
+            for r in &mapping.removed {
+                for (_, c) in old_map.keys().filter(|(row, _)| row == r) {
+                    coords.insert(CoordKey::Old(*r, *c));
+                }
+            }
+            // Inserted rows — new side only; no old-side counterpart
+            // exists. Keyed separately so a numeric coincidence with an
+            // old-row number above is never merged with it.
+            for r in &mapping.inserted {
+                for (_, c) in new_map.keys().filter(|(row, _)| row == r) {
+                    coords.insert(CoordKey::InsertedNew(*r, *c));
+                }
             }
         }
-        // Removed rows — compare against empty new side.
-        for r in &mapping.removed {
-            for (_, c) in old_map.keys().filter(|(row, _)| row == r) {
-                coords.insert((*r, *c));
-            }
+        None => {
+            // No alignment: old and new share the same row-number space
+            // directly (positional comparison).
+            coords.extend(old_map.keys().map(|&(r, c)| CoordKey::Positional(r, c)));
+            coords.extend(new_map.keys().map(|&(r, c)| CoordKey::Positional(r, c)));
         }
-        // Inserted rows — compare against empty old side.
-        for r in &mapping.inserted {
-            for (_, c) in new_map.keys().filter(|(row, _)| row == r) {
-                coords.insert((*r, *c));
-            }
-        }
-    } else {
-        coords.extend(old_map.keys().copied());
-        coords.extend(new_map.keys().copied());
     }
 
     let mut cell_diffs: Vec<CellDiff> = Vec::new();
@@ -371,8 +447,21 @@ fn build_sheet_diff(
         formula: None,
     };
 
-    for (row, col) in &coords {
-        let (row, col) = (*row, *col);
+    for key in &coords {
+        // `old_lookup`/`new_lookup` are `None` when that side genuinely has
+        // no counterpart for this coordinate (never a numeric fallback that
+        // could accidentally hit an unrelated row — the D-03 defect).
+        let (row, col, old_lookup, new_lookup): (u32, u32, Option<u32>, Option<u32>) = match *key {
+            CoordKey::Old(r, c) => {
+                let new_lookup = align_mapping
+                    .as_ref()
+                    .and_then(|m| m.matched.get(&r))
+                    .copied();
+                (r, c, Some(r), new_lookup)
+            }
+            CoordKey::InsertedNew(r, c) => (r, c, None, Some(r)),
+            CoordKey::Positional(r, c) => (r, c, Some(r), Some(r)),
+        };
 
         // cells-compared limit
         if let Some(max) = opts.limits.max_cells_compared {
@@ -385,14 +474,12 @@ fn build_sheet_diff(
             }
         }
 
-        let old_cell = old_map.get(&(row, col)).unwrap_or(&empty_cell);
-        // When aligned, look up the new cell using the remapped row.
-        let new_lookup_row = align_mapping
-            .as_ref()
-            .and_then(|m| m.matched.get(&row))
-            .copied()
-            .unwrap_or(row);
-        let new_cell = new_map.get(&(new_lookup_row, col)).unwrap_or(&empty_cell);
+        let old_cell = old_lookup
+            .and_then(|r| old_map.get(&(r, col)))
+            .unwrap_or(&empty_cell);
+        let new_cell = new_lookup
+            .and_then(|r| new_map.get(&(r, col)))
+            .unwrap_or(&empty_cell);
 
         let value_change = compare_values(&old_cell.value, &new_cell.value, &opts.comparison.value);
 
@@ -507,7 +594,7 @@ fn read_sheet_cells(
                 });
             }
 
-            let value = normalize_cell_value(cell);
+            let value = normalize_cell_value(cell, wb.is_1904);
             if matches!(value, crate::model::CellValue::Empty) {
                 continue;
             }
@@ -516,10 +603,20 @@ fn read_sheet_cells(
             let row1 = origin.0 + row_idx as u32 + 1;
             let col1 = origin.1 + col_idx as u32 + 1;
 
-            // Look up formula text using relative (0-based) indices.
+            // Look up formula text via absolute coordinates. `row_idx`/
+            // `col_idx` are relative to the VALUE range's origin, which need
+            // not coincide with the FORMULA range's own origin (D-04):
+            // `worksheet_formula`'s range is built only from cells that
+            // actually carry formula text, so its top-left corner is the
+            // first *formula* cell, not the first populated cell — applying
+            // value-range-relative indices to it directly (as `Range::get`
+            // does) silently offsets or drops formula text whenever the two
+            // origins differ. `Range::get_value` translates through the
+            // formula range's own `start()`, so this is correct whether or
+            // not the origins coincide.
             let formula = formula_range
                 .as_ref()
-                .and_then(|fr| fr.get((row_idx, col_idx)))
+                .and_then(|fr| fr.get_value((origin.0 + row_idx as u32, origin.1 + col_idx as u32)))
                 .filter(|s| !s.is_empty())
                 .cloned();
 

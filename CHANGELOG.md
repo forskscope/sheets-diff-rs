@@ -24,6 +24,150 @@
   `expected.json` goldens — is unchanged, confirming the migration alters no
   comparison behaviour.
 
+- **`#![forbid(unsafe_code)]` crate-wide.** The crate's one `unsafe` block
+  (`address::col_to_label`'s `String::from_utf8_unchecked`) is replaced with
+  the safe `String::from_utf8().expect(..)` — the bytes pushed are always
+  ASCII uppercase, so the conversion cannot fail, and nothing is given up by
+  going through the safe path.
+
+### Added
+
+- **Resource bounds on superlinear and input-size paths** (RFC-035). Two new
+  `Limits` fields, both `Some` by default:
+  - `max_alignment_product` (default 25,000,000, empirically measured — see
+    RFC-035 §9) bounds the `old_rows × new_rows` row-alignment LCS matrix.
+    When exceeded, the affected sheet degrades to positional comparison and
+    emits an `alignment_bound_exceeded` diagnostic — it never errors.
+  - `max_input_bytes` (default 500 MiB) bounds the input size, checked
+    *before* any read begins (`fs::metadata` before `fs::read`, a `Seek` to
+    measure length before `read_to_end`, or a length check before the
+    internal `to_vec()`). Exceeding it is a hard `LimitExceeded` error, since
+    unbounded allocation here happens before any comparison logic can
+    observe or report it.
+
+  `Limits::hardened()` now also sets both of the above, plus a preset for
+  every other `Limits` dimension, for callers comparing untrusted input.
+  New `DiffOptionsBuilder` methods: `max_alignment_product`,
+  `max_input_bytes`, `limits`. New diagnostic codes:
+  `alignment_bound_exceeded`, `duplicate_alignment_key`. New
+  `LimitKind::InputBytes`.
+
+- **`CellDateTime::has_serial: bool`** (D-01, see Fixed below) — distinguishes
+  a genuine Excel date serial from the placeholder used when only an ISO
+  string is available.
+
+### Changed
+
+- **Comparison output changes for four correctness fixes (D-01 through
+  D-04, above).** These are patch-level in the sense that no public type
+  signature changed beyond one additive field, but in substance they change
+  what a comparison reports: cells the previous release silently reported as
+  *identical* — ISO-typed dates/durations with different values, and rows
+  affected by the alignment coordinate collision — will now correctly be
+  reported as *different*, and a formula previously attached to the wrong
+  cell will now attach to the right one. If you persist or diff against
+  stored `WorkbookDiff` output from a prior release, expect these cases (if
+  present in your data) to change. This is the fix, not a regression — the
+  previous behaviour was silent data loss in a diff/merge context.
+- **`DiffOptions::default()` now bounds alignment and input size.** Previously
+  every `Limits` field defaulted to `None` (unbounded). The two new fields
+  above default to `Some` (see Added), so a caller relying on
+  `DiffOptions::default()` who compares a workbook pair whose row-alignment
+  product or input size exceeds the new defaults will now see the alignment
+  degrade to positional (no error) or the input rejected with
+  `LimitExceeded` (a new error), where previously it ran unbounded. Opt back
+  out with `Limits { max_alignment_product: None, max_input_bytes: None,
+  ..Limits::default() }`.
+
+### Fixed
+
+- **ISO-typed date/time and duration values always compared equal (D-01).**
+  `Data::DateTimeIso`/`Data::DurationIso` cells (calamine's `t="d"` path) had
+  no genuine Excel serial — `serial` was hardcoded `0.0`, `is_1904` hardcoded
+  `false` — so **any two ISO-typed values of the same kind compared equal
+  regardless of their actual dates**: `2024-01-01T00:00:00` and
+  `2099-12-31T23:59:59` were reported identical, as were `PT1H` and `PT99H`.
+  In a diff/merge workflow this is a silent data-loss path: a real change is
+  shown as "no change." `CellDateTime` gains a `has_serial: bool` field
+  distinguishing a genuine serial from the `0.0` placeholder (a legitimate
+  date can itself serialise to `0.0`, so the placeholder needed its own
+  signal); comparison now uses `iso` when `has_serial` is `false` on both
+  sides, and a value with a serial is never silently treated as equal to an
+  ISO-only value with no serial. `CellValue::Duration` (always ISO-only in
+  practice — see below) now compares via `iso` when present.
+- **`is_1904` was hardcoded `false`, so `DateComparePolicy::NormalizeEquivalentDateTimes`
+  was dead code (D-02).** The 1900/1904 epoch flag is workbook-level
+  (`Xlsx::has_1904_epoch()`), not per-cell; it is now read once when a
+  workbook is opened (`OpenedWorkbook::is_1904`) and threaded into every
+  cell's `CellDateTime`. A caller who selected
+  `NormalizeEquivalentDateTimes` previously got silence, never an error —
+  the policy could never actually reconcile two dates across epochs because
+  both were always flagged 1900. It now works.
+- **Row alignment could silently merge two unrelated cells into one
+  coordinate (D-03).** When a row-alignment mode was active, matched and
+  removed rows were numbered in the *old* sheet's row space while inserted
+  rows were numbered in the *new* sheet's — but both were inserted into the
+  same `(row, col)` coordinate set. Whenever an inserted row's new-side
+  number numerically coincided with an unrelated matched or removed old-side
+  row number (common on any sheet with more than a handful of rows), the set
+  silently deduplicated two distinct logical cells into one, and the lookup
+  that followed could then compare the wrong pair of cells, or drop the
+  inserted row's content entirely. Only reachable under a non-`Positional`
+  alignment mode, which is why the fixture corpus never caught it. The
+  internal coordinate key now carries which row-numbering space it came
+  from, so a numeric coincidence can never merge two different cells.
+- **Formula text could attach to the wrong cell (D-04).** `calamine`'s
+  formula range and value range are independent `Range`s with their own
+  origins — `worksheet_formula`'s range is built only from cells that
+  actually carry formula text, so its top-left corner is the first *formula*
+  cell, not the first populated cell. The formula lookup applied
+  value-range-relative row/column indices directly to the formula range
+  (`Range::get`, which is relative to *that* range's own origin), silently
+  offsetting or dropping formula text whenever the two origins differed —
+  for example, a text label in the first populated row with a formula
+  starting further down. Now translates through absolute coordinates
+  (`Range::get_value`), which is correct regardless of whether the two
+  ranges' origins coincide.
+- **Alignment duplicate-key diagnostic was misclassified.** `align.rs`
+  reported duplicate row-alignment keys using `DiagnosticKind::UnsupportedCellValue`
+  (documented meaning: "a cell value could not be normalised" — not what
+  happened) with a message claiming a partial positional fallback that never
+  actually occurred (LCS still ran on the full, duplicate-containing
+  sequences). Replaced with `DiagnosticKind::DuplicateAlignmentKey` and a
+  message that describes what actually happens.
+- **Alignment's row-count guard was wired to the wrong limit.** The LCS
+  matrix's row-count guard read `Limits::max_cells_compared` — a *cell*-count
+  bound — as a *row* bound, and on tripping it silently built a fake
+  low-confidence identity mapping with no diagnostic at all. It now reads
+  the dedicated `max_alignment_product` bound (see Added, above), checked
+  before any mode-specific alignment work, and degrades to the caller's
+  existing true-positional path with an explicit diagnostic.
+- **`src/objects.rs`'s coverage diagnostic corrected — the 2.2.3
+  `cells_compared` claim documented as still wrong, not fixed.** Two
+  unrelated corrections, both about claims this project made about itself:
+  - The `UnsupportedWorkbookFeature` coverage message (emitted on every
+    comparison) said "calamine 0.35 does not expose object content" and
+    listed hyperlinks, tables, and pivot tables alongside charts and images
+    as uniformly unavailable. Both are now wrong: the version is stale, and
+    RFC-035 Handoff 01's spike established that calamine 0.36 *does* expose
+    hyperlinks, merged regions, tables, and pivot tables — this crate simply
+    does not call those APIs yet. The message now distinguishes "not
+    exposed by calamine's API at all" (charts, images, comments, data
+    validation, conditional formatting) from "available upstream, not yet
+    used by this crate" (hyperlinks, merged regions, tables, pivot tables).
+    `DiagnosticKind::code()` is unchanged (`unsupported_workbook_feature`)
+    — only the human-readable message moved, which is why this changed all
+    seven fixture goldens as a pure string substitution; see the corpus
+    guide for what that first-bless lesson was about.
+  - The 2.2.3 entry below claims `DiffMetrics.cells_compared` was fixed to
+    count all coordinate pairs visited, not just changed cells. Verified at
+    `0ba6aeb`: it does not, and never did — `build_sheet_diff` only ever
+    pushes a `CellDiff` for a coordinate with an actual value or formula
+    change, so the "compared but unchanged" term the accumulator adds is
+    always zero. `cells_compared == cells_changed`, silently, since 2.2.3.
+    Not fixed here — see the annotated entry below for why — but the claim
+    is no longer left standing as true.
+
 ### Removed
 
 - **The `parallel` feature is removed** (RFC-025, roadmap decision D2). It never
@@ -46,6 +190,9 @@
 - **Metrics corrected:** `DiffMetrics.cells_read` now reflects the actual cell
   count from `read_sheet_cells` (was `1` per sheet). `DiffMetrics.cells_compared`
   now counts all coordinate pairs visited, not just changed cells.
+  **Correction (see Unreleased):** the second half of this entry is wrong. It
+  was wrong when written and is still wrong today — `cells_compared` counts
+  only changed cells, exactly as before this entry claims to have fixed.
 - **`compare` module made `pub(crate)`** — it is internal machinery. The
   `compare_values_pub` test helper is now `#[cfg(test)]` only.
 - **Stale doc comments updated:** `WorkbookChange` / `WorkbookObjectChange` /

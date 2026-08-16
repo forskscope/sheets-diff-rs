@@ -4,7 +4,7 @@
 //! Default mode is `Positional` (existing behaviour, unchanged).
 //! `RowKey` and `RowSignature` modes are opt-in via `DiffOptions.matching.alignment`.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use crate::model::{
     CellValue, Diagnostic, DiagnosticKind, DiagnosticLocation, DiffStage, MatchConfidence, Severity,
@@ -54,14 +54,51 @@ pub type AlignCellMap = BTreeMap<(u32, u32), CellValue>;
 
 /// Compute a row mapping under the configured `AlignmentMode`.
 ///
-/// Returns `None` when mode is `Positional` (caller uses identity mapping).
+/// Returns `None` when mode is `Positional` (caller uses identity mapping),
+/// or when the `old_rows * new_rows` product would exceed
+/// `max_alignment_product` — RFC-035 §5.2: alignment degrades to positional
+/// in that case, it never errors. The bound is checked here, before any
+/// mode-specific work, using the distinct row counts across the full cell
+/// maps; the sequences a mode actually builds are always a subset of those
+/// rows, so this is a conservative (never-too-low) estimate of the LCS
+/// matrix a mode would allocate.
 pub fn compute_row_mapping(
     old_cells: &AlignCellMap,
     new_cells: &AlignCellMap,
     mode: &AlignmentMode,
-    max_rows: Option<u64>,
+    max_alignment_product: Option<u64>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<RowMapping> {
+    if matches!(mode, AlignmentMode::Positional) {
+        return None;
+    }
+
+    if let Some(limit) = max_alignment_product {
+        let old_rows = distinct_row_count(old_cells);
+        let new_rows = distinct_row_count(new_cells);
+        let product = old_rows.saturating_mul(new_rows);
+        if product > limit {
+            diagnostics.push(Diagnostic {
+                severity: Severity::Warning,
+                kind: DiagnosticKind::AlignmentBoundExceeded {
+                    limit,
+                    observed: product,
+                },
+                location: DiagnosticLocation {
+                    stage: DiffStage::Compare,
+                    sheet_order: None,
+                    sheet_name: None,
+                    address: None,
+                },
+                message: format!(
+                    "alignment row product ({old_rows} old x {new_rows} new = {product}) \
+                     exceeds max_alignment_product ({limit}); sheet compared positionally instead"
+                ),
+            });
+            return None;
+        }
+    }
+
     match mode {
         AlignmentMode::Positional => None,
 
@@ -69,7 +106,6 @@ pub fn compute_row_mapping(
             old_cells,
             new_cells,
             columns,
-            max_rows,
             diagnostics,
         )),
 
@@ -77,17 +113,18 @@ pub fn compute_row_mapping(
             old_cells,
             new_cells,
             sample_columns.as_deref(),
-            max_rows,
             diagnostics,
         )),
 
-        AlignmentMode::HeaderColumn => Some(header_column_alignment(
-            old_cells,
-            new_cells,
-            max_rows,
-            diagnostics,
-        )),
+        AlignmentMode::HeaderColumn => {
+            Some(header_column_alignment(old_cells, new_cells, diagnostics))
+        }
     }
+}
+
+/// Number of distinct 1-based row indices with at least one cell present.
+fn distinct_row_count(cells: &AlignCellMap) -> u64 {
+    cells.keys().map(|(r, _)| *r).collect::<BTreeSet<_>>().len() as u64
 }
 
 // ---------------------------------------------------------------------------
@@ -98,25 +135,22 @@ fn row_key_alignment(
     old_cells: &AlignCellMap,
     new_cells: &AlignCellMap,
     key_cols: &[u32],
-    max_rows: Option<u64>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> RowMapping {
     let old_keys = extract_row_keys(old_cells, key_cols);
     let new_keys = extract_row_keys(new_cells, key_cols);
 
-    // Detect duplicate keys — emit a warning and fall back for ambiguous sections.
+    // Detect duplicate keys — emit a warning. LCS still runs on the full
+    // sequences (duplicates included); it does not fall back to positional
+    // for just the affected rows, so the message must not claim it does.
     let old_dups = find_duplicate_keys(&old_keys);
     let new_dups = find_duplicate_keys(&new_keys);
     if !old_dups.is_empty() || !new_dups.is_empty() {
         diagnostics.push(Diagnostic {
             severity: Severity::Warning,
-            kind: DiagnosticKind::UnsupportedCellValue {
-                detail: format!(
-                    "duplicate row keys detected ({} in old, {} in new); \
-                     affected rows compared positionally",
-                    old_dups.len(),
-                    new_dups.len()
-                ),
+            kind: DiagnosticKind::DuplicateAlignmentKey {
+                old_count: old_dups.len(),
+                new_count: new_dups.len(),
             },
             location: DiagnosticLocation {
                 stage: DiffStage::Compare,
@@ -124,11 +158,16 @@ fn row_key_alignment(
                 sheet_name: None,
                 address: None,
             },
-            message: "duplicate alignment keys — partial positional fallback".into(),
+            message: format!(
+                "duplicate alignment keys detected ({} distinct key(s) repeated in old, \
+                 {} in new); LCS matching may pair rows ambiguously among duplicates",
+                old_dups.len(),
+                new_dups.len()
+            ),
         });
     }
 
-    lcs_match(old_keys, new_keys, max_rows)
+    lcs_match(old_keys, new_keys)
 }
 
 // ---------------------------------------------------------------------------
@@ -139,12 +178,11 @@ fn row_signature_alignment(
     old_cells: &AlignCellMap,
     new_cells: &AlignCellMap,
     sample_cols: Option<&[u32]>,
-    max_rows: Option<u64>,
     _diagnostics: &mut Vec<Diagnostic>,
 ) -> RowMapping {
     let old_sigs = compute_row_signatures(old_cells, sample_cols);
     let new_sigs = compute_row_signatures(new_cells, sample_cols);
-    lcs_match(old_sigs, new_sigs, max_rows)
+    lcs_match(old_sigs, new_sigs)
 }
 
 // ---------------------------------------------------------------------------
@@ -154,13 +192,12 @@ fn row_signature_alignment(
 fn header_column_alignment(
     old_cells: &AlignCellMap,
     new_cells: &AlignCellMap,
-    max_rows: Option<u64>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> RowMapping {
     // Treat row 1 as the header; use the header values as column identity.
     // Fall back to RowSignature for data rows.
     let key_col: Vec<u32> = vec![1]; // row-1 = header row; match data by that col
-    row_key_alignment(old_cells, new_cells, &key_col, max_rows, diagnostics)
+    row_key_alignment(old_cells, new_cells, &key_col, diagnostics)
 }
 
 // ---------------------------------------------------------------------------
@@ -169,36 +206,9 @@ fn header_column_alignment(
 
 /// Match rows using patience-LCS on their key/signature sequences.
 /// Returns a `RowMapping` with the matched, inserted, and removed rows.
-fn lcs_match(
-    old_seq: BTreeMap<u32, RowKey>,
-    new_seq: BTreeMap<u32, RowKey>,
-    max_rows: Option<u64>,
-) -> RowMapping {
+fn lcs_match(old_seq: BTreeMap<u32, RowKey>, new_seq: BTreeMap<u32, RowKey>) -> RowMapping {
     let old_rows: Vec<(u32, RowKey)> = old_seq.into_iter().collect();
     let new_rows: Vec<(u32, RowKey)> = new_seq.into_iter().collect();
-
-    // Guard: skip if too large.
-    let limit = max_rows.unwrap_or(50_000) as usize;
-    if old_rows.len() > limit || new_rows.len() > limit {
-        // Fall back to positional — return an identity mapping.
-        let matched: BTreeMap<u32, u32> = old_rows
-            .iter()
-            .zip(new_rows.iter())
-            .map(|((or, _), (nr, _))| (*or, *nr))
-            .collect();
-        let n_matched = matched.len();
-        return RowMapping {
-            matched,
-            removed: Vec::new(),
-            inserted: Vec::new(),
-            summary: AlignmentSummaryData {
-                inserted_rows: 0,
-                removed_rows: 0,
-                matched_rows: n_matched,
-                confidence: MatchConfidence::Low,
-            },
-        };
-    }
 
     // Build LCS table.
     let m = old_rows.len();
@@ -416,5 +426,58 @@ mod tests {
             &mut diag,
         );
         assert!(!diag.is_empty(), "expected diagnostic for duplicate keys");
+        assert!(
+            diag.iter()
+                .any(|d| matches!(d.kind, DiagnosticKind::DuplicateAlignmentKey { .. })),
+            "expected DuplicateAlignmentKey, got {diag:?}"
+        );
+    }
+
+    #[test]
+    fn alignment_bound_exceeded_degrades_to_positional_not_error() {
+        // 3 old rows x 3 new rows = product 9, bound of 5 is exceeded.
+        let old = make_cells(&[(1, 1, "id1"), (2, 1, "id2"), (3, 1, "id3")]);
+        let new = make_cells(&[(1, 1, "id1"), (2, 1, "id2"), (3, 1, "id3")]);
+        let mut diag = vec![];
+        let result = compute_row_mapping(
+            &old,
+            &new,
+            &AlignmentMode::RowKey { columns: vec![1] },
+            Some(5),
+            &mut diag,
+        );
+        // Degrades to None (caller's true-positional path) — never an error.
+        assert!(result.is_none());
+        assert!(
+            diag.iter().any(|d| matches!(
+                d.kind,
+                DiagnosticKind::AlignmentBoundExceeded {
+                    limit: 5,
+                    observed: 9
+                }
+            )),
+            "expected AlignmentBoundExceeded {{ limit: 5, observed: 9 }}, got {diag:?}"
+        );
+    }
+
+    #[test]
+    fn alignment_bound_within_limit_still_aligns() {
+        let old = make_cells(&[(1, 1, "id1"), (2, 1, "id2"), (3, 1, "id3")]);
+        let new = make_cells(&[(1, 1, "id1"), (2, 1, "id2"), (3, 1, "id3")]);
+        let mut diag = vec![];
+        let result = compute_row_mapping(
+            &old,
+            &new,
+            &AlignmentMode::RowKey { columns: vec![1] },
+            Some(9), // product is exactly 9 — must not exceed
+            &mut diag,
+        );
+        assert!(result.is_some());
+        assert!(
+            !diag
+                .iter()
+                .any(|d| matches!(d.kind, DiagnosticKind::AlignmentBoundExceeded { .. })),
+            "bound was not exceeded, should not have fired"
+        );
     }
 }

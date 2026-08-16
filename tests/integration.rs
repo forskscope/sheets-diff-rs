@@ -10,8 +10,9 @@ use rust_xlsxwriter::Workbook;
 use support::*;
 
 use sheets_diff::{
-    CellChangeKind, CellValue, DiffEvent, DiffOptions, FormulaCompareMode, SheetChange,
-    SheetMatchingMode, SheetsDiffError, compare_bytes, compare_bytes_with_options,
+    CellChangeKind, CellValue, DateComparePolicy, DiffEvent, DiffOptions, FormulaCompareMode,
+    SheetChange, SheetMatchingMode, SheetsDiffError, compare_bytes, compare_bytes_with_options,
+    compare_paths_with_options, compare_readers_with_options,
     output::text::{render_summary, render_unified},
 };
 
@@ -702,6 +703,180 @@ fn row_key_alignment_reduces_cascade() {
 }
 
 // ============================================================================
+// v2.3 — RFC-035 resource bounds
+// ============================================================================
+
+#[test]
+fn limits_hardened_bounds_every_dimension() {
+    use sheets_diff::Limits;
+    let h = Limits::hardened();
+    assert!(h.max_sheets.is_some());
+    assert!(h.max_cells_read.is_some());
+    assert!(h.max_cells_compared.is_some());
+    assert!(h.max_diffs_returned.is_some());
+    assert!(h.max_alignment_product.is_some());
+    assert!(h.max_input_bytes.is_some());
+}
+
+#[test]
+fn default_limits_bound_alignment_and_input_but_not_linear_paths() {
+    use sheets_diff::Limits;
+    let d = Limits::default();
+    // Superlinear paths (RFC-035 §5.1) are bounded by default.
+    assert!(d.max_alignment_product.is_some());
+    assert!(d.max_input_bytes.is_some());
+    // Linear paths stay opt-in.
+    assert!(d.max_sheets.is_none());
+    assert!(d.max_cells_read.is_none());
+    assert!(d.max_cells_compared.is_none());
+    assert!(d.max_diffs_returned.is_none());
+}
+
+#[test]
+fn limits_struct_update_syntax_still_compiles() {
+    // The pre-existing `Limits { field: ..., ..Limits::default() }`
+    // construction pattern must keep working now that `Limits` no longer
+    // derives `Default` (it has a manual impl instead, since two fields
+    // default to `Some` rather than `None`).
+    use sheets_diff::Limits;
+    let limits = Limits {
+        max_sheets: Some(10),
+        ..Limits::default()
+    };
+    assert_eq!(limits.max_sheets, Some(10));
+    assert!(limits.max_alignment_product.is_some());
+    assert!(limits.max_input_bytes.is_some());
+}
+
+#[test]
+fn alignment_bound_exceeded_degrades_not_errors() {
+    use sheets_diff::options::{AlignmentMode, MatchingOptions};
+
+    let old = wb_strings(&[(0, 0, "id1"), (1, 0, "id2"), (2, 0, "id3")]);
+    let new = wb_strings(&[(0, 0, "id1"), (1, 0, "id2"), (2, 0, "id9")]);
+
+    let positional = compare_bytes(&old, &new).unwrap();
+
+    // 3 distinct old rows x 3 distinct new rows = product 9; bound it below that.
+    let opts = DiffOptions::builder()
+        .max_alignment_product(Some(5))
+        .build_with_matching(MatchingOptions {
+            sheet_matching: SheetMatchingMode::default(),
+            alignment: AlignmentMode::RowKey { columns: vec![1] },
+        })
+        .unwrap();
+    let degraded = compare_bytes_with_options(&old, &new, opts).unwrap();
+
+    // Degrades to the same result as positional comparison — never an error.
+    assert_eq!(
+        degraded.summary.cells_changed,
+        positional.summary.cells_changed
+    );
+    assert!(
+        degraded.sheets[0]
+            .diagnostics
+            .iter()
+            .any(|d| d.kind.code() == "alignment_bound_exceeded"),
+        "expected alignment_bound_exceeded diagnostic, got {:?}",
+        degraded.sheets[0].diagnostics
+    );
+}
+
+#[test]
+fn duplicate_alignment_key_diagnostic_uses_new_code() {
+    use sheets_diff::options::{AlignmentMode, MatchingOptions};
+
+    let old = wb_strings(&[(0, 0, "dup"), (1, 0, "dup"), (2, 0, "unique")]);
+    let new = wb_strings(&[(0, 0, "dup"), (1, 0, "unique")]);
+    let opts = DiffOptions::builder()
+        .build_with_matching(MatchingOptions {
+            sheet_matching: SheetMatchingMode::default(),
+            alignment: AlignmentMode::RowKey { columns: vec![1] },
+        })
+        .unwrap();
+    let d = compare_bytes_with_options(&old, &new, opts).unwrap();
+    assert!(
+        d.sheets[0]
+            .diagnostics
+            .iter()
+            .any(|diag| diag.kind.code() == "duplicate_alignment_key"),
+        "expected duplicate_alignment_key diagnostic, got {:?}",
+        d.sheets[0].diagnostics
+    );
+}
+
+#[test]
+fn input_bytes_bound_rejects_before_parsing_bytes() {
+    // Oversized junk that is not valid xlsx: if the size check ran after
+    // opening/parsing, this would surface as an OpenWorkbook error instead
+    // (see corrupt_bytes_structured_error). Getting LimitExceeded proves the
+    // size check runs first — RFC-035 §5.4.
+    let junk = vec![0u8; 1024];
+    let good = wb_empty();
+    let opts = DiffOptions::builder()
+        .max_input_bytes(Some(100))
+        .build()
+        .unwrap();
+    assert!(matches!(
+        compare_bytes_with_options(&junk, &good, opts),
+        Err(SheetsDiffError::LimitExceeded {
+            limit: sheets_diff::LimitKind::InputBytes,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn input_bytes_bound_rejects_before_parsing_path() {
+    let junk = vec![0u8; 1024];
+    let path = std::env::temp_dir().join(format!(
+        "sheets-diff-oversized-input-{}-old.xlsx",
+        std::process::id()
+    ));
+    let good_path = std::env::temp_dir().join(format!(
+        "sheets-diff-oversized-input-{}-new.xlsx",
+        std::process::id()
+    ));
+    std::fs::write(&path, &junk).unwrap();
+    std::fs::write(&good_path, wb_empty()).unwrap();
+
+    let opts = DiffOptions::builder()
+        .max_input_bytes(Some(100))
+        .build()
+        .unwrap();
+    let result = compare_paths_with_options(&path, &good_path, opts);
+
+    std::fs::remove_file(&path).ok();
+    std::fs::remove_file(&good_path).ok();
+
+    assert!(matches!(
+        result,
+        Err(SheetsDiffError::LimitExceeded {
+            limit: sheets_diff::LimitKind::InputBytes,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn input_bytes_bound_rejects_before_parsing_reader() {
+    use std::io::Cursor;
+    let junk = Cursor::new(vec![0u8; 1024]);
+    let good = Cursor::new(wb_empty());
+    let opts = DiffOptions::builder()
+        .max_input_bytes(Some(100))
+        .build()
+        .unwrap();
+    assert!(matches!(
+        compare_readers_with_options(junk, good, opts),
+        Err(SheetsDiffError::LimitExceeded {
+            limit: sheets_diff::LimitKind::InputBytes,
+            ..
+        })
+    ));
+}
+
+// ============================================================================
 // v2.1 — RFC-029 view adapters
 // ============================================================================
 
@@ -1171,4 +1346,252 @@ fn row_insertion_cascade_fixture_reports_cascade() {
         "positional cascade expected, got {}",
         diff.summary.cells_changed
     );
+}
+
+// ============================================================================
+// v2.3.1 — RFC-035 Handoff 05: integrity-affecting correctness defects
+// ============================================================================
+
+// D-01: ISO date/time values always compared equal (reachability, end-to-end) --
+
+#[test]
+fn d01_iso_datetime_reachability_end_to_end() {
+    // `rust_xlsxwriter`'s public API cannot emit a `t="d"` ISO-typed cell
+    // (calamine's `DateTimeIso` path) — only Excel-serial dates. Hand-patch
+    // the sheet XML to inject one directly, so this exercises the real
+    // xlsx-parsing path end to end, not just the value-comparison logic.
+    let base = wb_strings(&[(0, 0, "label")]);
+    let old = patch_xlsx_xml(&base, "xl/worksheets/sheet1.xml", |xml| {
+        xml.replacen(
+            "</sheetData>",
+            "<row r=\"2\"><c r=\"A2\" t=\"d\"><v>2024-01-01T00:00:00</v></c></row></sheetData>",
+            1,
+        )
+    });
+    let new = patch_xlsx_xml(&base, "xl/worksheets/sheet1.xml", |xml| {
+        xml.replacen(
+            "</sheetData>",
+            "<row r=\"2\"><c r=\"A2\" t=\"d\"><v>2099-12-31T23:59:59</v></c></row></sheetData>",
+            1,
+        )
+    });
+
+    let diff = compare_bytes(&old, &new).unwrap();
+    assert_eq!(
+        diff.summary.values_changed, 1,
+        "expected the ISO datetime cell to be reported changed"
+    );
+    let vc = diff.sheets[0].cell_diffs[0].value.as_ref().unwrap();
+    match (&vc.old, &vc.new) {
+        (CellValue::DateTime(a), CellValue::DateTime(b)) => {
+            assert_eq!(a.iso.as_deref(), Some("2024-01-01T00:00:00"));
+            assert_eq!(b.iso.as_deref(), Some("2099-12-31T23:59:59"));
+            assert!(!a.has_serial && !b.has_serial);
+        }
+        _ => panic!("expected DateTime/DateTime value change"),
+    }
+}
+
+#[test]
+fn d01_iso_datetime_reachability_identical_values_report_no_change() {
+    // Sanity companion: the same real ISO-typed cell on both sides must
+    // still compare equal — the fix only removes the *false* equality.
+    let base = wb_strings(&[(0, 0, "label")]);
+    let with_iso = patch_xlsx_xml(&base, "xl/worksheets/sheet1.xml", |xml| {
+        xml.replacen(
+            "</sheetData>",
+            "<row r=\"2\"><c r=\"A2\" t=\"d\"><v>2024-01-01T00:00:00</v></c></row></sheetData>",
+            1,
+        )
+    });
+    let diff = compare_bytes(&with_iso, &with_iso).unwrap();
+    assert_eq!(diff.summary.values_changed, 0);
+}
+
+// D-01 note: `Data::DurationIso` (the other half of D-01) is produced only by
+// calamine's `.ods` reader (`src/ods.rs`), never by its `.xlsx` cell reader
+// (`src/xlsx/cells_reader.rs`) — confirmed by reading calamine 0.36.1's
+// source. Since this crate only reads `.xlsx`, `CellValue::Duration` is not
+// reachable end-to-end through any input this crate accepts; it is exercised
+// directly at the value-comparison level in `compare::tests` instead. This
+// is a further, if narrower, finding worth recording: `CellValue::Duration`
+// and its normalisation code are currently dead code for every input this
+// crate can actually open.
+
+// D-02: `is_1904` threading (`NormalizeEquivalentDateTimes`) ---------------
+
+#[test]
+fn d02_normalize_equivalent_datetimes_reconciles_1900_and_1904_end_to_end() {
+    use rust_xlsxwriter::{ExcelDateTime, Format};
+
+    // A genuine DateTime cell (calamine classifies by cell *format*, so this
+    // needs an explicit date number format — `write_datetime` alone relies
+    // on column-level formatting, which writes no per-cell style at all).
+    let base = {
+        let mut wb = Workbook::new();
+        let ws = wb.add_worksheet();
+        let date_format = Format::new().set_num_format("yyyy-mm-dd");
+        ws.write_datetime_with_format(
+            0,
+            0,
+            ExcelDateTime::from_ymd(2024, 6, 15).unwrap(),
+            &date_format,
+        )
+        .unwrap();
+        wb.save_to_buffer().unwrap()
+    };
+
+    // Discover the raw 1900-epoch serial `rust_xlsxwriter` actually wrote by
+    // diffing against an empty sheet and reading the reported value back —
+    // avoids hand-deriving Excel's serial arithmetic (1900 leap-year quirk
+    // included) ourselves.
+    let empty = wb_empty();
+    let added = compare_bytes(&empty, &base).unwrap();
+    let serial_1900 = match &added.sheets[0].cell_diffs[0].value.as_ref().unwrap().new {
+        CellValue::DateTime(dt) => dt.serial,
+        _ => panic!("expected DateTime"),
+    };
+
+    // "new": the same real date, expressed under the 1904 system — 1462
+    // days earlier — with the workbook flagged accordingly.
+    let serial_1904 = serial_1900 - 1462.0;
+    let new = patch_xlsx_xml(&base, "xl/workbook.xml", |xml| {
+        xml.replacen("<workbookPr", "<workbookPr date1904=\"1\" ", 1)
+    });
+    let new = patch_xlsx_xml(&new, "xl/worksheets/sheet1.xml", |xml| {
+        xml.replace(&serial_1900.to_string(), &serial_1904.to_string())
+    });
+
+    // Before D-02, `is_1904` was hardcoded `false` everywhere, so this
+    // reconciliation was impossible regardless of policy.
+    let exact = compare_bytes(&base, &new).unwrap();
+    assert_eq!(
+        exact.summary.values_changed, 1,
+        "ExactRepresentation must not conflate the two epochs"
+    );
+
+    let mut opts = DiffOptions::default();
+    opts.comparison.value.date = DateComparePolicy::NormalizeEquivalentDateTimes;
+    let normalized = compare_bytes_with_options(&base, &new, opts).unwrap();
+    assert_eq!(
+        normalized.summary.values_changed, 0,
+        "NormalizeEquivalentDateTimes should reconcile the 1900/1904 representations \
+         of the same real-world date"
+    );
+}
+
+// D-03: alignment coordinate-space collision ---------------------------------
+
+#[test]
+fn d03_inserted_row_number_colliding_with_matched_old_row_compares_both_correctly() {
+    use sheets_diff::options::{AlignmentMode, MatchingOptions};
+
+    // old: row1=id1/a,  row2=id2/b, row3=id3/c
+    // new: row1=id_new/z (inserted — numerically collides with OLD row 1),
+    //      row2=id1/a2  (id1's value CHANGED: a -> a2),
+    //      row3=id2/b,  row4=id3/c
+    //
+    // Under RowKey alignment: id1/id2/id3 all match (old row 1/2/3 -> new
+    // row 2/3/4). "id_new" at NEW row 1 is inserted, and NEW row 1
+    // numerically coincides with OLD row 1 (the matched id1 row) — the D-03
+    // collision condition. Giving id1 a genuine value change (not just an
+    // unchanged value) means a wrong lookup would produce an observably
+    // *wrong* result (missing the id1 change, or misattributing it),
+    // not merely an absence of a false positive.
+    let old = wb_strings(&[
+        (0, 0, "id1"),
+        (0, 1, "a"),
+        (1, 0, "id2"),
+        (1, 1, "b"),
+        (2, 0, "id3"),
+        (2, 1, "c"),
+    ]);
+    let new = wb_strings(&[
+        (0, 0, "id_new"),
+        (0, 1, "z"),
+        (1, 0, "id1"),
+        (1, 1, "a2"),
+        (2, 0, "id2"),
+        (2, 1, "b"),
+        (3, 0, "id3"),
+        (3, 1, "c"),
+    ]);
+
+    let opts = DiffOptions::builder()
+        .build_with_matching(MatchingOptions {
+            sheet_matching: SheetMatchingMode::default(),
+            alignment: AlignmentMode::RowKey { columns: vec![1] },
+        })
+        .unwrap();
+    let diff = compare_bytes_with_options(&old, &new, opts).unwrap();
+
+    let summary = diff.sheets[0].alignment_summary.as_ref().unwrap();
+    assert_eq!(summary.matched_rows, 3, "id1/id2/id3 should all match");
+    assert_eq!(
+        summary.inserted_rows, 1,
+        "id_new should be the only insertion"
+    );
+    assert_eq!(summary.removed_rows, 0);
+
+    // Three independent things must all be true at once — each one is a way
+    // the pre-fix coordinate collision could go wrong:
+    //   1. id1's real value change (a -> a2) is found, at OLD row 1 (its
+    //      matched/canonical address) — not lost, not misattributed.
+    let id1_change = diff.sheets[0].cell_diffs.iter().find(|cd| {
+        cd.value
+            .as_ref()
+            .is_some_and(|vc| matches!(&vc.old, CellValue::Text(s) if s == "a"))
+    });
+    let id1_change = id1_change.expect("id1's a -> a2 change must be found");
+    assert_eq!(
+        id1_change.address.a1, "B1",
+        "id1's value lives in old row 1"
+    );
+    let vc = id1_change.value.as_ref().unwrap();
+    assert!(matches!(&vc.new, CellValue::Text(s) if s == "a2"));
+
+    //   2. The inserted id_new/z row is independently reported as added
+    //      content, not merged away by the row-number collision.
+    let has_id_new_added = diff.sheets[0].cell_diffs.iter().any(|cd| {
+        cd.value
+            .as_ref()
+            .is_some_and(|vc| matches!(&vc.new, CellValue::Text(s) if s == "id_new" || s == "z"))
+    });
+    assert!(
+        has_id_new_added,
+        "the inserted row's content must be independently compared and reported"
+    );
+
+    //   3. id2/id3 (unrelated matched rows, unchanged) must not be
+    //      collaterally disturbed.
+    assert_eq!(
+        diff.summary.values_changed, 3,
+        "expected exactly: id1's real change, plus id_new/z being added — nothing else"
+    );
+}
+
+// D-04: formula text attaching to the wrong cell -----------------------------
+
+#[test]
+fn d04_formula_attaches_to_the_formula_cell_not_the_value_range_origin() {
+    // Value range starts at row 1 (a text label, no formula); the formula
+    // range starts at row 2 (the only cell with formula text) — the two
+    // ranges' origins genuinely differ, reproducing D-04 exactly.
+    let old = wb_with_formula(0, 0, "label", 1, 0, "=1+1");
+    let new = wb_with_formula(0, 0, "label", 1, 0, "=2+0");
+
+    let diff = compare_bytes(&old, &new).unwrap();
+    assert_eq!(diff.sheets[0].cell_diffs.len(), 1);
+    let cd = &diff.sheets[0].cell_diffs[0];
+    assert_eq!(
+        cd.address.a1, "A2",
+        "the formula change must attach to A2 (the real formula cell), not A1 \
+         (the value range's origin)"
+    );
+    let fc = cd.formula.as_ref().unwrap();
+    assert_eq!(fc.old.as_ref().unwrap().raw, "1+1");
+    assert_eq!(fc.new.as_ref().unwrap().raw, "2+0");
+    // The label cell (A1) must show no diff at all — its content is
+    // identical on both sides.
+    assert!(cd.value.is_none() || cd.address.a1 != "A1");
 }

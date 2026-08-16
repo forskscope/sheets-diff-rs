@@ -1,6 +1,8 @@
 //! Cell-level value and formula comparison (RFC-010, RFC-018, RFC-019).
 
-use crate::model::{CellValue, FormulaChange, FormulaText, ValueChange, ValueDifferenceKind};
+use crate::model::{
+    CellDateTime, CellValue, FormulaChange, FormulaText, ValueChange, ValueDifferenceKind,
+};
 use crate::options::{
     DateComparePolicy, FormulaCompareMode, NumberComparePolicy, NumericTypePolicy,
     TypeMismatchPolicy, ValueCompareOptions,
@@ -36,14 +38,19 @@ pub fn compare_values(
         (Error(a), Error(b)) if a == b => return None,
         (Error(_), Error(_)) => ValueDifferenceKind::ErrorKindChanged,
         (DateTime(a), DateTime(b)) => {
-            if a.serial == b.serial && a.is_1904 == b.is_1904 && a.kind == b.kind {
+            if datetime_equal(a, b) {
                 return None;
             }
             match opts.date {
                 DateComparePolicy::ExactRepresentation => ValueDifferenceKind::DateTimeChanged,
                 DateComparePolicy::NormalizeEquivalentDateTimes => {
                     // Attempt serial normalization across 1900/1904 systems.
-                    if normalized_serial_eq(a.serial, a.is_1904, b.serial, b.is_1904) {
+                    // Only meaningful when both sides carry a genuine serial
+                    // (D-01) — an ISO-only value has no epoch to normalise.
+                    if a.has_serial
+                        && b.has_serial
+                        && normalized_serial_eq(a.serial, a.is_1904, b.serial, b.is_1904)
+                    {
                         return None;
                     }
                     ValueDifferenceKind::DateTimeChanged
@@ -51,7 +58,19 @@ pub fn compare_values(
             }
         }
         (Duration(a), Duration(b)) => {
-            if a.serial == b.serial {
+            let equal = match (&a.iso, &b.iso) {
+                // Both carry an ISO string: it is the authoritative
+                // representation for a duration (RFC-019 / D-01 — `serial`
+                // is currently always a `0.0` placeholder here; comparing
+                // `iso` is what actually distinguishes two durations).
+                (Some(ai), Some(bi)) => ai == bi,
+                (None, None) => a.serial == b.serial,
+                // One side has an ISO string and the other doesn't: never
+                // silently equal (D-01) — there is no reliable common
+                // representation to compare through.
+                _ => false,
+            };
+            if equal {
                 return None;
             }
             ValueDifferenceKind::ContentChanged
@@ -89,6 +108,30 @@ pub fn compare_values(
         new: new.clone(),
         reason,
     })
+}
+
+/// Equality for the default (`ExactRepresentation`) date/time comparison.
+///
+/// D-01: a value from `Data::DateTimeIso` has no genuine Excel serial — its
+/// `serial` field is a `0.0` placeholder (`has_serial: false`) and `iso` is
+/// the only meaningful representation. A value from `Data::DateTime` always
+/// has a genuine serial (`has_serial: true`); when the `chrono` feature is
+/// enabled it may *also* carry a synthesized `iso` string, but that string
+/// is redundant with the serial, not authoritative — comparing it instead
+/// of the serial would risk losing precision (the synthesized string has
+/// only second resolution) and would make the comparison result depend on
+/// whether `chrono` is enabled, which must not happen.
+///
+/// So: two genuine serials compare via serial/`is_1904`/`kind`, unchanged
+/// from before. Two ISO-only values compare via `iso`. A serial-based value
+/// against an ISO-only value has no shared representation to compare
+/// through and is never silently equal.
+fn datetime_equal(a: &CellDateTime, b: &CellDateTime) -> bool {
+    match (a.has_serial, b.has_serial) {
+        (true, true) => a.serial == b.serial && a.is_1904 == b.is_1904 && a.kind == b.kind,
+        (false, false) => a.iso == b.iso,
+        _ => false,
+    }
 }
 
 fn compare_floats(a: f64, b: f64, policy: &NumberComparePolicy) -> Option<ValueDifferenceKind> {
@@ -168,11 +211,149 @@ pub fn compare_formulas(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::CellValue;
-    use crate::options::ValueCompareOptions;
+    use crate::model::{CellDuration, CellValue, DateTimeKind};
+    use crate::options::{DateComparePolicy, ValueCompareOptions};
 
     fn opts() -> ValueCompareOptions {
         ValueCompareOptions::default()
+    }
+
+    fn iso_only_dt(iso: &str) -> CellDateTime {
+        CellDateTime {
+            serial: 0.0,
+            is_1904: false,
+            kind: DateTimeKind::DateTime,
+            iso: Some(iso.to_string()),
+            has_serial: false,
+        }
+    }
+
+    fn serial_dt(serial: f64, is_1904: bool) -> CellDateTime {
+        CellDateTime {
+            serial,
+            is_1904,
+            kind: DateTimeKind::DateTime,
+            iso: None,
+            has_serial: true,
+        }
+    }
+
+    // D-01: ISO date/time and duration values must not always compare equal ---
+
+    #[test]
+    fn iso_only_datetimes_with_same_iso_are_equal() {
+        let a = iso_only_dt("2024-01-01T00:00:00");
+        let b = iso_only_dt("2024-01-01T00:00:00");
+        assert!(
+            compare_values(&CellValue::DateTime(a), &CellValue::DateTime(b), &opts()).is_none()
+        );
+    }
+
+    #[test]
+    fn iso_only_datetimes_with_different_iso_are_reported_changed() {
+        // The exact pair from the RFC-035 Handoff 05 audit: before the fix,
+        // both normalise to serial 0.0 / is_1904 false / kind DateTime, so
+        // this compared equal no matter how different the two dates are.
+        let a = iso_only_dt("2024-01-01T00:00:00");
+        let b = iso_only_dt("2099-12-31T23:59:59");
+        let r = compare_values(&CellValue::DateTime(a), &CellValue::DateTime(b), &opts()).unwrap();
+        assert_eq!(r.reason, ValueDifferenceKind::DateTimeChanged);
+    }
+
+    #[test]
+    fn iso_only_durations_with_different_iso_are_reported_changed() {
+        // The second pair from the same audit finding.
+        let a = CellValue::Duration(CellDuration {
+            serial: 0.0,
+            iso: Some("PT1H".to_string()),
+        });
+        let b = CellValue::Duration(CellDuration {
+            serial: 0.0,
+            iso: Some("PT99H".to_string()),
+        });
+        let r = compare_values(&a, &b, &opts()).unwrap();
+        assert_eq!(r.reason, ValueDifferenceKind::ContentChanged);
+    }
+
+    #[test]
+    fn iso_only_durations_with_same_iso_are_equal() {
+        let a = CellValue::Duration(CellDuration {
+            serial: 0.0,
+            iso: Some("PT1H30M".to_string()),
+        });
+        let b = CellValue::Duration(CellDuration {
+            serial: 0.0,
+            iso: Some("PT1H30M".to_string()),
+        });
+        assert!(compare_values(&a, &b, &opts()).is_none());
+    }
+
+    #[test]
+    fn mixed_serial_and_iso_datetime_never_silently_equal() {
+        // A genuine serial-based value whose serial happens to be 0.0 (a
+        // legitimate date, 1899-12-30 in the 1900 system) against an
+        // ISO-only value whose serial is *also* 0.0 but as a placeholder.
+        // Before `has_serial`, these were indistinguishable and compared
+        // equal under the old (serial, is_1904, kind) check.
+        let serial_based = serial_dt(0.0, false);
+        let iso_only = iso_only_dt("2024-01-01T00:00:00");
+        let mut o = opts();
+
+        o.date = DateComparePolicy::ExactRepresentation;
+        let r = compare_values(
+            &CellValue::DateTime(serial_based.clone()),
+            &CellValue::DateTime(iso_only.clone()),
+            &o,
+        );
+        assert!(
+            r.is_some(),
+            "mixed representation must not be silently equal"
+        );
+
+        // Must not become equal under the normalisation policy either.
+        o.date = DateComparePolicy::NormalizeEquivalentDateTimes;
+        let r = compare_values(
+            &CellValue::DateTime(serial_based),
+            &CellValue::DateTime(iso_only),
+            &o,
+        );
+        assert!(
+            r.is_some(),
+            "mixed representation must not be silently equal under NormalizeEquivalentDateTimes either"
+        );
+    }
+
+    #[test]
+    fn normalize_equivalent_datetimes_reconciles_1900_and_1904_systems() {
+        // Same real-world date, represented once under the 1900 system and
+        // once under the 1904 system: serials differ by exactly the 1462-day
+        // offset. `ExactRepresentation` must see them as different;
+        // `NormalizeEquivalentDateTimes` must see them as the same instant.
+        let system_1900 = serial_dt(45000.0, false);
+        let system_1904 = serial_dt(45000.0 - 1462.0, true);
+
+        let mut o = opts();
+        o.date = DateComparePolicy::ExactRepresentation;
+        let r = compare_values(
+            &CellValue::DateTime(system_1900.clone()),
+            &CellValue::DateTime(system_1904.clone()),
+            &o,
+        );
+        assert!(
+            r.is_some(),
+            "ExactRepresentation must not conflate the two epochs"
+        );
+
+        o.date = DateComparePolicy::NormalizeEquivalentDateTimes;
+        let r = compare_values(
+            &CellValue::DateTime(system_1900),
+            &CellValue::DateTime(system_1904),
+            &o,
+        );
+        assert!(
+            r.is_none(),
+            "NormalizeEquivalentDateTimes must recognise the same instant across epochs"
+        );
     }
 
     #[test]

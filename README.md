@@ -77,6 +77,26 @@ for sheet in &diff.sheets {
   `Added`/`Removed` plus a diagnostic.
 - **`calamine` 0.36 pinned.** The `Data` enum variant set is the grounding
   for all `CellValue` conversions.
+- **Superlinear paths are bounded by default; linear paths stay opt-in.**
+  `Limits::default()` bounds the row-alignment product
+  (`max_alignment_product`, empirically set so the worst case stays under
+  ~15ms) and the input size (`max_input_bytes`, 500 MiB) — both checked
+  before the corresponding work begins. `max_sheets`, `max_cells_read`,
+  `max_cells_compared`, and `max_diffs_returned` stay `None` (unbounded)
+  unless set explicitly. Use `Limits::hardened()` for a stricter preset
+  suited to untrusted input. See `DiffOptions::limits` / `Limits` docs.
+- **Alignment degrades, it never errors.** If the row-alignment product
+  bound is exceeded, the affected sheet falls back to positional comparison
+  and a `alignment_bound_exceeded` diagnostic is emitted — the comparison
+  still completes.
+- **`#![forbid(unsafe_code)]`.** The crate contains no `unsafe` blocks.
+- **ISO-typed date/time values compare via their ISO string, not a
+  placeholder serial.** `Data::DateTimeIso`/`DurationIso` cells (calamine's
+  `t="d"` path) carry no genuine Excel serial; `CellDateTime::has_serial`
+  distinguishes that case so comparison never treats the `0.0` placeholder
+  as a real one. The workbook's 1900/1904 date epoch is read once per
+  workbook and threaded through, so `DateComparePolicy::NormalizeEquivalentDateTimes`
+  can actually reconcile dates across epochs.
 
 ## More Detail
 

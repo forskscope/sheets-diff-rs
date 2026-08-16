@@ -131,6 +131,29 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------------
+  # deps — RFC-035 §5.5 (roadmap decision D3). The dependency tree is a
+  # checked property, not a claim: advisories, bans (network-capable crates
+  # especially — NF-015), licenses, and sources, on every build. This is the
+  # job that would have caught the quick-xml advisory chain the day it
+  # landed instead of two months later. A separate job, not folded into
+  # `lint` — a red `deps` needs a different response than a formatting
+  # failure, and should be visually distinguishable at a glance.
+  # ---------------------------------------------------------------------------
+  deps:
+    name: deps
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+
+      - name: cargo deny check
+        run: cargo deny check
+
+  # ---------------------------------------------------------------------------
   # fuzz-smoke — RFC-028. A bounded smoke run per target, not a full fuzz
   # campaign. Distinguishes infrastructure failure (toolchain/install, does
   # not block) from an actual crash found by the fuzzer (blocks): only the
