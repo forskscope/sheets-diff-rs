@@ -110,6 +110,16 @@ release exists.
 
 ### M3 — T4 and remaining defects *(unplanned; needs a joint planning session)*
 
+**2.3.0 shipped 2026-08-16** and the ForskScope notification was **sent the same
+day** (`.git-exclude/tmp/sheets-diff-to-forskscope-2.3.0.md`). We are waiting on
+their audit before fixing M3's scope, because their gate result is the only
+thing that can close M2's exit criterion — *"ForskScope's dependency gate
+passes"* is currently asserted, not demonstrated — and because what it surfaces
+is a better input to this plan than a guess.
+
+Their answer bears on the **defect priorities** below, not on the governance and
+documentation items, which are independent of it.
+
 RFC-033 reconstruction; per-RFC status verification; `docs/` per NF-024/026/027;
 non-integrity defects. M2 deliberately deferred four items rather than forgetting
 them, each recorded in the threat model's residual-risk section:
