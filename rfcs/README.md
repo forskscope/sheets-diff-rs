@@ -31,7 +31,7 @@ have been — so they are separated by directory instead:
   series.
 
 Numbers are assigned at creation, are never reused, and never change when a
-file moves. The v2 series continues from 035; 033 is reserved for the missing
+file moves. The v2 series continues from 036; 033 is reserved for the missing
 RFC described below.
 
 Implementation companion documents live under
@@ -41,7 +41,9 @@ active roadmap is [`ROADMAP.md`](../ROADMAP.md).
 
 ## Proposed
 
-_None._
+| ID | Title | Handoffs |
+|----|-------|----------|
+| 036 | [Coverage Obligation and the Fixture Matrix](./proposed/036-coverage-obligation-and-the-fixture-matrix.md) | [track A](./handoffs/030-extended-fixture-generators-and-corpus-management/) — unit 01 done; 02–03 written on acceptance |
 
 ## Accepted
 
