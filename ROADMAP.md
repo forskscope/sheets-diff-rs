@@ -148,7 +148,66 @@ Serial: A before B. **Exit:** the matrix runs in CI with every dimension covered
 or explicitly deferred; RFC-033 exists; every RFC status is verified or
 corrected.
 
-### M4 — 2.4.0, "Consumer-facing debt and large-workbook memory" *(release)*
+### M4 — "The code contradicts itself" — 🔄 **OPEN 2026-08-17** *(2.4.0)*
+
+Agreed 2026-08-17 from `.git-exclude/tmp/m4-boundary-proposal.md`. M3's thirteen
+findings plus the earlier M4 sketch were regrouped by **what each item changes
+for a consumer**, which is what decides the release. Twelve schedulable items
+across four milestones; two are upstream-blocked and one is the v3 decision.
+
+Four items, one defect class: **a statement that sounds like a fact because it
+sits next to code.** This project has been bitten by it three times — the
+`parallel` feature that never compiled, `cells_compared`'s changelog claim, and
+`meta.rs`'s comments.
+
+| Unit | Item |
+|---|---|
+| 01 | Two doc-only truths: `meta.rs`'s comments describing a `WorkbookMetadataMode` that was never built, and the absence of any note that `Integer`/`Duration`/`Unsupported` are unreachable |
+| 02 | `DiffMetrics.cells_compared` counts changed cells, not coordinates visited — and 2.2.3's changelog claimed it fixed exactly this |
+| 03 | Exit code 3 for invalid/corrupt input is specified by RFC-013 and never emitted, plus the subprocess test that has never existed |
+
+**Released as 2.4.0, not 2.3.1 — a correction to the proposal.** I called this a
+patch release. Unit 03 falsifies that: corrupt input currently exits 2, and
+moving it to 3 changes an observable CLI contract. A consumer matching `2` for
+"operational error" would see `3` for a subset. Exit codes are an interface, so
+this is a minor at minimum.
+
+**M5 shrinks slightly**: unit 03 carries the CLI subprocess test, which was one
+of M5's three items, because implementing an exit code without testing it would
+be the same defect class M4 exists to remove.
+
+### M5 — "Nothing checks it" *(no release)*
+
+Two items after M4 absorbs the third:
+
+- No CI check enforces the `println!`/`eprintln!`/`dbg!` prohibition, and no
+  test covers source-path privacy. **NF-015's "the library must not write to
+  stdout/stderr" is enforced by nothing** — M2 made "no network" a build-time
+  property via `deny.toml` bans; the stdout rule never got the same treatment.
+- Encrypted-workbook detection exists with zero test coverage.
+
+### M6 — "The documentation MUSTs" *(release)*
+
+NF-024 and NF-026 — **MUST** requirements unmet across four releases — plus the
+migration guide's missing JSON section and uncompiled code blocks, and the
+absent v1.2-vs-v2 benchmark comparison.
+
+### M7 — "Measure, then change" *(release; scope set by measurement)*
+
+Large-workbook memory; cancellation granularity (polled per sheet pair, not per
+cell batch as RFC-012 specifies); the shared display address. These share the
+property that **their scope cannot honestly be written until something is
+measured**, so they are grouped to keep that discipline in one place.
+
+### Not scheduled
+
+- **`serde` `Deserialize`** — a public API expansion needing its own RFC, and
+  ForskScope caches nothing, so ask before building.
+- **Upstream-blocked** — `CellNumberFormat` (calamine keeps `mod formats`
+  private through 0.36) and `WorkbookObjectChange` (no object content exposed).
+- **The v3 question** — deferred to M6's close by default; see below.
+
+### Superseded M4 sketch *(kept for the record)*
 
 Gated by M3's findings and ForskScope's runtime report.
 
@@ -164,12 +223,22 @@ Gated by M3's findings and ForskScope's runtime report.
 **Exit:** NF-024/026 met (both **MUST**, unmet for three releases); large-workbook
 memory measured and acted on; **release 2.4.0**.
 
-### M5 — dissolved
+### The v3 question — reopened as a question, not a milestone
 
-It existed to decide v3 for G and H. `CellDiff` is `#[non_exhaustive]`, so G is
-additive; H's useful half is a doc comment. The only surviving v3 candidate is
-deleting the unreachable `CellValue::Duration`, recorded as a note against any
-future major version rather than scheduled work.
+M5 was dissolved on the argument that `CellDiff` is `#[non_exhaustive]` so G is
+additive, and one unreachable variant does not justify a major version. Both
+still hold individually. What changed is the accumulation: **three** unreachable
+`CellValue` variants, **four** permanently-empty types, and **thirteen** RFCs
+whose designs shipped only in part.
+
+The honest summary is that the public model describes a more capable engine than
+the one that exists — not through neglect, mostly through upstream constraints
+and deliberate deferrals, but the gap is real and invisible from the API.
+
+**Not a recommendation for v3.** M4's doc note and M6's non-goals section may be
+a sufficient answer, and a major version would make ForskScope migrate again
+months after the last time. Deferred to M6's close, when the documentation
+answer can be judged on its merits. Owner's alone under §6.7.
 
 ### Superseded M3 sketch *(kept for the record)*
 
