@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! # sheets-diff
 //!
 //! Structured diff engine for Microsoft Excel `.xlsx` workbooks.

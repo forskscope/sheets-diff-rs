@@ -167,18 +167,102 @@ pub struct MatchingOptions {
 }
 
 // ---------------------------------------------------------------------------
-// Limits (RFC-012 / RFC-033 §10)
+// Limits (RFC-012 / RFC-033 §10 / RFC-035 §5.1-5.4)
 // ---------------------------------------------------------------------------
+
+/// Default bound on the row-alignment `m × n` table (RFC-035 §5.1, §9).
+///
+/// Chosen from a direct measurement of `Vec<Vec<u32>>` allocation cost at
+/// several square sizes (see Handoff 04's review request for the full
+/// table): 5,000×5,000 (this bound) measured ~95 MB / ~15 ms; the
+/// previous *unbounded* worst case — two sheets each at the old row-count
+/// guard's 50,000-row ceiling — measured ~9.5 GB / ~3.3 s just to
+/// zero-allocate the table, before any comparison work. Two sheets each up
+/// to ~5,000 rows (or any combination whose product stays under this
+/// bound) get full alignment; larger degrades to positional with a
+/// diagnostic (RFC-035 §5.2) rather than risking the unbounded case.
+pub const DEFAULT_MAX_ALIGNMENT_PRODUCT: u64 = 25_000_000;
+
+/// Default bound on input size, checked before any read begins (RFC-035
+/// §5.4): 500 MiB. Chosen to be generous enough that no ordinary `.xlsx`
+/// workbook — this crate does not compare macros, embedded media, or other
+/// content that would make a legitimate file huge — should ever reach it,
+/// while still being finite.
+pub const DEFAULT_MAX_INPUT_BYTES: u64 = 500 * 1024 * 1024;
 
 /// Resource bounds that protect against pathological workbooks.
 ///
-/// `None` means no limit on that dimension.
-#[derive(Clone, Debug, Default)]
+/// `None` means no limit on that dimension. Per RFC-035 §5.1, the four
+/// *linear* fields (`max_sheets`, `max_cells_read`, `max_cells_compared`,
+/// `max_diffs_returned`) default to `None` — their cost scales predictably
+/// with input size the caller chose to open, so bounding them by default
+/// would surprise working callers for no safety gain they could not have
+/// anticipated. `max_alignment_product` and `max_input_bytes` default to
+/// `Some` instead: their unbounded cost is *superlinear* or is incurred
+/// before any comparison logic can observe it, which is exactly the failure
+/// class RFC-035 exists to close. See [`Limits::hardened()`] for a preset
+/// that bounds every dimension, for callers who do not trust their input.
+#[derive(Clone, Debug)]
 pub struct Limits {
     pub max_sheets: Option<u32>,
     pub max_cells_read: Option<u64>,
     pub max_cells_compared: Option<u64>,
     pub max_diffs_returned: Option<u64>,
+    /// Bounds the `m × n` row-alignment table. Exceeding it degrades this
+    /// sheet to positional comparison and emits an
+    /// [`AlignmentBoundExceeded`](crate::DiagnosticKind::AlignmentBoundExceeded)
+    /// diagnostic — it never errors and never aborts (RFC-035 §5.2). `Some`
+    /// by default; see [`DEFAULT_MAX_ALIGNMENT_PRODUCT`].
+    pub max_alignment_product: Option<u64>,
+    /// Bounds the input size, checked *before* the file is read (or the
+    /// reader is drained). Exceeding it returns
+    /// [`SheetsDiffError::LimitExceeded`] with
+    /// [`LimitKind::InputBytes`](crate::LimitKind::InputBytes) — this one
+    /// does error, unlike the alignment bound, because there is no
+    /// "positional fallback" for an oversized file. `Some` by default; see
+    /// [`DEFAULT_MAX_INPUT_BYTES`].
+    pub max_input_bytes: Option<u64>,
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Self {
+            max_sheets: None,
+            max_cells_read: None,
+            max_cells_compared: None,
+            max_diffs_returned: None,
+            max_alignment_product: Some(DEFAULT_MAX_ALIGNMENT_PRODUCT),
+            max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
+        }
+    }
+}
+
+impl Limits {
+    /// A conservative bound on every dimension, for comparing a workbook
+    /// from a source you do not trust (RFC-035 §5.3).
+    ///
+    /// `Limits::default()` deliberately does **not** provide this — its
+    /// four linear fields stay unbounded so ordinary large-but-legitimate
+    /// workbooks are never surprised. `hardened()` trades that off: a
+    /// caller who opts into it accepts that a very large but legitimate
+    /// workbook may hit a limit, in exchange for a guarantee that no
+    /// workbook — hostile or merely huge — can demand unbounded time or
+    /// memory. Values are chosen to comfortably accommodate an ordinary
+    /// office workbook while capping the worst case; they are not
+    /// individually re-measured beyond the alignment bound already
+    /// justified above; if a specific dimension proves too tight in
+    /// practice, that is a finding to report, not a default to silently
+    /// loosen.
+    pub fn hardened() -> Self {
+        Self {
+            max_sheets: Some(256),
+            max_cells_read: Some(5_000_000),
+            max_cells_compared: Some(5_000_000),
+            max_diffs_returned: Some(1_000_000),
+            max_alignment_product: Some(DEFAULT_MAX_ALIGNMENT_PRODUCT),
+            max_input_bytes: Some(50 * 1024 * 1024),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -453,6 +537,28 @@ impl DiffOptionsBuilder {
 
     pub fn max_diffs_returned(mut self, n: u64) -> Self {
         self.opts.limits.max_diffs_returned = Some(n);
+        self
+    }
+
+    /// Bounds the `m × n` alignment table; `Some` by default
+    /// ([`DEFAULT_MAX_ALIGNMENT_PRODUCT`]). Pass `None` to disable the
+    /// bound entirely (RFC-035 §5.1 — this is opt-out, not opt-in).
+    pub fn max_alignment_product(mut self, limit: Option<u64>) -> Self {
+        self.opts.limits.max_alignment_product = limit;
+        self
+    }
+
+    /// Bounds input size, checked before any read begins; `Some` by
+    /// default ([`DEFAULT_MAX_INPUT_BYTES`]). Pass `None` to disable the
+    /// bound entirely.
+    pub fn max_input_bytes(mut self, limit: Option<u64>) -> Self {
+        self.opts.limits.max_input_bytes = limit;
+        self
+    }
+
+    /// Replace all limits at once, e.g. with [`Limits::hardened()`].
+    pub fn limits(mut self, limits: Limits) -> Self {
+        self.opts.limits = limits;
         self
     }
 

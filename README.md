@@ -77,6 +77,19 @@ for sheet in &diff.sheets {
   `Added`/`Removed` plus a diagnostic.
 - **`calamine` 0.36 pinned.** The `Data` enum variant set is the grounding
   for all `CellValue` conversions.
+- **Superlinear paths are bounded by default; linear paths stay opt-in.**
+  `Limits::default()` bounds the row-alignment product
+  (`max_alignment_product`, empirically set so the worst case stays under
+  ~15ms) and the input size (`max_input_bytes`, 500 MiB) — both checked
+  before the corresponding work begins. `max_sheets`, `max_cells_read`,
+  `max_cells_compared`, and `max_diffs_returned` stay `None` (unbounded)
+  unless set explicitly. Use `Limits::hardened()` for a stricter preset
+  suited to untrusted input. See `DiffOptions::limits` / `Limits` docs.
+- **Alignment degrades, it never errors.** If the row-alignment product
+  bound is exceeded, the affected sheet falls back to positional comparison
+  and a `alignment_bound_exceeded` diagnostic is emitted — the comparison
+  still completes.
+- **`#![forbid(unsafe_code)]`.** The crate contains no `unsafe` blocks.
 
 ## More Detail
 

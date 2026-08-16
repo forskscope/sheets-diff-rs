@@ -12,6 +12,7 @@ use support::*;
 use sheets_diff::{
     CellChangeKind, CellValue, DiffEvent, DiffOptions, FormulaCompareMode, SheetChange,
     SheetMatchingMode, SheetsDiffError, compare_bytes, compare_bytes_with_options,
+    compare_paths_with_options, compare_readers_with_options,
     output::text::{render_summary, render_unified},
 };
 
@@ -699,6 +700,180 @@ fn row_key_alignment_reduces_cascade() {
         sheet.alignment_summary.is_some(),
         "alignment summary should be set"
     );
+}
+
+// ============================================================================
+// v2.3 — RFC-035 resource bounds
+// ============================================================================
+
+#[test]
+fn limits_hardened_bounds_every_dimension() {
+    use sheets_diff::Limits;
+    let h = Limits::hardened();
+    assert!(h.max_sheets.is_some());
+    assert!(h.max_cells_read.is_some());
+    assert!(h.max_cells_compared.is_some());
+    assert!(h.max_diffs_returned.is_some());
+    assert!(h.max_alignment_product.is_some());
+    assert!(h.max_input_bytes.is_some());
+}
+
+#[test]
+fn default_limits_bound_alignment_and_input_but_not_linear_paths() {
+    use sheets_diff::Limits;
+    let d = Limits::default();
+    // Superlinear paths (RFC-035 §5.1) are bounded by default.
+    assert!(d.max_alignment_product.is_some());
+    assert!(d.max_input_bytes.is_some());
+    // Linear paths stay opt-in.
+    assert!(d.max_sheets.is_none());
+    assert!(d.max_cells_read.is_none());
+    assert!(d.max_cells_compared.is_none());
+    assert!(d.max_diffs_returned.is_none());
+}
+
+#[test]
+fn limits_struct_update_syntax_still_compiles() {
+    // The pre-existing `Limits { field: ..., ..Limits::default() }`
+    // construction pattern must keep working now that `Limits` no longer
+    // derives `Default` (it has a manual impl instead, since two fields
+    // default to `Some` rather than `None`).
+    use sheets_diff::Limits;
+    let limits = Limits {
+        max_sheets: Some(10),
+        ..Limits::default()
+    };
+    assert_eq!(limits.max_sheets, Some(10));
+    assert!(limits.max_alignment_product.is_some());
+    assert!(limits.max_input_bytes.is_some());
+}
+
+#[test]
+fn alignment_bound_exceeded_degrades_not_errors() {
+    use sheets_diff::options::{AlignmentMode, MatchingOptions};
+
+    let old = wb_strings(&[(0, 0, "id1"), (1, 0, "id2"), (2, 0, "id3")]);
+    let new = wb_strings(&[(0, 0, "id1"), (1, 0, "id2"), (2, 0, "id9")]);
+
+    let positional = compare_bytes(&old, &new).unwrap();
+
+    // 3 distinct old rows x 3 distinct new rows = product 9; bound it below that.
+    let opts = DiffOptions::builder()
+        .max_alignment_product(Some(5))
+        .build_with_matching(MatchingOptions {
+            sheet_matching: SheetMatchingMode::default(),
+            alignment: AlignmentMode::RowKey { columns: vec![1] },
+        })
+        .unwrap();
+    let degraded = compare_bytes_with_options(&old, &new, opts).unwrap();
+
+    // Degrades to the same result as positional comparison — never an error.
+    assert_eq!(
+        degraded.summary.cells_changed,
+        positional.summary.cells_changed
+    );
+    assert!(
+        degraded.sheets[0]
+            .diagnostics
+            .iter()
+            .any(|d| d.kind.code() == "alignment_bound_exceeded"),
+        "expected alignment_bound_exceeded diagnostic, got {:?}",
+        degraded.sheets[0].diagnostics
+    );
+}
+
+#[test]
+fn duplicate_alignment_key_diagnostic_uses_new_code() {
+    use sheets_diff::options::{AlignmentMode, MatchingOptions};
+
+    let old = wb_strings(&[(0, 0, "dup"), (1, 0, "dup"), (2, 0, "unique")]);
+    let new = wb_strings(&[(0, 0, "dup"), (1, 0, "unique")]);
+    let opts = DiffOptions::builder()
+        .build_with_matching(MatchingOptions {
+            sheet_matching: SheetMatchingMode::default(),
+            alignment: AlignmentMode::RowKey { columns: vec![1] },
+        })
+        .unwrap();
+    let d = compare_bytes_with_options(&old, &new, opts).unwrap();
+    assert!(
+        d.sheets[0]
+            .diagnostics
+            .iter()
+            .any(|diag| diag.kind.code() == "duplicate_alignment_key"),
+        "expected duplicate_alignment_key diagnostic, got {:?}",
+        d.sheets[0].diagnostics
+    );
+}
+
+#[test]
+fn input_bytes_bound_rejects_before_parsing_bytes() {
+    // Oversized junk that is not valid xlsx: if the size check ran after
+    // opening/parsing, this would surface as an OpenWorkbook error instead
+    // (see corrupt_bytes_structured_error). Getting LimitExceeded proves the
+    // size check runs first — RFC-035 §5.4.
+    let junk = vec![0u8; 1024];
+    let good = wb_empty();
+    let opts = DiffOptions::builder()
+        .max_input_bytes(Some(100))
+        .build()
+        .unwrap();
+    assert!(matches!(
+        compare_bytes_with_options(&junk, &good, opts),
+        Err(SheetsDiffError::LimitExceeded {
+            limit: sheets_diff::LimitKind::InputBytes,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn input_bytes_bound_rejects_before_parsing_path() {
+    let junk = vec![0u8; 1024];
+    let path = std::env::temp_dir().join(format!(
+        "sheets-diff-oversized-input-{}-old.xlsx",
+        std::process::id()
+    ));
+    let good_path = std::env::temp_dir().join(format!(
+        "sheets-diff-oversized-input-{}-new.xlsx",
+        std::process::id()
+    ));
+    std::fs::write(&path, &junk).unwrap();
+    std::fs::write(&good_path, wb_empty()).unwrap();
+
+    let opts = DiffOptions::builder()
+        .max_input_bytes(Some(100))
+        .build()
+        .unwrap();
+    let result = compare_paths_with_options(&path, &good_path, opts);
+
+    std::fs::remove_file(&path).ok();
+    std::fs::remove_file(&good_path).ok();
+
+    assert!(matches!(
+        result,
+        Err(SheetsDiffError::LimitExceeded {
+            limit: sheets_diff::LimitKind::InputBytes,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn input_bytes_bound_rejects_before_parsing_reader() {
+    use std::io::Cursor;
+    let junk = Cursor::new(vec![0u8; 1024]);
+    let good = Cursor::new(wb_empty());
+    let opts = DiffOptions::builder()
+        .max_input_bytes(Some(100))
+        .build()
+        .unwrap();
+    assert!(matches!(
+        compare_readers_with_options(junk, good, opts),
+        Err(SheetsDiffError::LimitExceeded {
+            limit: sheets_diff::LimitKind::InputBytes,
+            ..
+        })
+    ));
 }
 
 // ============================================================================

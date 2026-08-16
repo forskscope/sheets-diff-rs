@@ -24,6 +24,63 @@
   `expected.json` goldens — is unchanged, confirming the migration alters no
   comparison behaviour.
 
+- **`#![forbid(unsafe_code)]` crate-wide.** The crate's one `unsafe` block
+  (`address::col_to_label`'s `String::from_utf8_unchecked`) is replaced with
+  the safe `String::from_utf8().expect(..)` — the bytes pushed are always
+  ASCII uppercase, so the conversion cannot fail, and nothing is given up by
+  going through the safe path.
+
+### Added
+
+- **Resource bounds on superlinear and input-size paths** (RFC-035). Two new
+  `Limits` fields, both `Some` by default:
+  - `max_alignment_product` (default 25,000,000, empirically measured — see
+    RFC-035 §9) bounds the `old_rows × new_rows` row-alignment LCS matrix.
+    When exceeded, the affected sheet degrades to positional comparison and
+    emits an `alignment_bound_exceeded` diagnostic — it never errors.
+  - `max_input_bytes` (default 500 MiB) bounds the input size, checked
+    *before* any read begins (`fs::metadata` before `fs::read`, a `Seek` to
+    measure length before `read_to_end`, or a length check before the
+    internal `to_vec()`). Exceeding it is a hard `LimitExceeded` error, since
+    unbounded allocation here happens before any comparison logic can
+    observe or report it.
+
+  `Limits::hardened()` now also sets both of the above, plus a preset for
+  every other `Limits` dimension, for callers comparing untrusted input.
+  New `DiffOptionsBuilder` methods: `max_alignment_product`,
+  `max_input_bytes`, `limits`. New diagnostic codes:
+  `alignment_bound_exceeded`, `duplicate_alignment_key`. New
+  `LimitKind::InputBytes`.
+
+### Changed
+
+- **`DiffOptions::default()` now bounds alignment and input size.** Previously
+  every `Limits` field defaulted to `None` (unbounded). The two new fields
+  above default to `Some` (see Added), so a caller relying on
+  `DiffOptions::default()` who compares a workbook pair whose row-alignment
+  product or input size exceeds the new defaults will now see the alignment
+  degrade to positional (no error) or the input rejected with
+  `LimitExceeded` (a new error), where previously it ran unbounded. Opt back
+  out with `Limits { max_alignment_product: None, max_input_bytes: None,
+  ..Limits::default() }`.
+
+### Fixed
+
+- **Alignment duplicate-key diagnostic was misclassified.** `align.rs`
+  reported duplicate row-alignment keys using `DiagnosticKind::UnsupportedCellValue`
+  (documented meaning: "a cell value could not be normalised" — not what
+  happened) with a message claiming a partial positional fallback that never
+  actually occurred (LCS still ran on the full, duplicate-containing
+  sequences). Replaced with `DiagnosticKind::DuplicateAlignmentKey` and a
+  message that describes what actually happens.
+- **Alignment's row-count guard was wired to the wrong limit.** The LCS
+  matrix's row-count guard read `Limits::max_cells_compared` — a *cell*-count
+  bound — as a *row* bound, and on tripping it silently built a fake
+  low-confidence identity mapping with no diagnostic at all. It now reads
+  the dedicated `max_alignment_product` bound (see Added, above), checked
+  before any mode-specific alignment work, and degrades to the caller's
+  existing true-positional path with an explicit diagnostic.
+
 ### Removed
 
 - **The `parallel` feature is removed** (RFC-025, roadmap decision D2). It never

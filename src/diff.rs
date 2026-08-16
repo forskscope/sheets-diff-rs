@@ -52,8 +52,8 @@ pub fn run_compare_paths(
     opts: DiffOptions,
 ) -> Result<WorkbookDiff, SheetsDiffError> {
     opts.validate()?;
-    let old_wb = open_path(old, Side::Old)?;
-    let new_wb = open_path(new, Side::New)?;
+    let old_wb = open_path(old, Side::Old, opts.limits.max_input_bytes)?;
+    let new_wb = open_path(new, Side::New, opts.limits.max_input_bytes)?;
     run_pipeline(old_wb, new_wb, opts)
 }
 
@@ -63,8 +63,8 @@ pub fn run_compare_bytes(
     opts: DiffOptions,
 ) -> Result<WorkbookDiff, SheetsDiffError> {
     opts.validate()?;
-    let old_wb = open_bytes(old, Side::Old, None)?;
-    let new_wb = open_bytes(new, Side::New, None)?;
+    let old_wb = open_bytes(old, Side::Old, None, opts.limits.max_input_bytes)?;
+    let new_wb = open_bytes(new, Side::New, None, opts.limits.max_input_bytes)?;
     run_pipeline(old_wb, new_wb, opts)
 }
 
@@ -78,8 +78,8 @@ where
     R2: Read + Seek,
 {
     opts.validate()?;
-    let old_wb = open_reader(old, Side::Old, None)?;
-    let new_wb = open_reader(new, Side::New, None)?;
+    let old_wb = open_reader(old, Side::Old, None, opts.limits.max_input_bytes)?;
+    let new_wb = open_reader(new, Side::New, None, opts.limits.max_input_bytes)?;
     run_pipeline(old_wb, new_wb, opts)
 }
 
@@ -319,7 +319,7 @@ fn build_sheet_diff(
             &old_align,
             &new_align,
             &opts.matching.alignment,
-            opts.limits.max_cells_compared,
+            opts.limits.max_alignment_product,
             sheet_diag,
         )
     } else {

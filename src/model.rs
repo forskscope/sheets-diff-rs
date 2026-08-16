@@ -559,13 +559,38 @@ pub struct DiagnosticLocation {
 pub enum DiagnosticKind {
     FormulaUnavailable,
     FormulaCachedValueUnverified,
-    AmbiguousSheetMatch { candidates: Vec<SheetRef> },
-    UnsupportedCellValue { detail: String },
-    UnsupportedWorkbookFeature { feature: String },
-    UnsupportedWorkbookMetadata { category: String },
+    AmbiguousSheetMatch {
+        candidates: Vec<SheetRef>,
+    },
+    UnsupportedCellValue {
+        detail: String,
+    },
+    UnsupportedWorkbookFeature {
+        feature: String,
+    },
+    UnsupportedWorkbookMetadata {
+        category: String,
+    },
     DefinedNameScopeUnknown,
     DateTimeNotNormalized,
-    LimitTruncatedCells { limit: String, observed: u64 },
+    LimitTruncatedCells {
+        limit: String,
+        observed: u64,
+    },
+    /// RFC-035 §5.2: the alignment row-product bound (`Limits::max_alignment_product`)
+    /// was exceeded, so this sheet fell back to positional comparison. Never
+    /// paired with an error — alignment degrades, it does not fail.
+    AlignmentBoundExceeded {
+        limit: u64,
+        observed: u64,
+    },
+    /// Two or more rows share the same alignment key. Replaces the previous
+    /// (incorrect) reuse of `UnsupportedCellValue` for this condition — no
+    /// cell value failed to normalise here.
+    DuplicateAlignmentKey {
+        old_count: usize,
+        new_count: usize,
+    },
 }
 
 impl DiagnosticKind {
@@ -591,6 +616,8 @@ impl DiagnosticKind {
     /// | `defined_name_scope_unknown` | Defined-name scope is unavailable from the reader |
     /// | `datetime_not_normalized` | A date/time value could not be normalised to ISO form |
     /// | `limit_truncated_cells` | A configured cell limit truncated the comparison |
+    /// | `alignment_bound_exceeded` | The alignment row-product bound was exceeded; fell back to positional |
+    /// | `duplicate_alignment_key` | Two or more rows shared the same alignment key |
     ///
     /// New codes added in later minor versions will extend this table; existing
     /// rows are stable.
@@ -605,6 +632,8 @@ impl DiagnosticKind {
             DiagnosticKind::DefinedNameScopeUnknown => "defined_name_scope_unknown",
             DiagnosticKind::DateTimeNotNormalized => "datetime_not_normalized",
             DiagnosticKind::LimitTruncatedCells { .. } => "limit_truncated_cells",
+            DiagnosticKind::AlignmentBoundExceeded { .. } => "alignment_bound_exceeded",
+            DiagnosticKind::DuplicateAlignmentKey { .. } => "duplicate_alignment_key",
         }
     }
 }

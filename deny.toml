@@ -63,6 +63,19 @@ ignore = false
 # Denied rather than warned: a version split is a maintenance question that
 # deserves an answer, not a note nobody reads. RFC-035 §5.5 ("deny
 # duplicate versions where practical").
+#
+# Coverage caveat, so a reader doesn't assume this is exhaustive: cargo-deny's
+# `multiple-versions-include-dev` defaults to false, so a duplicate reachable
+# only through a dev-dependency path is not reported. As of this writing the
+# tree has exactly such a case -- `zip` 7.2.0 (dev-only, via
+# `rust_xlsxwriter`) alongside `zip` 8.6.0 (via `calamine`) -- and it is
+# silent here. This is deliberate, not an oversight: `rust_xlsxwriter` pins
+# 7.2, `calamine` pins 8.6, we control neither, and a duplicate that ships in
+# no artefact a consumer receives is a hygiene signal, not a security one --
+# unlike an advisory, which stays denied regardless of dev/normal status.
+# Enabling `multiple-versions-include-dev` would fail permanently on this
+# unfixable split, and the only way back to green would be a skip entry,
+# which is the "allowlist to fit" pattern this file exists to avoid.
 multiple-versions = "deny"
 wildcards = "allow"
 highlight = "all"
