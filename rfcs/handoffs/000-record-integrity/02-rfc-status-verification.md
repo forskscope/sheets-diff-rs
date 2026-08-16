@@ -57,6 +57,25 @@ Start with 014, 020, 021, 023, 022 and 025 — the six with known findings — s
 the method is exercised where the answer is already partly known before it is
 applied to the unknown twenty-four.
 
+**Leads from unit 01, added 2026-08-16.** RFC-033's §13 records four divergences
+between what the citations imply and what the code does. Two of them point
+directly at statuses likely to be wrong:
+
+- Any RFC whose acceptance criteria assume **`CellValue`'s nine variants are
+  equally live** is claiming something untrue: `Integer`, `Duration` and
+  `Unsupported` cannot occur through any `.xlsx` input this crate accepts.
+- Any RFC describing **the options surface** without noting that
+  `FormulaCompareMode::NormalizedText`/`RawAndNormalized` and every non-`Ignore`
+  `FormatCompareMode` are rejected unconditionally by `validate()` is describing
+  a surface that cannot be used as written.
+
+Check RFC-007, RFC-018, RFC-019 and RFC-006 against those specifically.
+
+**RFC-033 itself is not one of the thirty.** It was reconstructed on 2026-08-16
+directly against the code, so its status is verified by construction. Do not
+re-verify it; do use it as the current statement of the public model's shape
+where an older RFC disagrees.
+
 Also in scope, noticed while checking: RFC 000's illustrative Status examples
 cite "RFC 042" and "RFC 035". **035 is now a real RFC here**, so the example
 reads as a live cross-reference. Disambiguate it.
@@ -93,6 +112,11 @@ untouched — confirm with `git status`.
   even if it is unflattering to the M1 restoration, which is mine.
 - Some acceptance criteria may be ambiguous enough that verification is a
   judgement call. Say so per RFC rather than forcing a verdict.
+- **The precedent from unit 01 is worth carrying.** `rfcs/README.md` claimed
+  RFC-033 was cited in 11 places; the true figure was 20, and it was wrong when
+  written rather than overtaken — an unverified claim sitting inside the very
+  paragraph describing the project's unverified-claim problem. Assume nothing in
+  the record is right because it is written down. That is what this unit is for.
 
 ## Required evidence
 

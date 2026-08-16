@@ -31,8 +31,9 @@ have been — so they are separated by directory instead:
   series.
 
 Numbers are assigned at creation, are never reused, and never change when a
-file moves. The v2 series continues from 036; 033 is reserved for the missing
-RFC described below.
+file moves. The v2 series continues from 036; 033 is
+[reconstructed](./done/033-public-model-lexicon.md) — see the restoration
+notes below.
 
 Implementation companion documents live under
 [`handoffs/NNN-slug/`](./handoffs/). They have no lifecycle state of their own —
@@ -96,6 +97,7 @@ Design settled; implementation may start.
 | 030 | [Extended Fixture Generators and Corpus Management](./done/030-extended-fixture-generators-and-corpus-management.md) |
 | 031 | [API Stability, SemVer, and Deprecation Policy After v2](./done/031-api-stability-semver-and-deprecation-policy.md) |
 | 032 | [Unsupported, Corrupt, and Encrypted Workbook Handling](./done/032-unsupported-corrupt-and-encrypted-workbook-handling.md) |
+| 033 | [Public Model Lexicon](./done/033-public-model-lexicon.md) — *reconstructed 2026-08-16 from 20 `src/` citations; original lost before this repository existed. Not the original text — see the file's §0 for method and the one section (§7) it could not recover.* |
 | 034 | [Build Assurance and Fixture Integrity](./done/034-build-assurance-and-fixture-integrity.md) — *implemented M1, 2026-08-15; no release* |
 
 ### v1.2 series
@@ -138,7 +140,17 @@ structured `WorkbookChange` types permanently empty. A verification pass should
 either confirm each `Implemented` claim or move the RFC and record what was
 deferred.
 
-**RFC-033 is missing.** `src/` cites it as normative in 11 places — it is named
-as the canonical lexicon for the public model in `model.rs`, `options.rs`, and
-`error.rs`. No copy exists in this repository, in git history, or in the
-planning package. It has to be reconstructed from the code that references it.
+**RFC-033 was reconstructed 2026-08-16** (M3 track B, record-integrity
+Handoff 01). It had been missing: `src/` cites it as normative at 20 sites
+(this note previously said 11 — undercounted; corrected by direct `grep`)
+across seven files, named as the canonical lexicon for the public model in
+`model.rs`, `options.rs`, `error.rs`, `diff.rs`, `normalize.rs`, `meta.rs`,
+and `lib.rs`. No copy existed in this repository, in git history, or in the
+planning package. [`033-public-model-lexicon.md`](./done/033-public-model-lexicon.md)
+recovers it from those 20 citations against the code as it stands at
+2.3.0 — it is explicitly not the original text, and says so in its own
+Status field and §0. One section, §7, has no citation evidence anywhere
+and is recorded as unrecoverable rather than guessed at. Reconstruction
+also surfaced (or re-surfaced, cross-referenced to where each was first
+found) four divergences between what the citations imply and what the
+code does — see the RFC's §13.
