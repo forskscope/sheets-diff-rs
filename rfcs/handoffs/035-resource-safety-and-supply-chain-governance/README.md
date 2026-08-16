@@ -11,11 +11,11 @@ own and must not redefine their governing RFC.
 | | Unit | Governed by | Depends on |
 |---|---|---|---|
 | 01 | [calamine 0.36 compatibility spike](./01-calamine-036-spike.md) | RFC-026 (investigation only) | — |
-| 02 | MSRV 1.88 + calamine 0.36 | RFC-026, RFC-031 | 01 |
+| 02 | [MSRV 1.88 + calamine 0.36](./02-msrv-1.88-and-calamine-0.36.md) | RFC-026, RFC-031 | 01 |
 | 03 | [Supply-chain gates](./03-supply-chain-gates.md) | RFC-035 §5.5 | 02 |
 | 04 | [Resource bounds and `forbid(unsafe_code)`](./04-resource-bounds.md) | RFC-035 §5.1–5.6 | 02 |
 | 05 | [Integrity-affecting correctness defects](./05-integrity-defects.md) | RFC-010, RFC-011, RFC-018, RFC-019 | 04 |
-| 06 | Threat model, advisory policy, CHANGELOG corrections | RFC-035 §5.7–5.8, RFC-016 | 03, 04, 05 |
+| 06 | [Threat model, advisory policy, and honest disclosure](./06-threat-model-and-disclosure.md) | RFC-035 §5.7–5.8, RFC-016 | 03, 04, 05 |
 
 ## Progress
 
@@ -32,11 +32,13 @@ carries the highest-severity finding in the original audit: `DateTimeIso` and
 `DurationIso` values that always compare equal — proven by execution, not
 inferred, with `2024-01-01` reported identical to `2099-12-31`.
 
-**06 remains unwritten deliberately.** It documents what the other units
-actually built, and writing it first would document intent rather than fact. It
-also owns `src/objects.rs`'s stale "calamine 0.35" strings, which are embedded
-verbatim in all seven goldens — deliberately kept out of unit 05 so that if a
-golden moves there, it moved because behaviour changed.
+**Unit 06 is now written** — the last unit in M2. It documents what the other
+units actually built, which is why it went last.
+
+It also owns `src/objects.rs`'s coverage strings, deliberately held back from
+unit 05 so that a golden moving there meant *behaviour* changed. Correcting them
+moves all seven goldens as a message-string substitution — expected there, and
+nowhere else.
 
 ## Sequencing constraints
 
