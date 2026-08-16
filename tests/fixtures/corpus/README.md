@@ -64,6 +64,32 @@ description = "Covers A1 addressing through column XFD (column 16384)."
 notes       = ""
 ```
 
+## A golden's first bless is the one moment its content is unreviewed
+
+A golden only detects *change* — it cannot detect having been born wrong.
+Every bless after the first compares new output against a value someone
+already reviewed; the first bless has nothing to compare against but
+itself, so "the test passes" is not evidence that its content is correct.
+
+This is not hypothetical. The `formula` scenario existed since RFC-015 to
+test formula-versus-value changes. Its first bless recorded the `=1+1` →
+`=2+0` change at cell **A1** — the cell containing the text label `"label"`
+— with two spurious `FormulaUnavailable` diagnostics at **A2**, where the
+formula actually was. `A1` had no formula at all. That golden was wrong
+from the day it was blessed and stayed wrong through every subsequent run
+for the same reason it was never caught: a passing test only proves output
+hasn't *changed*, and this output never changed — it was consistently
+wrong. RFC-035 Handoff 05's D-04 fix (a value-range/formula-range
+coordinate-translation bug in `read_sheet_cells`) moved it to `A2`, where
+the formula actually is.
+
+**So: blessing a new scenario means reading the produced `expected.json`
+and deciding it is right** — every address, every diagnostic, every
+count — **not observing that `cargo test` then passes.** The "read the
+resulting diff before committing it" instruction in Step 2 above applies
+with extra force on a scenario's *first* bless, because there is no prior
+diff to have already been checked.
+
 ## A generator that also blesses is a bug
 
 `examples/gen-fixtures.rs` does not depend on `sheets-diff`'s comparison

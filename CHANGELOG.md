@@ -142,6 +142,31 @@
   the dedicated `max_alignment_product` bound (see Added, above), checked
   before any mode-specific alignment work, and degrades to the caller's
   existing true-positional path with an explicit diagnostic.
+- **`src/objects.rs`'s coverage diagnostic corrected — the 2.2.3
+  `cells_compared` claim documented as still wrong, not fixed.** Two
+  unrelated corrections, both about claims this project made about itself:
+  - The `UnsupportedWorkbookFeature` coverage message (emitted on every
+    comparison) said "calamine 0.35 does not expose object content" and
+    listed hyperlinks, tables, and pivot tables alongside charts and images
+    as uniformly unavailable. Both are now wrong: the version is stale, and
+    RFC-035 Handoff 01's spike established that calamine 0.36 *does* expose
+    hyperlinks, merged regions, tables, and pivot tables — this crate simply
+    does not call those APIs yet. The message now distinguishes "not
+    exposed by calamine's API at all" (charts, images, comments, data
+    validation, conditional formatting) from "available upstream, not yet
+    used by this crate" (hyperlinks, merged regions, tables, pivot tables).
+    `DiagnosticKind::code()` is unchanged (`unsupported_workbook_feature`)
+    — only the human-readable message moved, which is why this changed all
+    seven fixture goldens as a pure string substitution; see the corpus
+    guide for what that first-bless lesson was about.
+  - The 2.2.3 entry below claims `DiffMetrics.cells_compared` was fixed to
+    count all coordinate pairs visited, not just changed cells. Verified at
+    `0ba6aeb`: it does not, and never did — `build_sheet_diff` only ever
+    pushes a `CellDiff` for a coordinate with an actual value or formula
+    change, so the "compared but unchanged" term the accumulator adds is
+    always zero. `cells_compared == cells_changed`, silently, since 2.2.3.
+    Not fixed here — see the annotated entry below for why — but the claim
+    is no longer left standing as true.
 
 ### Removed
 
@@ -165,6 +190,9 @@
 - **Metrics corrected:** `DiffMetrics.cells_read` now reflects the actual cell
   count from `read_sheet_cells` (was `1` per sheet). `DiffMetrics.cells_compared`
   now counts all coordinate pairs visited, not just changed cells.
+  **Correction (see Unreleased):** the second half of this entry is wrong. It
+  was wrong when written and is still wrong today — `cells_compared` counts
+  only changed cells, exactly as before this entry claims to have fixed.
 - **`compare` module made `pub(crate)`** — it is internal machinery. The
   `compare_values_pub` test helper is now `#[cfg(test)]` only.
 - **Stale doc comments updated:** `WorkbookChange` / `WorkbookObjectChange` /

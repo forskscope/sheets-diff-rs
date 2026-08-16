@@ -1,8 +1,18 @@
 //! Non-cell workbook object detection and coverage diagnostics (RFC-023).
 //!
-//! calamine 0.35 does not expose object content (charts, images, comments,
-//! tables, pivot tables, hyperlinks, or data validation) through its public
-//! API. What it does expose is:
+//! `sheets-diff` does not compare non-cell workbook objects. Two different
+//! reasons apply, and they matter to a consumer for different reasons:
+//!   - Charts, images, comments, data validation, and conditional formatting
+//!     are **not exposed by calamine 0.36's public API at all** — there is
+//!     no data to compare, upstream or otherwise. (Cell styles and number
+//!     formats are the same case: `calamine::formats` is a private module.)
+//!   - Hyperlinks, merged regions, tables, and pivot tables **are** exposed
+//!     by calamine 0.36 (`Xlsx::hyperlinks_by_sheet_name`,
+//!     `Xlsx::merged_regions`, `Xlsx::table_by_name`, `Xlsx::pivot_tables` —
+//!     confirmed in RFC-035 Handoff 01's spike) — the data is available
+//!     upstream, this crate simply does not call those APIs yet.
+//!
+//! What calamine exposes that this module *does* use:
 //!   - `Sheet.typ: SheetType` — distinguishes WorkSheet, ChartSheet, MacroSheet, Vba
 //!   - `Sheet.visible: SheetVisible`
 //!
@@ -29,8 +39,9 @@ pub enum ObjectCompareMode {
     #[default]
     WarnIfPresent,
     /// Compare what is available; emit diagnostics for the rest.
-    /// In v2.2 this behaves identically to `WarnIfPresent` because no
-    /// object content API is available in calamine 0.35.
+    /// Currently behaves identically to `WarnIfPresent`: calamine 0.36 does
+    /// expose hyperlinks, merged regions, tables, and pivot tables, but this
+    /// crate does not yet call those APIs to compare them.
     CompareAvailable,
 }
 
@@ -83,7 +94,7 @@ fn detect_non_worksheet_sheets(wb: &mut OpenedWorkbook, diagnostics: &mut Vec<Di
                 },
                 message: format!(
                     "sheet '{}' is a {} — content not compared \
-                     (calamine 0.35 does not expose {} data)",
+                     (calamine 0.36 does not expose {} data)",
                     sheet.name, kind_label, kind_label
                 ),
             });
@@ -107,9 +118,10 @@ fn emit_coverage_note(diagnostics: &mut Vec<Diagnostic>) {
             sheet_name: None,
             address: None,
         },
-        message: "charts, images, comments, hyperlinks, tables, pivot tables, \
-                  data validation, and conditional formatting are not compared \
-                  in this version (calamine 0.35 does not expose object content)"
+        message: "not compared: charts, images, comments, data validation, and \
+                  conditional formatting (unavailable in calamine 0.36's API); \
+                  hyperlinks, merged regions, tables, and pivot tables (available \
+                  upstream, not yet used by this crate)"
             .into(),
     });
 }
