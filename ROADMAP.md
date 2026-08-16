@@ -74,13 +74,8 @@ Governed by **RFC-035** ([accepted](./rfcs/accepted/035-resource-safety-and-supp
 for the new policy decisions, plus existing RFCs for the dependency migration
 and the correctness defects. Execution queue:
 [`rfcs/handoffs/035-…/README.md`](./rfcs/handoffs/035-resource-safety-and-supply-chain-governance/README.md).
-**Units 01–02 are complete and merged** (`main` at `059ad6f`, CI 17/17): D0's
-contingency is discharged, MSRV is 1.88, and `quick-xml` 0.41 has replaced
-0.39.4 — both advisories cleared. RFC-035 was accepted 2026-08-16 and units
-03–06 are live. **This is not yet the M2 exit criterion:** our own resource
-bounds (unit 04) are outstanding, and until they land ForskScope's gate would
-pass while `align.rs` can still exhaust memory (R1).
-
+All six units are approved. Units 01–02 are merged (`main` at `059ad6f`);
+units 03–06 are on PR #10 at 18/18. Scope delivered:
 
 - MSRV 1.85.0 → **1.88**, *then* `calamine` 0.35 → 0.36 (ordering is load-bearing, §5).
   **The bump is not a version-string edit.** Three files move together — the
