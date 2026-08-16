@@ -1,6 +1,13 @@
 # Changelog
 
-## [Unreleased]
+## [2.3.0] - 2026-08-16
+
+**Security and integrity release.** Clears two denial-of-service advisories
+reachable from untrusted workbook input, bounds the first-party paths that could
+exhaust memory or abort the host process, and fixes four defects where the
+engine reported "identical" for cells that differ. A threat model now records
+what is defended, what is not, and where each control is checked:
+[`docs/src/maintainers/threat-model.md`](docs/src/maintainers/threat-model.md).
 
 ### Security
 
