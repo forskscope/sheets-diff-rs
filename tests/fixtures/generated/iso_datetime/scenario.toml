@@ -1,0 +1,4 @@
+name        = "iso_datetime"
+kind        = "regression"
+description = "An ISO-typed date/time cell (t=\"d\", calamine's DateTimeIso path). rust_xlsxwriter cannot emit this cell type; generated then XML-patched. Promotes RFC-035 Handoff 05's hand-built d01_iso_datetime_reachability_end_to_end test into a durable corpus trip-wire for the exact bug D-01 was (RFC-036 #11)."
+notes       = ""

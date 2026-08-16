@@ -1,0 +1,4 @@
+name        = "sheet_reordered"
+kind        = "regression"
+description = "Three sheets: Alpha and Beta swap position (same content, different index — SheetChange::Moved), Gamma stays in place but its one cell changes. SheetChange::Moved had never been distinguished from Unchanged by any test before this scenario (RFC-036 #6). Reordering needs no special API — sheets are added in a different call order between old and new."
+notes       = ""

@@ -1,0 +1,4 @@
+name        = "date_column"
+kind        = "regression"
+description = "A column of ordinary serial-based dates, one changed. No golden-corpus fixture used dates before this scenario, despite dates being where four M2 defects lived (RFC-036 #7). Its golden is blessed under the canonical `serde,chrono` feature set, not `serde` alone — CellDateTime.iso is chrono-feature-conditional, so the exact-JSON golden check is gated on both features together (RFC-036 Handoff 02 correction C-01). Also covered by the feature-invariant date_column_fixture_detects_date_change in tests/integration.rs."
+notes       = ""

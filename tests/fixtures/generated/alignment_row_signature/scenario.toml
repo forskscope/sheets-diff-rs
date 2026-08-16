@@ -1,0 +1,4 @@
+name        = "alignment_row_signature"
+kind        = "regression"
+description = "Row inserted at the top of a 5-row sheet, matched by RowSignature alignment (whole-row content signature, not a key column) rather than RowKey. RowSignature had zero test coverage before this scenario (RFC-036 #3)."
+notes       = ""

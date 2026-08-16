@@ -1,0 +1,4 @@
+name        = "non_ascii_text"
+kind        = "regression"
+description = "Non-ASCII sheet name and cell text (accented Latin, CJK, emoji). XML-escaping and the shared-string table had zero coverage of non-ASCII content before this scenario (RFC-036 #8)."
+notes       = ""

@@ -1,0 +1,110 @@
+{
+  "old": {
+    "source": {
+      "kind": "Bytes",
+      "display_name": null
+    },
+    "workbook_name": null,
+    "sheet_count": 1
+  },
+  "new": {
+    "source": {
+      "kind": "Bytes",
+      "display_name": null
+    },
+    "workbook_name": null,
+    "sheet_count": 1
+  },
+  "sheets": [
+    {
+      "old_sheet": {
+        "name": "Café☕",
+        "index": 0
+      },
+      "new_sheet": {
+        "name": "Café☕",
+        "index": 0
+      },
+      "change": "Modified",
+      "cell_diffs": [
+        {
+          "address": {
+            "row": 1,
+            "col": 1,
+            "a1": "A1"
+          },
+          "value": {
+            "old": {
+              "Text": "héllo wörld"
+            },
+            "new": {
+              "Text": "héllo wörld — updated"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        }
+      ],
+      "compared_range": {
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          2,
+          1
+        ]
+      },
+      "alignment_summary": null,
+      "diagnostics": [],
+      "summary": {
+        "cells_changed": 1,
+        "values_changed": 1,
+        "formulas_changed": 0
+      }
+    }
+  ],
+  "workbook_changes": [],
+  "object_changes": [],
+  "diagnostics": [
+    {
+      "severity": "Info",
+      "kind": {
+        "UnsupportedWorkbookFeature": {
+          "feature": "non-cell objects"
+        }
+      },
+      "location": {
+        "stage": "Metadata",
+        "sheet_order": null,
+        "sheet_name": null,
+        "address": null
+      },
+      "message": "not compared: charts, images, comments, data validation, and conditional formatting (unavailable in calamine 0.36's API); hyperlinks, merged regions, tables, and pivot tables (available upstream, not yet used by this crate)"
+    }
+  ],
+  "summary": {
+    "sheets_added": 0,
+    "sheets_removed": 0,
+    "sheets_renamed": 0,
+    "sheets_moved": 0,
+    "sheets_changed": 1,
+    "cells_changed": 1,
+    "values_changed": 1,
+    "formulas_changed": 0,
+    "diagnostics": {
+      "errors": 0,
+      "warnings": 0,
+      "info": 1
+    }
+  },
+  "metrics": {
+    "sheets_read": 1,
+    "cells_read": 4,
+    "cells_compared": 1,
+    "diffs_emitted": 1,
+    "diagnostics_emitted": 1
+  }
+}

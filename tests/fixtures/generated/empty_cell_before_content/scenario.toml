@@ -1,0 +1,4 @@
+name        = "empty_cell_before_content"
+kind        = "regression"
+description = "A physically-present but empty cell (<c r=\"A1\"/>, no value or type) precedes the sheet's real content at A2. calamine filters DataRef::Empty cells out before computing the range's start/end, so this must not anchor the origin at A1 — a real and non-obvious behaviour with no prior test (RFC-036 #10). Generated then XML-patched: rust_xlsxwriter has no reason to emit an empty cell element for a cell nothing was written to."
+notes       = ""

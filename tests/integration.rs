@@ -10,9 +10,10 @@ use rust_xlsxwriter::Workbook;
 use support::*;
 
 use sheets_diff::{
-    CellChangeKind, CellValue, DateComparePolicy, DiffEvent, DiffOptions, FormulaCompareMode,
-    SheetChange, SheetMatchingMode, SheetsDiffError, compare_bytes, compare_bytes_with_options,
-    compare_paths_with_options, compare_readers_with_options,
+    CellChangeKind, CellError, CellValue, DateComparePolicy, DiffEvent, DiffOptions,
+    FormulaCompareMode, SheetChange, SheetMatchingMode, SheetsDiffError, ValueDifferenceKind,
+    compare_bytes, compare_bytes_with_options, compare_paths_with_options,
+    compare_readers_with_options,
     output::text::{render_summary, render_unified},
 };
 
@@ -1260,14 +1261,21 @@ fn read_fixture_pair(name: &str) -> (Vec<u8>, Vec<u8>) {
     (old, new)
 }
 
-/// Every committed fixture pair compares without error, and — under the
-/// `serde` feature — its serialised `WorkbookDiff` matches the committed
-/// `expected.json` golden. Without `serde`, only the error-free comparison
-/// is checked; the golden assertion is skipped because `output::json` does
-/// not exist in that build.
+/// Every committed fixture pair compares without error, and — under
+/// `serde` + `chrono` together — its serialised `WorkbookDiff` matches the
+/// committed `expected.json` golden. That pair, not `serde` alone, is the
+/// canonical feature set goldens are blessed under: `CellDateTime.iso` is
+/// populated only when `chrono` is enabled (`src/normalize.rs`), so a
+/// serial-based `DateTime` cell's exact JSON depends on it — gating the
+/// comparison on both together, rather than `serde` alone, means exactly
+/// one feature combination ever performs the exact-match check, so no
+/// fixture's golden can be correct under one CI leg and wrong under
+/// another. Under `serde` without `chrono` (and under neither), only the
+/// error-free comparison is checked, plus this file's own hand-written
+/// assertions, which are feature-invariant by construction.
 ///
 /// Re-bless after confirming a changed output is correct, never before:
-///   BLESS=1 cargo test --features serde -- generated_fixtures_match_golden
+///   BLESS=1 cargo test --features serde,chrono -- generated_fixtures_match_golden
 #[test]
 fn generated_fixtures_match_golden() {
     for dir in generated_fixture_dirs() {
@@ -1276,7 +1284,7 @@ fn generated_fixtures_match_golden() {
         #[allow(unused_variables)]
         let diff = compare_bytes(&old, &new).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
 
-        #[cfg(feature = "serde")]
+        #[cfg(all(feature = "serde", feature = "chrono"))]
         {
             let actual = sheets_diff::output::json::to_json_pretty(&diff).unwrap();
             let expected_path = dir.join("expected.json");
@@ -1290,7 +1298,7 @@ fn generated_fixtures_match_golden() {
                 actual,
                 expected,
                 "{} golden mismatch — if the new output is correct, re-bless with \
-                 BLESS=1 cargo test --features serde -- generated_fixtures_match_golden",
+                 BLESS=1 cargo test --features serde,chrono -- generated_fixtures_match_golden",
                 dir.display()
             );
         }
@@ -1594,4 +1602,261 @@ fn d04_formula_attaches_to_the_formula_cell_not_the_value_range_origin() {
     // The label cell (A1) must show no diff at all — its content is
     // identical on both sides.
     assert!(cd.value.is_none() || cd.address.a1 != "A1");
+}
+
+// ============================================================================
+// v2.3.1 — RFC-036 §5.2: the fixture coverage matrix
+// ============================================================================
+
+// #1 — origin not at A1, row axis ------------------------------------------
+
+#[test]
+fn row_shifted_origin_fixture_reports_correct_address() {
+    let (old, new) = read_fixture_pair("row_shifted_origin");
+    let diff = compare_bytes(&old, &new).unwrap();
+    assert_eq!(
+        diff.sheets[0].compared_range.start,
+        Some((5, 1)),
+        "the range must start at A5, not A1 — the sheet has no content \
+         before row 5"
+    );
+    assert_eq!(diff.sheets[0].cell_diffs.len(), 1);
+    assert_eq!(diff.sheets[0].cell_diffs[0].address.a1, "A5");
+}
+
+// #2 — formula/value origin both shifted, and the negative control ---------
+
+#[test]
+fn formula_shifted_origin_fixture_attaches_to_the_real_formula_cell() {
+    let (old, new) = read_fixture_pair("formula_shifted_origin");
+    let diff = compare_bytes(&old, &new).unwrap();
+    assert_eq!(diff.sheets[0].cell_diffs.len(), 1);
+    let cd = &diff.sheets[0].cell_diffs[0];
+    assert_eq!(
+        cd.address.a1, "A7",
+        "formula is at row 7 (label at row 5, a gap at row 6) — general \
+         case of D-04's fix, beyond the row-1-vs-row-2 shape the `formula` \
+         fixture already covers"
+    );
+    let fc = cd.formula.as_ref().unwrap();
+    assert_eq!(fc.old.as_ref().unwrap().raw, "1+1");
+    assert_eq!(fc.new.as_ref().unwrap().raw, "2+0");
+    assert!(
+        diff.sheets[0].diagnostics.is_empty(),
+        "no spurious FormulaUnavailable diagnostics expected"
+    );
+}
+
+#[test]
+fn formula_at_first_cell_fixture_negative_control() {
+    // D-04's negative control: the formula IS the first populated cell, so
+    // value-range and formula-range origins coincide. Guards against a
+    // future "fix" that special-cases the coinciding-origin case instead of
+    // translating through absolute coordinates unconditionally.
+    let (old, new) = read_fixture_pair("formula_at_first_cell");
+    let diff = compare_bytes(&old, &new).unwrap();
+    assert_eq!(diff.sheets[0].cell_diffs.len(), 1);
+    assert_eq!(diff.sheets[0].cell_diffs[0].address.a1, "A1");
+}
+
+// #3, #4 — alignment modes with zero prior coverage -------------------------
+
+#[test]
+fn alignment_row_signature_fixture_reduces_cascade() {
+    use sheets_diff::options::{AlignmentMode, MatchingOptions};
+
+    let (old, new) = read_fixture_pair("alignment_row_signature");
+
+    // Positional (the golden's own default-options comparison) shows the
+    // full cascade: every row shifted down by the insertion.
+    let positional = compare_bytes(&old, &new).unwrap();
+    assert_eq!(positional.summary.cells_changed, 12);
+
+    // RowSignature — matched by whole-row content, not a key column — had
+    // never been exercised by any test before this fixture.
+    let opts = DiffOptions::builder()
+        .build_with_matching(MatchingOptions {
+            sheet_matching: SheetMatchingMode::default(),
+            alignment: AlignmentMode::RowSignature {
+                sample_columns: None,
+            },
+        })
+        .unwrap();
+    let aligned = compare_bytes_with_options(&old, &new, opts).unwrap();
+    assert!(
+        aligned.summary.cells_changed < positional.summary.cells_changed,
+        "RowSignature alignment should report far fewer changes than the \
+         positional cascade: aligned={}, positional={}",
+        aligned.summary.cells_changed,
+        positional.summary.cells_changed
+    );
+    let summary = aligned.sheets[0].alignment_summary.as_ref().unwrap();
+    assert_eq!(
+        summary.matched_rows, 5,
+        "all 5 original rows should match by signature"
+    );
+    assert_eq!(summary.inserted_rows, 1);
+    assert_eq!(summary.removed_rows, 0);
+}
+
+#[test]
+fn alignment_header_column_fixture_reduces_cascade() {
+    use sheets_diff::options::{AlignmentMode, MatchingOptions};
+
+    let (old, new) = read_fixture_pair("alignment_header_column");
+
+    let positional = compare_bytes(&old, &new).unwrap();
+    assert_eq!(positional.summary.cells_changed, 8);
+
+    // HeaderColumn had never been exercised by any test before this fixture.
+    let opts = DiffOptions::builder()
+        .build_with_matching(MatchingOptions {
+            sheet_matching: SheetMatchingMode::default(),
+            alignment: AlignmentMode::HeaderColumn,
+        })
+        .unwrap();
+    let aligned = compare_bytes_with_options(&old, &new, opts).unwrap();
+    assert!(
+        aligned.summary.cells_changed < positional.summary.cells_changed,
+        "HeaderColumn alignment should report far fewer changes than the \
+         positional cascade: aligned={}, positional={}",
+        aligned.summary.cells_changed,
+        positional.summary.cells_changed
+    );
+    let summary = aligned.sheets[0].alignment_summary.as_ref().unwrap();
+    // The header row itself ("id"/"value") matches trivially, plus the 3
+    // original data rows matched by their id column.
+    assert_eq!(summary.matched_rows, 4);
+    assert_eq!(summary.inserted_rows, 1);
+    assert_eq!(summary.removed_rows, 0);
+}
+
+// #5 — CellError comparison, zero coverage at any level before this --------
+
+#[test]
+fn error_values_fixture_detects_error_kind_change() {
+    let (old, new) = read_fixture_pair("error_values");
+    let diff = compare_bytes(&old, &new).unwrap();
+    // Only the #DIV/0! -> #REF! cell should differ; the #N/A -> #N/A cell
+    // (same formula, same error kind) must show no diff at all.
+    assert_eq!(diff.sheets[0].cell_diffs.len(), 1);
+    let cd = &diff.sheets[0].cell_diffs[0];
+    assert_eq!(cd.address.a1, "A1");
+    let vc = cd.value.as_ref().unwrap();
+    assert_eq!(vc.reason, ValueDifferenceKind::ErrorKindChanged);
+    assert!(matches!(vc.old, CellValue::Error(CellError::Div0)));
+    assert!(matches!(vc.new, CellValue::Error(CellError::Ref)));
+}
+
+// #6 — SheetChange::Moved, never distinguished from Unchanged before this --
+
+#[test]
+fn sheet_reordered_fixture_distinguishes_moved_from_modified() {
+    let (old, new) = read_fixture_pair("sheet_reordered");
+    let diff = compare_bytes(&old, &new).unwrap();
+
+    assert_eq!(diff.summary.sheets_moved, 2, "Alpha and Beta both moved");
+
+    let by_name = |name: &str| {
+        diff.sheets
+            .iter()
+            .find(|s| s.old_sheet.as_ref().is_some_and(|r| r.name == name))
+            .unwrap()
+    };
+    assert_eq!(by_name("Alpha").change, SheetChange::Moved);
+    assert_eq!(by_name("Beta").change, SheetChange::Moved);
+    // Gamma stays at the same index but its one cell changes, so it must be
+    // Modified, not Moved — the two are not the same thing.
+    assert_eq!(by_name("Gamma").change, SheetChange::Modified);
+    assert_eq!(by_name("Gamma").cell_diffs.len(), 1);
+}
+
+// #7 — ordinary serial-based dates, no golden-corpus fixture used any -------
+
+#[test]
+fn date_column_fixture_detects_date_change() {
+    let (old, new) = read_fixture_pair("date_column");
+    let diff = compare_bytes(&old, &new).unwrap();
+    assert_eq!(diff.sheets[0].cell_diffs.len(), 1);
+    let cd = &diff.sheets[0].cell_diffs[0];
+    assert_eq!(cd.address.a1, "A2");
+    let vc = cd.value.as_ref().unwrap();
+    assert_eq!(vc.reason, ValueDifferenceKind::DateTimeChanged);
+    assert!(matches!(vc.old, CellValue::DateTime(ref dt) if dt.has_serial));
+    assert!(matches!(vc.new, CellValue::DateTime(ref dt) if dt.has_serial));
+}
+
+// #8 — non-ASCII text, zero coverage before this ----------------------------
+
+#[test]
+fn non_ascii_text_fixture_detects_change() {
+    let (old, new) = read_fixture_pair("non_ascii_text");
+    let diff = compare_bytes(&old, &new).unwrap();
+    assert_eq!(diff.sheets[0].old_sheet.as_ref().unwrap().name, "Café☕");
+    assert_eq!(diff.sheets[0].cell_diffs.len(), 1);
+    let vc = diff.sheets[0].cell_diffs[0].value.as_ref().unwrap();
+    assert!(matches!(&vc.old, CellValue::Text(s) if s == "héllo wörld"));
+    assert!(matches!(&vc.new, CellValue::Text(s) if s == "héllo wörld — updated"));
+}
+
+// #9 — chart sheet beside a worksheet, diagnostic never fired before this --
+
+#[test]
+fn chart_sheet_fixture_fires_diagnostic_and_compares_the_worksheet() {
+    let (old, new) = read_fixture_pair("chart_sheet");
+    let diff = compare_bytes(&old, &new).unwrap();
+    // The ordinary worksheet's own cell change must still be detected.
+    let ws_diff = diff
+        .sheets
+        .iter()
+        .find(|s| s.old_sheet.as_ref().is_some_and(|r| r.name == "Sheet1"))
+        .unwrap();
+    assert_eq!(ws_diff.cell_diffs.len(), 1);
+    assert_eq!(ws_diff.cell_diffs[0].address.a1, "A4");
+    // The chart-sheet coverage diagnostic is workbook-level (emitted by
+    // `report_object_coverage` into `WorkbookDiff.diagnostics`), not
+    // per-sheet.
+    assert!(
+        diff.diagnostics
+            .iter()
+            .any(|d| d.kind.code() == "unsupported_workbook_feature"
+                && d.location.sheet_name.as_deref() == Some("Chart1")),
+        "expected an unsupported_workbook_feature diagnostic naming the chart sheet, got {:?}",
+        diff.diagnostics
+    );
+}
+
+// #10 — a physically-present empty cell must not anchor the range origin ---
+
+#[test]
+fn empty_cell_before_content_fixture_does_not_anchor_origin() {
+    let (old, new) = read_fixture_pair("empty_cell_before_content");
+    let diff = compare_bytes(&old, &new).unwrap();
+    assert_eq!(
+        diff.sheets[0].compared_range.start,
+        Some((2, 1)),
+        "a physically-present but empty <c r=\"A1\"/> must not anchor the \
+         range at A1 — only the real content at A2 should"
+    );
+    assert_eq!(diff.sheets[0].cell_diffs.len(), 1);
+    assert_eq!(diff.sheets[0].cell_diffs[0].address.a1, "A2");
+}
+
+// #11 — ISO datetime promoted from a hand-built test into the corpus -------
+
+#[test]
+fn iso_datetime_fixture_detects_change() {
+    let (old, new) = read_fixture_pair("iso_datetime");
+    let diff = compare_bytes(&old, &new).unwrap();
+    assert_eq!(diff.sheets[0].cell_diffs.len(), 1);
+    let vc = diff.sheets[0].cell_diffs[0].value.as_ref().unwrap();
+    assert_eq!(vc.reason, ValueDifferenceKind::DateTimeChanged);
+    match (&vc.old, &vc.new) {
+        (CellValue::DateTime(a), CellValue::DateTime(b)) => {
+            assert!(!a.has_serial && !b.has_serial);
+            assert_eq!(a.iso.as_deref(), Some("2024-01-01T00:00:00"));
+            assert_eq!(b.iso.as_deref(), Some("2099-12-31T23:59:59"));
+        }
+        _ => panic!("expected DateTime/DateTime"),
+    }
 }

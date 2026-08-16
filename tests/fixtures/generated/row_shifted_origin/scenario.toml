@@ -1,0 +1,4 @@
+name        = "row_shifted_origin"
+kind        = "regression"
+description = "Data block starts at row 5, not row 1 (leading empty rows). Value-only, no formulas. Coverage for coordinate arithmetic that assumes origin row 1 (RFC-036 #1)."
+notes       = ""
