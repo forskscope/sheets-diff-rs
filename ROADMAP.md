@@ -130,7 +130,48 @@ named.** Remaining owner decisions: merge PR #10, release 2.3.0, then notify
 ForskScope — in that order, since the notification is only honest once the
 release exists.
 
-### M3 — T4 and remaining defects *(unplanned; needs a joint planning session)*
+### M3 — "Real files, and a record that is true" — 🔄 **OPEN 2026-08-16** *(no release)*
+
+Agreed jointly 2026-08-16 from
+`.git-exclude/tmp/m3-planning-proposal.md`. Everything here is gated by nothing
+external. **No release** — nothing user-observable lands.
+
+| Unit | Item | Governing RFC |
+|---|---|---|
+| A-i/01 | Enumerate the structural dimensions that can produce a wrong answer; report which are uncovered | RFC-030 |
+| A-i/02 | Generate the coverage matrix and wire it into CI (written after 01 reports) | RFC-030 |
+| A-ii | Extend `patch_xlsx_xml` to the format features `rust_xlsxwriter` cannot emit | RFC-030 |
+| B | Reconstruct RFC-033 from the 20 sites citing it | — |
+| D | Verify the 30 RFC statuses; correct the three already known wrong | RFC 000 |
+
+Serial: A before B. **Exit:** the matrix runs in CI with every dimension covered
+or explicitly deferred; RFC-033 exists; every RFC status is verified or
+corrected.
+
+### M4 — 2.4.0, "Consumer-facing debt and large-workbook memory" *(release)*
+
+Gated by M3's findings and ForskScope's runtime report.
+
+| Unit | Item |
+|---|---|
+| 01 | **F** — `cells_compared`. Isolated and first, so it stays cuttable as a standalone 2.3.1 |
+| 02 | **H (doc)** — record that `CellValue::Duration` cannot occur through `.xlsx` |
+| 03 | **G** — disambiguate the shared display address, **additively** on `CellDiff` (which is `#[non_exhaustive]`, so this is minor, not major) |
+| 04 | **Large-workbook memory** — measure first, then act. Candidates: C's bytes-path borrow; `cell_map_to_align`'s full clone of every `CellValue`; RFC-024 §7's unbuilt Sparse/Dense choice |
+| 05 | **E** — `docs/` per NF-024/026/027 |
+| 06 | Any defect A surfaced |
+
+**Exit:** NF-024/026 met (both **MUST**, unmet for three releases); large-workbook
+memory measured and acted on; **release 2.4.0**.
+
+### M5 — dissolved
+
+It existed to decide v3 for G and H. `CellDiff` is `#[non_exhaustive]`, so G is
+additive; H's useful half is a doc comment. The only surviving v3 candidate is
+deleting the unreachable `CellValue::Duration`, recorded as a note against any
+future major version rather than scheduled work.
+
+### Superseded M3 sketch *(kept for the record)*
 
 **2.3.0 shipped 2026-08-16**; the ForskScope notification was sent the same day
 and **answered the same day**
