@@ -236,13 +236,30 @@ impl fmt::Display for CellError {
 pub enum CellValue {
     Empty,
     Text(String),
+    /// Cannot occur through any `.xlsx` input this crate accepts: calamine's
+    /// `Xlsx` reader routes every numeric cell through `Data::Float`, never
+    /// `Data::Int`. A match arm on this variant is unreachable today; it is
+    /// retained against future input-format support, not as a live case.
     Integer(i64),
     Number(f64),
     Bool(bool),
     DateTime(CellDateTime),
+    /// Cannot occur through any `.xlsx` input this crate accepts: the only
+    /// calamine source this maps from, `Data::DurationIso`, is emitted by
+    /// calamine's ODS reader only, and this crate opens workbooks exclusively
+    /// via `calamine::Xlsx` (`open.rs`). A match arm on this variant is
+    /// unreachable today; it is retained against future input-format
+    /// support, not as a live case.
     Duration(CellDuration),
     Error(CellError),
-    Unsupported { display: String, reason: String },
+    /// Cannot occur: nothing in this crate constructs `Unsupported`. A match
+    /// arm on this variant is unreachable today; it is retained as a
+    /// forward-compatible catch-all for a future cell shape with no typed
+    /// representation here, not as a live case.
+    Unsupported {
+        display: String,
+        reason: String,
+    },
 }
 
 impl CellValue {
@@ -294,7 +311,7 @@ pub enum DisplaySource {
 /// A number-format identifier and/or code string captured from the workbook.
 ///
 /// In calamine 0.36 neither field is available from cell data; both are
-/// `None` in v2.2. The struct is reserved so RFC-022 can populate it
+/// always `None`. The struct is reserved so RFC-022 can populate it
 /// without an API break.
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
@@ -750,10 +767,10 @@ pub struct SheetDiff {
 }
 
 // ---------------------------------------------------------------------------
-// Workbook-level change placeholders (RFC-021/023, reserved in v2.0)
+// Workbook-level change placeholders (RFC-021/023, reserved)
 // ---------------------------------------------------------------------------
 
-/// Reserved for RFC-021 (workbook metadata diffs).  Always empty in v2.0.
+/// Reserved for RFC-021 (workbook metadata diffs).  Always empty.
 #[non_exhaustive]
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
@@ -761,7 +778,7 @@ pub struct WorkbookChange {
     // Populated by RFC-021 implementation.
 }
 
-/// Reserved for RFC-023 (non-cell object diffs).  Always empty in v2.0.
+/// Reserved for RFC-023 (non-cell object diffs).  Always empty.
 #[non_exhaustive]
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
@@ -776,8 +793,8 @@ pub struct WorkbookObjectChange {
 /// The complete diff result for a workbook pair.
 ///
 /// `workbook_changes` and `object_changes` are always empty — RFC-021/023
-/// surface their findings through `diagnostics` in v2.2, and structured
-/// variants await a future release. The struct is `#[non_exhaustive]` so
+/// surface their findings through `diagnostics`, and structured variants
+/// await a future release. The struct is `#[non_exhaustive]` so
 /// they can be populated additively without a breaking change.
 ///
 /// # Extracting a lightweight summary
@@ -807,9 +824,9 @@ pub struct WorkbookDiff {
     /// Sheet diffs in old-workbook sheet order (then new-workbook order for
     /// added sheets).
     pub sheets: Vec<SheetDiff>,
-    /// Always empty in v2.2; reserved for future structured workbook-level changes.
+    /// Always empty; reserved for future structured workbook-level changes.
     pub workbook_changes: Vec<WorkbookChange>,
-    /// Always empty in v2.2; reserved for future structured object-level changes.
+    /// Always empty; reserved for future structured object-level changes.
     pub object_changes: Vec<WorkbookObjectChange>,
     pub diagnostics: Vec<Diagnostic>,
     pub summary: DiffSummary,

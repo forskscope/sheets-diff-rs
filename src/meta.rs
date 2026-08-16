@@ -25,18 +25,19 @@ use crate::options::DiffOptions;
 // give them content by constructing concrete instances.
 
 /// Construct `WorkbookChange` values for defined-name diffs and sheet
-/// visibility changes.  Returns an empty vec when metadata mode is `Ignore`.
+/// visibility changes.  Metadata comparison always runs unconditionally —
+/// `_opts` is unused, and there is no mode to disable or configure it with.
+/// RFC-021 designed a `WorkbookMetadataMode` for this; it was never built
+/// (RFC-021's Status field records this as deferred).
 pub fn compare_workbook_metadata(
     old_wb: &mut OpenedWorkbook,
     new_wb: &mut OpenedWorkbook,
     _opts: &DiffOptions,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<WorkbookChange> {
-    // In v2.0 WorkbookChange is a zero-field placeholder; we populate
-    // diagnostics instead, and return an empty vec until the model gains
-    // concrete variants in v2.1 (this function is the seam).
-    //
-    // Metadata mode default is CompareAvailable (RFC-021 §6).
+    // WorkbookChange is a zero-field placeholder; we populate diagnostics
+    // instead. Concrete variants are deferred with no version attached —
+    // this function is the seam for when they land.
 
     diff_defined_names(old_wb, new_wb, diagnostics);
     diff_sheet_visibility(old_wb, new_wb, diagnostics);

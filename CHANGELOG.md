@@ -33,6 +33,30 @@
 No comparison behaviour changed. This is test-corpus and test-infrastructure
 work only; `src/` is untouched.
 
+### Documentation
+
+- **Two false statements removed from source comments (M4).**
+  `meta.rs`'s `compare_workbook_metadata` claimed metadata comparison could
+  be disabled via a `Ignore` mode and had a `CompareAvailable` default;
+  neither exists — `WorkbookMetadataMode` (RFC-021) was never built, the
+  function's `_opts` parameter is unused, and metadata comparison always
+  runs unconditionally. Comments now say so.
+- **Three `CellValue` variants documented as unreachable.** `Integer`,
+  `Duration` and `Unsupported` cannot be produced through any `.xlsx` input
+  this crate accepts — six of the nine variants are live in practice, and
+  nothing in the public documentation previously said so. Each now carries
+  a doc comment stating the fact and its cause (RFC-007).
+- **Nine stale version anchors dropped from comments and one public error
+  message.** `model.rs` and `options.rs` stated several still-true facts as
+  if scoped to a past minor version (e.g. "Always empty in v2.0",
+  "not available in v2.0") — accurate today, but implying a change that
+  never happened by the time a reader reaches them in 2.3.0. Reworded to
+  state the fact without the version, including the wording of
+  `SheetsDiffError::InvalidOptions`'s message for `FormulaCompareMode`
+  variants without an implemented normaliser.
+
+No behaviour changed; these are documentation-only corrections.
+
 ## [2.3.0] - 2026-08-16
 
 **Security and integrity release.** Clears two denial-of-service advisories
