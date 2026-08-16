@@ -153,6 +153,13 @@ pub enum SheetChange {
 /// `is_1904` distinguishes the two date systems.
 /// `iso` is populated when calamine provides an ISO string directly or when the
 /// `chrono` feature can synthesize one.
+///
+/// `has_serial` distinguishes a genuine Excel serial (from `Data::DateTime`)
+/// from the `0.0` placeholder used when calamine gives only an ISO string
+/// (`Data::DateTimeIso`) and no numeric serial exists at all. Comparison
+/// (RFC-019 / D-01) must not treat the placeholder as a real serial — a
+/// legitimate date can itself serialise to `0.0`, so the placeholder is not
+/// otherwise distinguishable from a real one.
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 #[non_exhaustive]
@@ -161,6 +168,7 @@ pub struct CellDateTime {
     pub is_1904: bool,
     pub kind: DateTimeKind,
     pub iso: Option<String>,
+    pub has_serial: bool,
 }
 
 /// Whether an Excel date serial represents a date, time, or datetime.

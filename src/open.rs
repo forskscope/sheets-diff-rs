@@ -17,6 +17,10 @@ pub struct OpenedWorkbook {
     pub reader: Xlsx<Cursor<Vec<u8>>>,
     pub sheets: Vec<SheetRef>,
     pub source: SourceDescription,
+    /// Workbook-level date epoch flag (RFC-019 / D-02). Read once here via
+    /// `Xlsx::has_1904_epoch()` rather than per cell — the flag is a workbook
+    /// property, not a per-cell one.
+    pub is_1904: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -158,6 +162,8 @@ fn open_bytes_inner(
     let wb: Xlsx<Cursor<Vec<u8>>> =
         open_workbook_from_cursor(cursor).map_err(|e| from_open_error(side, source.clone(), e))?;
 
+    let is_1904 = wb.has_1904_epoch();
+
     let sheet_meta = wb.sheets_metadata().to_vec();
     let sheets: Vec<SheetRef> = sheet_meta
         .into_iter()
@@ -172,6 +178,7 @@ fn open_bytes_inner(
         reader: wb,
         sheets,
         source,
+        is_1904,
     })
 }
 

@@ -29,9 +29,9 @@
       "cell_diffs": [
         {
           "address": {
-            "row": 1,
+            "row": 2,
             "col": 1,
-            "a1": "A1"
+            "a1": "A2"
           },
           "value": null,
           "formula": {
@@ -59,38 +59,7 @@
         ]
       },
       "alignment_summary": null,
-      "diagnostics": [
-        {
-          "severity": "Info",
-          "kind": "FormulaUnavailable",
-          "location": {
-            "stage": "Read",
-            "sheet_order": 0,
-            "sheet_name": "Sheet1",
-            "address": {
-              "row": 2,
-              "col": 1,
-              "a1": "A2"
-            }
-          },
-          "message": "formula text unavailable for numeric cell at A2"
-        },
-        {
-          "severity": "Info",
-          "kind": "FormulaUnavailable",
-          "location": {
-            "stage": "Read",
-            "sheet_order": 0,
-            "sheet_name": "Sheet1",
-            "address": {
-              "row": 2,
-              "col": 1,
-              "a1": "A2"
-            }
-          },
-          "message": "formula text unavailable for numeric cell at A2"
-        }
-      ],
+      "diagnostics": [],
       "summary": {
         "cells_changed": 1,
         "values_changed": 0,
@@ -137,6 +106,6 @@
     "cells_read": 4,
     "cells_compared": 1,
     "diffs_emitted": 1,
-    "diagnostics_emitted": 3
+    "diagnostics_emitted": 1
   }
 }

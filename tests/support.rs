@@ -113,3 +113,50 @@ pub fn wb_large(rows: u32, cols: u16, prefix: &str) -> Vec<u8> {
     }
     wb.save_to_buffer().unwrap()
 }
+
+// ---------------------------------------------------------------------------
+// Raw XML patching (RFC-035 Handoff 05 — D-01/D-02 reachability)
+// ---------------------------------------------------------------------------
+
+/// Rewrite one XML entry inside a generated `.xlsx` (itself just a ZIP
+/// archive) with `patch` applied to its UTF-8 text content. Every other
+/// entry is copied through unchanged.
+///
+/// Exists to reach calamine code paths `rust_xlsxwriter`'s public API
+/// cannot produce directly — e.g. a raw `t="d"` ISO-typed cell (D-01), or
+/// `<workbookPr date1904="1"/>` (D-02). Panics if `entry_path` is not found,
+/// since a silently-no-op patch would make a test that "passes" prove
+/// nothing.
+pub fn patch_xlsx_xml(
+    xlsx_bytes: &[u8],
+    entry_path: &str,
+    patch: impl Fn(String) -> String,
+) -> Vec<u8> {
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(xlsx_bytes)).unwrap();
+    let mut out_buf = Vec::new();
+    let mut writer = zip::ZipWriter::new(std::io::Cursor::new(&mut out_buf));
+    let mut patched = false;
+
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).unwrap();
+        let name = entry.name().to_string();
+        let mut contents = Vec::new();
+        std::io::Read::read_to_end(&mut entry, &mut contents).unwrap();
+
+        let options: zip::write::FileOptions<()> = zip::write::FileOptions::default();
+        writer.start_file(&name, options).unwrap();
+
+        if name == entry_path {
+            let text = String::from_utf8(contents).unwrap();
+            let patched_text = patch(text);
+            std::io::Write::write_all(&mut writer, patched_text.as_bytes()).unwrap();
+            patched = true;
+        } else {
+            std::io::Write::write_all(&mut writer, &contents).unwrap();
+        }
+    }
+    writer.finish().unwrap();
+
+    assert!(patched, "entry {entry_path} not found in xlsx archive");
+    out_buf
+}

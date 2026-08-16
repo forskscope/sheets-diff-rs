@@ -90,6 +90,13 @@ for sheet in &diff.sheets {
   and a `alignment_bound_exceeded` diagnostic is emitted — the comparison
   still completes.
 - **`#![forbid(unsafe_code)]`.** The crate contains no `unsafe` blocks.
+- **ISO-typed date/time values compare via their ISO string, not a
+  placeholder serial.** `Data::DateTimeIso`/`DurationIso` cells (calamine's
+  `t="d"` path) carry no genuine Excel serial; `CellDateTime::has_serial`
+  distinguishes that case so comparison never treats the `0.0` placeholder
+  as a real one. The workbook's 1900/1904 date epoch is read once per
+  workbook and threaded through, so `DateComparePolicy::NormalizeEquivalentDateTimes`
+  can actually reconcile dates across epochs.
 
 ## More Detail
 
