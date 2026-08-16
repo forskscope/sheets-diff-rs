@@ -1,5 +1,38 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **The fixture corpus grew from 7 to 18 scenarios**, closing every gap
+  ranked 1–5 by consequence in RFC-030 Handoff 01's coverage-dimension
+  report (RFC-036). Each new scenario carries a dedicated assertion, not
+  only a golden — RFC-036 §5.1 defines "covered" as an assertion that would
+  fail if the behaviour broke, precisely because a golden alone cannot
+  detect having been *born* wrong, which is what happened to the `formula`
+  fixture for over a year. New coverage: row/formula origins shifted below
+  row 1 (plus the D-04 negative control where the origins coincide);
+  `AlignmentMode::RowSignature` and `HeaderColumn`, previously exercised by
+  no test at any level; `CellError` comparison and
+  `ValueDifferenceKind::ErrorKindChanged`, also previously untested at any
+  level; `SheetChange::Moved`, never before distinguished from `Unchanged`
+  by any assertion; ordinary serial-based dates in the golden corpus for
+  the first time, despite dates being where four M2 defects lived; non-ASCII
+  sheet names and cell text; a chart sheet beside a worksheet; a
+  physically-present-but-empty leading cell (confirmed not to anchor the
+  range origin, matching calamine's read source); and the ISO-datetime
+  reachability case promoted from a hand-built test into a durable corpus
+  trip-wire. Full matrix and the standing coverage obligation this creates
+  for future changes to `normalize.rs`/`compare.rs`/`align.rs`/`diff.rs`:
+  [`tests/fixtures/corpus/README.md`](tests/fixtures/corpus/README.md).
+- `examples/gen-fixtures.rs` gained a `patch_xlsx_xml` helper (duplicated
+  from `tests/support.rs`, consistent with the generator's existing
+  independence from anything under `tests/`) for the two new scenarios
+  `rust_xlsxwriter`'s public API cannot produce directly.
+
+No comparison behaviour changed. This is test-corpus and test-infrastructure
+work only; `src/` is untouched.
+
 ## [2.3.0] - 2026-08-16
 
 **Security and integrity release.** Clears two denial-of-service advisories

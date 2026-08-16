@@ -1,0 +1,4 @@
+name        = "chart_sheet"
+kind        = "regression"
+description = "A chart sheet beside an ordinary worksheet whose own cell content changes. The chart-sheet coverage diagnostic had never fired in any test before this scenario (RFC-036 #9)."
+notes       = ""

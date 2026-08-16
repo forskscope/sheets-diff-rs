@@ -1,0 +1,4 @@
+name        = "error_values"
+kind        = "regression"
+description = "One error cell changes kind (#DIV/0! -> #REF!); a second stays the same error kind (#N/A unchanged). CellError comparison and ValueDifferenceKind::ErrorKindChanged had zero test coverage at any level before this scenario (RFC-036 #5)."
+notes       = ""

@@ -1,0 +1,4 @@
+name        = "formula_shifted_origin"
+kind        = "regression"
+description = "Value range and formula range both start below row 1, and the formula is not immediately below the label cell (a gap at row 6). General case of D-04's origin-translation fix, beyond the row-1-vs-row-2 shape the `formula` fixture already covers (RFC-036 #2, positive case)."
+notes       = ""

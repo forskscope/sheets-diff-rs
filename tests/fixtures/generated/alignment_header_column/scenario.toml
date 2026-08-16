@@ -1,0 +1,4 @@
+name        = "alignment_header_column"
+kind        = "regression"
+description = "Header row plus 3 data rows, one row inserted, matched by HeaderColumn alignment. HeaderColumn had zero test coverage before this scenario (RFC-036 #4)."
+notes       = ""

@@ -1,0 +1,4 @@
+name        = "formula_at_first_cell"
+kind        = "regression"
+description = "The formula cell IS the first populated cell — value-range and formula-range origins coincide. Negative control for D-04: the shape that would have hidden the defect entirely, and a guard against a future fix that special-cases the coinciding-origin case (RFC-036 #2, negative control)."
+notes       = ""
