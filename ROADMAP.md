@@ -68,7 +68,7 @@ Exit criteria:
 No release is cut until M1 is green. Publishing on an unverified build is what
 produced the 2.2.0 phantom feature.
 
-### M2 — 2.3.0, "trustworthy results and a defensible posture" — 🔄 **OPEN 2026-08-16**
+### M2 — 2.3.0, "trustworthy results and a defensible posture" — ✅ **COMPLETE 2026-08-16**
 
 Governed by **RFC-035** ([accepted](./rfcs/accepted/035-resource-safety-and-supply-chain-governance.md))
 for the new policy decisions, plus existing RFCs for the dependency migration
@@ -105,11 +105,26 @@ pass while `align.rs` can still exhaust memory (R1).
 Exit: ForskScope's dependency gate passes **and** our own resource bounds hold.
 The gate alone is not sufficient — see R1.
 
-### M3 — T4 and remaining defects
+**Both halves met, plus the integrity work §6 folded in.** All six units
+approved; PR #10 carries 03–06 at 18/18. `RUSTSEC-2026-0194`/`-0195` are out of
+the tree, `align.rs` can no longer exhaust memory, and the engine no longer
+reports "identical" for cells that differ. **R1 is closed on every axis it
+named.** Remaining owner decisions: merge PR #10, release 2.3.0, then notify
+ForskScope — in that order, since the notification is only honest once the
+release exists.
+
+### M3 — T4 and remaining defects *(unplanned; needs a joint planning session)*
 
 RFC-033 reconstruction; per-RFC status verification; `docs/` per NF-024/026/027;
-non-integrity defects (CLI exit code, metrics accounting, API-integrity items).
-Release boundary to be decided at M2 close.
+non-integrity defects. M2 deliberately deferred four items rather than forgetting
+them, each recorded in the threat model's residual-risk section:
+
+- `DiffMetrics.cells_compared` counts only changed cells, not coordinates visited
+- Two correctly-computed diffs can share a display address
+- The bytes path owns a copy where it could borrow, doubling peak memory
+- `CellValue::Duration` is unreachable through `.xlsx` — a public API question
+
+Release boundary and scope to be agreed with the owner before any handoff.
 
 ## 5. Sequencing constraints
 
@@ -141,7 +156,7 @@ release rather than after it.
 
 | | Risk | Mitigation |
 |---|---|---|
-| R1 | Dependency fix reads as an all-clear while first-party resource risks persist | M2 exit includes first-party bounds, not only `cargo audit` clean |
+| R1 | ~~Dependency fix reads as an all-clear while first-party resource risks persist~~ | **Closed 2026-08-16** — M2 delivered bounds and integrity fixes alongside the dependency clearance |
 | R2 | ~~`calamine` 0.35→0.36 delta larger than expected~~ | **Closed 2026-08-16** — unit 01's spike proved zero API delta and a 1.88 floor |
 | R3 | Status-verification pass finds further partials; scope grows | Timebox; record deferrals in `Status` fields rather than fixing all |
 | R4 | Correctness fixes change output; consumer adapters see behaviour change | Goldens must exist (M1) before fixes land; document as behaviour changes |
