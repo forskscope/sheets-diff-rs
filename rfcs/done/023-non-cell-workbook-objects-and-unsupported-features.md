@@ -1,6 +1,6 @@
 # RFC-023 — Non-Cell Workbook Objects and Unsupported Feature Reporting
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Partially implemented (2.0.0–2.2.3) — verified 2026-08-16. Deferred: `WorkbookObjectChange` is always empty; non-cell workbook objects (e.g. merged ranges) are not diffed.
 **Target:** v2.1+  
 **Related:** RFC-005, RFC-014, RFC-016, RFC-021, RFC-022, RFC-032
 

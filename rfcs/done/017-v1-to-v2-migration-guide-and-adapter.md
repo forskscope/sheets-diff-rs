@@ -1,6 +1,6 @@
 # RFC-017: v1 to v2 Migration Guide and Adapter
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Partially implemented (2.0.0–2.2.3) — verified 2026-08-16. Deferred: the migration guide has no JSON section and no ForskScope-adapter example; its 11 `rust` code blocks are not compiled or verified anywhere (no mdbook step in CI or `Cargo.toml`).
 **Target:** v2.0.0 docs  
 **Created:** 2026-06-11  
 **Category:** Migration  

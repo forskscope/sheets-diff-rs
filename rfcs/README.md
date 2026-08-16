@@ -129,16 +129,28 @@ been committed to this repository; its files were renamed from `RFC-NNN-slug.md`
 to the `NNN-slug.md` form RFC 000 requires, and release-tag references were
 normalised to drop the `v` prefix.
 
-**Status verification is outstanding.** The v2 series was placed in `done/`
-because the v2 line shipped across 2.0.0–2.2.3, and each file's `Status` field
-says so — but **no per-RFC verification against the implementation has been
-performed**, and each file records that caveat. Two are known to be wrong and
-have already been moved to `accepted/` (022, 025); others are known to be
-*partial* — 014 ships `Serialize` but no `Deserialize`, 020's `CellNumberFormat`
-is always `None`, and 021/023 surface findings only as diagnostics with their
-structured `WorkbookChange` types permanently empty. A verification pass should
-either confirm each `Implemented` claim or move the RFC and record what was
-deferred.
+**Status verification is complete (2026-08-16).** The thirty v2-series RFCs
+that carried a blanket "not individually re-verified" caveat (M3 track B,
+record-integrity Handoff 02) were each checked against the code, not just
+re-read. Two had already been moved to `accepted/` before this pass (022,
+025). Of the remaining thirty, **seventeen confirmed cleanly** (001–006,
+008–012, 018, 026, 028–031) and **thirteen proved partially implemented** —
+more than the three known going in, as the handoff's own risk note expected.
+Each of the thirteen names its specific gap in its own `Status` field rather
+than a vague "mostly"; none warranted a move out of `done/`, since in every
+case the main design decision shipped and only part of it did not (RFC 000's
+"Granularity of transitions"). The thirteen: 007 (three of nine `CellValue`
+variants unreachable through any `.xlsx` input), 013 (exit code 3 specified,
+never emitted), 014 (`Serialize` ships, `Deserialize` does not), 015 (CLI exit
+codes untested), 016 (no static `println!`/`dbg!` check, no path-privacy
+test), 017 (migration guide has no JSON section, no adapter example, untested
+code blocks), 019 (`Duration` values unreachable), 020 (`CellNumberFormat`
+always `None`), 021 (`WorkbookMetadataMode` never built, despite code
+comments claiming otherwise; defined-name/visibility diffing untested), 023
+(`WorkbookObjectChange` always empty), 024 (cancellation granularity
+overclaimed — polled per-sheet, not per-chunk), 027 (no v1.2-vs-v2 benchmark
+docs), 032 (encrypted-workbook path untested). These are M4 candidates, not
+fixed here — this pass changed no code, per the handoff's non-change scope.
 
 **RFC-033 was reconstructed 2026-08-16** (M3 track B, record-integrity
 Handoff 01). It had been missing: `src/` cites it as normative at 20 sites

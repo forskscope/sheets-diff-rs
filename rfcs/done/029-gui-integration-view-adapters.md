@@ -1,6 +1,6 @@
 # RFC-029 — GUI Integration View Adapters
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Implemented (2.0.0–2.2.3) — verified 2026-08-16 against the implementation.
 **Target:** v2.1 candidate  
 **Related:** RFC-003, RFC-009, RFC-010, RFC-011, RFC-012, RFC-014
 

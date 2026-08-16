@@ -1,6 +1,6 @@
 # RFC-014: Serde Feature and Stable Report Schema
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Partially implemented (2.0.0–2.2.3) — verified 2026-08-16. Deferred: only `Serialize` ships on public model types; `Deserialize` was never implemented (`Cargo.toml` records this as deferred).
 **Target:** v2.0.0 recommended optional feature  
 **Created:** 2026-06-11  
 **Category:** Serialization  

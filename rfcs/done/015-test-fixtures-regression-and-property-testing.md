@@ -1,6 +1,6 @@
 # RFC-015: Test Fixtures, Regression, and Property Testing
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Partially implemented (2.0.0–2.2.3) — verified 2026-08-16. Deferred: CLI exit-code behavior has no subprocess test — `tests/integration.rs` contains no `Command::new`/`assert_cmd` invocation of the built binary.
 **Target:** v2.0.0 release gate  
 **Created:** 2026-06-11  
 **Category:** Testing  

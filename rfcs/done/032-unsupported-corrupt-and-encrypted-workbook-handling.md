@@ -1,6 +1,6 @@
 # RFC-032 — Unsupported, Corrupt, and Encrypted Workbook Handling
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Partially implemented (2.0.0–2.2.3) — verified 2026-08-16. Deferred: encrypted-workbook detection (`SheetsDiffError::EncryptedWorkbook` via `from_open_error`) exists but is completely untested — zero test coverage for the encrypted/password-protected path.
 **Target:** v2.0 decision  
 **Related:** RFC-004, RFC-005, RFC-016, RFC-028
 

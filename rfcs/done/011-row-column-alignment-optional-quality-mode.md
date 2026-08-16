@@ -1,6 +1,6 @@
 # RFC-011: Row/Column Alignment Optional Quality Mode
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Implemented (2.0.0–2.2.3) — verified 2026-08-16 against the implementation.
 **Target:** v2.1 candidate, optional v2.0 if ready  
 **Created:** 2026-06-11  
 **Category:** Diff quality  

@@ -1,6 +1,6 @@
 # RFC-018 — Formula Comparison Semantics
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Implemented (2.0.0–2.2.3) — verified 2026-08-16 against the implementation.
 **Target:** v2.0 decision, v2.0 implementation if small  
 **Related:** RFC-003, RFC-006, RFC-007, RFC-010, RFC-014
 

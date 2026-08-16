@@ -1,6 +1,6 @@
 # RFC-021 — Workbook Metadata and Defined-Name Diffs
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Partially implemented (2.0.0–2.2.3) — verified 2026-08-16. Deferred: `WorkbookMetadataMode` (proposed to allow disabling metadata comparison) was never implemented — `compare_workbook_metadata`'s `_opts` parameter is unused and metadata comparison cannot be configured or disabled, though its own code comments incorrectly claim it can; defined-name and sheet-visibility diffing exist but have no test coverage.
 **Target:** v2.1 candidate  
 **Related:** RFC-003, RFC-005, RFC-014, RFC-023
 

@@ -1,6 +1,6 @@
 # RFC-024 — Large Workbook Memory Strategy and Streaming-Oriented Internals
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Partially implemented (2.0.0–2.2.3) — verified 2026-08-16. Deferred: cancellation is polled once per sheet pair, not between row chunks or cell batches as the acceptance criteria specify — on a single very large sheet, cancellation is not observed mid-sheet (documented as a known limitation on `Cancellation`'s doc comment, but this RFC's own criterion overclaims the granularity).
 **Target:** v2.0 guardrail, v2.x optimization  
 **Related:** RFC-004, RFC-006, RFC-012, RFC-016, RFC-027
 

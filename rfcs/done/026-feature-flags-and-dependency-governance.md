@@ -1,6 +1,6 @@
 # RFC-026 — Feature Flags and Dependency Governance
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Implemented (2.0.0–2.2.3) — verified 2026-08-16 against the implementation.
 **Target:** v2.0 decision  
 **Related:** RFC-004, RFC-014, RFC-016, RFC-025, RFC-028
 

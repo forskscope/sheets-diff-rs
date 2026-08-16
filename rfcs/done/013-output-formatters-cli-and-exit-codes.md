@@ -1,6 +1,6 @@
 # RFC-013: Output Formatters, CLI, and Exit Codes
 
-**Status.** Implemented (2.0.0–2.2.3) — restored 2026-08-15; not individually re-verified against the implementation.
+**Status.** Partially implemented (2.0.0–2.2.3) — verified 2026-08-16. Deferred: exit code 3 (invalid/corrupt input) is never emitted — `src/main.rs` uses exit code 2 for both invalid CLI options and comparison errors; no exit code 3 exists anywhere in the CLI.
 **Target:** v2.0.0  
 **Created:** 2026-06-11  
 **Category:** Output/CLI  
