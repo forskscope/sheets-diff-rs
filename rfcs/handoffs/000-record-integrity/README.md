@@ -1,8 +1,11 @@
-# Handoffs — RFC 000, record integrity (M3 track B/D)
+# Handoffs — record integrity (M3 track B)
 
-Companion execution documents for
-[RFC 000](../../done/000-rfc-lifecycle-policy.md), which governs the `rfcs/`
-directory itself.
+Repair work on the project's own record, governed by
+[RFC 000](../../done/000-rfc-lifecycle-policy.md) — the RFC that defines what a
+correct record looks like.
+
+These units do not change the lifecycle policy. They fix two places where the
+record violates it.
 
 ## Queue
 
