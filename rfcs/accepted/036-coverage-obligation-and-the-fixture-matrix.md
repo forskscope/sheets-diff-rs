@@ -1,6 +1,6 @@
 # RFC-036 — Coverage Obligation and the Fixture Matrix
 
-**Status.** Proposed
+**Status.** Accepted (2026-08-16) — cleared for implementation; track A units 02–03 are live.
 **Target:** M3
 **Created:** 2026-08-16
 **Extends:** RFC-015, RFC-030

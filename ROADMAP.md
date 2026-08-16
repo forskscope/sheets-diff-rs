@@ -138,9 +138,9 @@ external. **No release** — nothing user-observable lands.
 
 | Unit | Item | Governing RFC |
 |---|---|---|
-| A-i/01 | Enumerate the structural dimensions that can produce a wrong answer; report which are uncovered | RFC-030 |
-| A-i/02 | Generate the coverage matrix and wire it into CI (written after 01 reports) | RFC-030 |
-| A-ii | Extend `patch_xlsx_xml` to the format features `rust_xlsxwriter` cannot emit | RFC-030 |
+| A/01 | Coverage-dimension report — **approved**; produced RFC-036 and three findings | RFC-030 |
+| A/02 | Generate the nine `rust_xlsxwriter`-producible scenarios | RFC-036 |
+| A/03 | The two scenarios needing `patch_xlsx_xml` | RFC-036 |
 | B | Reconstruct RFC-033 from the 20 sites citing it | — |
 | D | Verify the 30 RFC statuses; correct the three already known wrong | RFC 000 |
 

@@ -41,9 +41,7 @@ active roadmap is [`ROADMAP.md`](../ROADMAP.md).
 
 ## Proposed
 
-| ID | Title | Handoffs |
-|----|-------|----------|
-| 036 | [Coverage Obligation and the Fixture Matrix](./proposed/036-coverage-obligation-and-the-fixture-matrix.md) | [track A](./handoffs/030-extended-fixture-generators-and-corpus-management/) — unit 01 done; 02–03 written on acceptance |
+_None._
 
 ## Accepted
 
@@ -53,7 +51,8 @@ Design settled; implementation may start.
 |----|-------|------|----------|
 | 022 | [Styles and Formatting Diff Policy](./accepted/022-styles-and-formatting-diff-policy.md) | `FormatCompareMode` rejects every non-`Ignore` mode; no style diff layer exists. Blocked upstream — calamine keeps `mod formats` private through 0.36. | — |
 | 025 | [Deterministic Parallel Execution](./accepted/025-deterministic-parallel-execution.md) | Implementation removed 2026-08-15 (it never compiled, and parallelised the wrong phase); design retained and amended with a re-introduction gate. | [yes](./handoffs/025-deterministic-parallel-execution/) — done |
-| 035 | [Resource Safety and Supply-Chain Governance](./accepted/035-resource-safety-and-supply-chain-governance.md) | Accepted 2026-08-16. Bounded-by-default policy, supply-chain gating, threat model. Roadmap M2. | [yes](./handoffs/035-resource-safety-and-supply-chain-governance/) — **live** |
+| 035 | [Resource Safety and Supply-Chain Governance](./accepted/035-resource-safety-and-supply-chain-governance.md) | Accepted 2026-08-16. Bounded-by-default policy, supply-chain gating, threat model. Roadmap M2 — delivered in 2.3.0. | [yes](./handoffs/035-resource-safety-and-supply-chain-governance/) — done |
+| 036 | [Coverage Obligation and the Fixture Matrix](./accepted/036-coverage-obligation-and-the-fixture-matrix.md) | Accepted 2026-08-16. Defines *covered* as an assertion property, fixes eleven scenarios, and obliges behaviour changes to arrive with an assertion. Roadmap M3. | [yes](./handoffs/030-extended-fixture-generators-and-corpus-management/) — **live** |
 
 ## Implemented
 
