@@ -251,6 +251,10 @@ fn classify_read_error(e: &calamine::XlsxError) -> ReadErrorKind {
     use calamine::XlsxError;
     match e {
         XlsxError::WorksheetNotFound(_) => ReadErrorKind::SheetNotFound,
+        // A disk or network-filesystem failure part-way through a read is
+        // not evidence the workbook itself is malformed; conflating the two
+        // reports a corrupt file when nothing is wrong with it.
+        XlsxError::Io(_) => ReadErrorKind::Other,
         _ => ReadErrorKind::MalformedSheet,
     }
 }

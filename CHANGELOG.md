@@ -25,6 +25,30 @@
   (`tests/cli.rs`) exercising the real binary — no exit code had ever been
   verified by anything before this.
 
+- **Compatibility event: `max_cells_compared` now bounds what it names, and
+  a comparison that succeeded before can start returning `LimitExceeded`
+  (M4).** The check inside `build_sheet_diff` compared `cell_diffs.len()`
+  against the limit — a count that only grows when a coordinate produces a
+  diff, so it measured diffs found, not coordinates visited. A workbook with
+  millions of populated cells and few differences passed straight through
+  regardless of the configured bound; the limit could not do what
+  `options.rs`'s own doc comment says the linear limits exist for ("their
+  cost scales predictably with input size"). It now counts coordinates
+  compared, cumulatively across the whole comparison (matching
+  `max_diffs_returned`'s existing cumulative check), before each sheet's
+  comparison work begins rather than partway through it.
+
+  **`Limits::hardened()` sets `max_cells_compared: Some(5_000_000)`. Under
+  the old enforcement that bounded diffs; under the new one it bounds
+  coordinates.** A caller using `hardened()` (or setting this limit
+  explicitly) to compare a large workbook with few differences, which
+  succeeded in 2.3.0, can now return `LimitExceeded` in 2.4.0 — this is the
+  limit finally doing what it was always documented to do, and it is still
+  a behaviour change a consumer can be surprised by. `Limits::default()`
+  leaves this limit unset, so default-configured callers are unaffected.
+  `LimitExceeded { observed, .. }` now reports the coordinate count, not a
+  diff count, for this limit.
+
 ### Added
 
 - **The fixture corpus grew from 7 to 18 scenarios**, closing every gap
@@ -99,6 +123,22 @@ No behaviour changed; these are documentation-only corrections.
   at least one compared-but-unchanged cell — which is the normal case. The
   fixture corpus moved accordingly: 13 goldens changed, each in exactly the
   `cells_compared` field and nothing else.
+
+- **A disk or filesystem I/O failure while reading a sheet no longer
+  reports as a corrupt workbook (M4).** `classify_read_error`'s catch-all
+  routed every `calamine::XlsxError` other than `WorksheetNotFound` to
+  `ReadErrorKind::MalformedSheet`, including `XlsxError::Io` — an I/O
+  failure part-way through a read has nothing to do with the workbook's own
+  content, and as of the CLI's exit-code-3 change (above) this
+  misclassification would have told a user their file was corrupt when
+  nothing was wrong with it. `XlsxError::Io` now classifies as
+  `ReadErrorKind::Other`; `exit_code_for` maps `ReadSheet`'s sub-kinds
+  individually rather than wholesale, with `Other` conservatively exiting 2
+  rather than 3 — the same default already applied to `OpenErrorKind::Other`.
+  **This changes which `ReadErrorKind` variant a given input can produce**
+  (a `#[non_exhaustive]` public enum) — existing `match` arms compile
+  unchanged since they must already have a catch-all, but the value observed
+  for this input class changes.
 
 ## [2.3.0] - 2026-08-16
 

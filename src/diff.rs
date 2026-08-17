@@ -443,7 +443,22 @@ fn build_sheet_diff(
     // Every coordinate in `coords` is compared below, whether or not it
     // produces a diff — this is where "compared" happens, not something
     // reconstructed afterwards from which cells ended up in `cell_diffs`.
-    *total_cells_compared += coords.len() as u64;
+    // The limit is checked here too: cumulatively across the whole
+    // comparison (matching `max_diffs_returned`'s use of `*total_diffs`
+    // below, not a per-sheet-local count), and before the coordinate loop
+    // begins, so a comparison that would exceed the bound is refused rather
+    // than aborted partway through work already started.
+    let sheet_cells_compared = coords.len() as u64;
+    if let Some(max) = opts.limits.max_cells_compared {
+        let observed = *total_cells_compared + sheet_cells_compared;
+        if observed > max {
+            return Err(SheetsDiffError::LimitExceeded {
+                limit: LimitKind::CellsCompared,
+                observed,
+            });
+        }
+    }
+    *total_cells_compared += sheet_cells_compared;
 
     let mut cell_diffs: Vec<CellDiff> = Vec::new();
     let mut summary = SheetSummary::default();
@@ -469,17 +484,6 @@ fn build_sheet_diff(
             CoordKey::InsertedNew(r, c) => (r, c, None, Some(r)),
             CoordKey::Positional(r, c) => (r, c, Some(r), Some(r)),
         };
-
-        // cells-compared limit
-        if let Some(max) = opts.limits.max_cells_compared {
-            let compared_so_far = cell_diffs.len() as u64 + 1;
-            if compared_so_far > max {
-                return Err(SheetsDiffError::LimitExceeded {
-                    limit: LimitKind::CellsCompared,
-                    observed: compared_so_far,
-                });
-            }
-        }
 
         let old_cell = old_lookup
             .and_then(|r| old_map.get(&(r, col)))
