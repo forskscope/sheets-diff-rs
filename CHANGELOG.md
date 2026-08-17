@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **CI now fails the build if library core writes to stdout or stderr
+  (M5).** RFC-016, RFC-005, and RFC-013 have stated this prohibition since
+  v2.0.0; nothing enforced it — `println!`, `eprintln!`, `print!`,
+  `eprint!`, and `dbg!` could all be added to any file under `src/` tomorrow
+  without any check objecting. A `clippy::disallowed_macros` gate, scoped
+  to `cargo clippy --lib` via a dedicated `CLIPPY_CONF_DIR`
+  (`.github/clippy-no-stdout/clippy.toml`), now runs in CI's `lint` job and
+  fails the build on any of the five. `src/main.rs` (the CLI, RFC-013's
+  sole sanctioned exception) is excluded structurally — it is a separate
+  target, never compiled by `--lib` — not by an in-code `#[allow]`.
+  Demonstrated failing on a deliberately introduced `println!` before this
+  landed; no `src/` file changed. This is not a fix — nothing under `src/`
+  was ever in violation.
+
 ## [2.4.0] - 2026-08-17
 
 **Truth-telling release.** Every change here closes a gap between what this

@@ -10,6 +10,17 @@ Expanded the test suite to lock in all v1.2.0 fixes. Added unit tests for
 A1 addressing, integration fixtures for wide columns, negative-path tests
 for fallible constructors, and the CI stdout-hygiene check.
 
+**Correction (M5 Handoff 01, 2026-08-17):** the CI stdout-hygiene check
+named above was never built. At tag `1.2.0` the only workflow present is
+`release-executable.yaml`; no test or CI step anywhere in that tree asserts
+the stdout/stderr prohibition, and `git grep` for `stdout` across the whole
+`1.2.0` tree returns documentation only. The "## CI checks" block below,
+including its `grep`-based hygiene line, documents what was intended to run
+in CI, not what did — nothing in this repository's history shows it wired
+into a workflow. A real gate (`clippy::disallowed_macros`, scoped to the
+library target) now exists as of M5 Handoff 01; this sentence is left as
+written, annotated rather than rewritten, per this project's convention.
+
 ## Test layout delivered
 
 ```
@@ -78,6 +89,9 @@ cargo clippy --all-targets --all-features -- -D warnings
 ```
 
 All pass on v1.2.0.
+
+**Correction (M5 Handoff 01, 2026-08-17):** the last line above was never
+wired into any CI workflow — see the correction under Summary.
 
 ## Open questions
 

@@ -1,0 +1,16 @@
+# Scoped clippy config for the library-core stdout/stderr prohibition check
+# (RFC-016, RFC-005, RFC-013). Not the project's default clippy.toml -- there
+# isn't one -- loaded only via CLIPPY_CONF_DIR by the dedicated CI step that
+# runs `cargo clippy --lib`, so it never affects the project's general
+# `cargo clippy --all-targets` lint pass.
+disallowed-macros = [
+    { path = "std::println", reason = "library core must not write to stdout/stderr (RFC-016, RFC-005, RFC-013)" },
+    { path = "std::eprintln", reason = "library core must not write to stdout/stderr (RFC-016, RFC-005, RFC-013)" },
+    { path = "std::print", reason = "library core must not write to stdout/stderr (RFC-016, RFC-005, RFC-013)" },
+    { path = "std::eprint", reason = "library core must not write to stdout/stderr (RFC-016, RFC-005, RFC-013)" },
+    { path = "std::dbg", reason = "library core must not write to stdout/stderr (RFC-016, RFC-005, RFC-013)" },
+]
+disallowed-methods = [
+    { path = "std::io::stdout", reason = "library core must not write to stdout/stderr (RFC-016, RFC-005, RFC-013)" },
+    { path = "std::io::stderr", reason = "library core must not write to stdout/stderr (RFC-016, RFC-005, RFC-013)" },
+]
