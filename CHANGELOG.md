@@ -1,5 +1,27 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **`docs/src/maintainers/performance.md` — peak memory and cancellation
+  latency, measured rather than inferred (M7 Handoff 01).** Four questions
+  RFC-024 and RFC-012 had only been reasoned about from reading the code are
+  now answered from a `#[global_allocator]` high-water-mark harness
+  (`benches/memory.rs`, a new `cargo bench --bench memory` target, no new
+  dependency): `compare_bytes`'s copy adds 2.6–4.8% of total peak at
+  realistic scale, not a doubling (the threat model's existing "doubling
+  peak memory" claim overstates the practical impact); `cell_map_to_align`'s
+  clone costs +33% of peak, linear, paid only by non-`Positional` alignment
+  modes; sparse-vs-dense `BTreeMap` overhead is +12.4% per populated cell,
+  a real but moderate-priority candidate; and cancellation, timed at
+  ~565 ms worst case for the largest single-sheet workbook measured, is
+  structurally unobservable for any workbook with exactly one sheet — the
+  common case, not the exception — since `check_cancel` fires exactly once
+  per sheet pair and a single-sheet comparison never reaches a second
+  checkpoint. **No library code changed to produce this report** — `src/`
+  is untouched; this unit measures only, and scopes M7's remaining units.
+
 ## [2.4.1] - 2026-08-17
 
 **Documentation and verification release.** No behaviour change, no API change:

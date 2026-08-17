@@ -238,11 +238,20 @@ All surfaced during M2; none currently fixed.
   `CellChangeKind` applies), not a lost or wrong comparison.
 - **The bytes-input path owns a copy where it could borrow.** `open_bytes`
   turns a borrowed `impl AsRef<[u8]>` into an owned `Vec<u8>` via `to_vec()`
-  before handing it to the `Cursor`-based reader, doubling peak memory
-  relative to a hypothetical borrowing implementation (RFC-035 Handoff 04
+  before handing it to the `Cursor`-based reader (RFC-035 Handoff 04
   review §3). Eliminating it would need `Xlsx<Cursor<&[u8]>>` and a lifetime
   parameter on the internal `OpenedWorkbook` type — a real refactor with API
   reach, not a line change — and was never in scope for M2.
+
+  **Corrected 2026-08-17 (M7 Handoff 01).** This entry previously said the copy
+  was *"doubling peak memory."* That was inferred from reading the code and is
+  wrong: measured, `compare_bytes` peaks **2.6–4.8% above `compare_paths`** at
+  10,000 cells and up. The raw input bytes do roughly double, but they are only
+  2.4–2.6% of peak — peak is dominated by the ~450 B/cell normalised
+  representation both entry points build identically. Peak is instead dominated,
+  among costs we control, by `cell_map_to_align`'s clone of every `CellValue`
+  (+33%, paid only by non-`Positional` alignment modes). Method and full
+  figures: [performance.md](./performance.md).
 
 ## Advisory-response policy
 

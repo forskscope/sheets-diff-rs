@@ -20,3 +20,6 @@ notes.
   that used v1's `Diff::new` / string cell model.
 - **[Threat model](maintainers/threat-model.md)** — what this crate defends
   against, what it does not, and how each claim is checked.
+- **[Performance](maintainers/performance.md)** — measured, not inferred:
+  peak memory across a size ladder, where it goes, and cancellation
+  latency, with the method and its limits stated alongside every number.
