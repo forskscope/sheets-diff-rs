@@ -107,6 +107,19 @@ jobs:
       - name: cargo clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
+      # M5 Handoff 01 (RFC-016 / RFC-005 / RFC-013): library core must not
+      # write to stdout/stderr. Scoped to `--lib` alone (not --all-targets)
+      # so `src/main.rs` (the CLI, RFC-013's sole sanctioned exception) and
+      # `examples/gen-fixtures.rs` (a standalone dev tool, not library core)
+      # are excluded structurally by target selection rather than by an
+      # in-code #[allow] -- see the review request's discussion of why
+      # examples/gen-fixtures.rs isn't touched here. A separate CLIPPY_CONF_DIR
+      # keeps this config from affecting the general `cargo clippy` step above.
+      - name: cargo clippy --lib (no stdout/stderr in library core)
+        run: |
+          CLIPPY_CONF_DIR="$GITHUB_WORKSPACE/.github/clippy-no-stdout" \
+            cargo clippy --lib --all-features -- -D warnings
+
   # ---------------------------------------------------------------------------
   # tree — the permanent guard against Handoff 01's regression class: the
   # test suite must not rewrite the fixture corpus (or anything else tracked).
