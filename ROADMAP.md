@@ -235,7 +235,7 @@ unit 01 is what makes the sentence true.
 Source is currently clean and detection currently works: **M5 is prevention, not
 remediation.**
 
-### M6 — "The documentation MUSTs" — 🔄 **OPEN 2026-08-17** *(release)*
+### M6 — "The documentation MUSTs" — ✅ **UNITS COMPLETE 2026-08-17** *(release pending)*
 
 Five units. Handoffs:
 [`rfcs/handoffs/m6-documentation-musts/`](rfcs/handoffs/m6-documentation-musts/README.md).
@@ -275,6 +275,28 @@ pulled in via `#[doc = include_str!]` behind `#[cfg(doctest)]` turns its ```rust
 blocks into doctests, and a broken block fails `cargo test --doc`.
 
 **Exit: NF-024 and NF-026 met, NF-027 addressed, and then the v3 question.**
+
+**All five units are merged** (`main` at `f15ce45`, 18/18, 24 doctests where
+there were 3 before this milestone). **Both MUSTs are met for the first time
+since v2.0.0.** NF-027's five examples do not merely compile — they execute
+against committed corpus fixtures and assert on real output, so every
+documented claim is re-checked on every push. The `msrv` job now compiles
+doctests at the 1.88 floor.
+
+Unit 03 found five contradictions between its inventory and the existing
+record, two of them against the architect's own writing, including a count
+(*"thirteen partially-implemented RFCs"*) that was eleven. All five were
+verified and corrected; correcting two of them closed RFC-013 and RFC-015
+outright, which moved the count to **nine** and made the new page's own table
+wrong within the hour. Reconciled, with the movement left visible on the page.
+
+**Two things remain before this milestone closes:**
+
+1. **The release.** Documentation and CI only — no API addition, no behaviour
+   change — so **2.4.1**, a patch. Owner's call.
+2. **The v3 question**, the owner's alone under §6.7. The inventory it needs
+   now exists at [`docs/src/non-goals.md`](docs/src/non-goals.md). Decision
+   paper: `.git-exclude/tmp/v3-decision.md`.
 
 Also **`DiffMetrics`'s undocumented fields** (F-D, raised in M4 unit 02's
 review). M4 unit 02 documented `cells_compared`, leaving it the only documented
