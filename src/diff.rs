@@ -8,7 +8,7 @@ use std::io::{Read, Seek};
 use calamine::Reader;
 
 use crate::address::{CellAddress, ComparedRange};
-use crate::align::{AlignCellMap, compute_row_mapping};
+use crate::align::compute_row_mapping;
 use crate::compare::{compare_formulas, compare_values};
 use crate::error::{LimitKind, SheetsDiffError};
 use crate::matcher::{MatchedPair, match_sheets};
@@ -27,12 +27,24 @@ use crate::options::{AlignmentMode, DiffEvent, DiffOptions};
 // Internal normalised cell
 // ---------------------------------------------------------------------------
 
-struct NormalizedCell {
-    value: crate::model::CellValue,
+pub(crate) struct NormalizedCell {
+    pub(crate) value: crate::model::CellValue,
     formula: Option<String>,
 }
 
-type CellMap = BTreeMap<(u32, u32), NormalizedCell>;
+#[cfg(test)]
+impl NormalizedCell {
+    /// Test-only constructor — lets `align`'s tests build a `CellMap` fixture
+    /// without exposing `formula` (unused by alignment) crate-wide.
+    pub(crate) fn for_test(value: crate::model::CellValue) -> Self {
+        Self {
+            value,
+            formula: None,
+        }
+    }
+}
+
+pub(crate) type CellMap = BTreeMap<(u32, u32), NormalizedCell>;
 
 /// A sheet's normalised cells plus its used-range bounds (1-based, inclusive).
 type SheetReadResult = (CellMap, Option<(u32, u32)>, Option<(u32, u32)>);
@@ -48,11 +60,6 @@ type SheetReadResult = (CellMap, Option<(u32, u32)>, Option<(u32, u32)>);
 /// comfortably under that budget — 50,000 cells is ≈ 95 ms worst case at
 /// the measured per-cell rate.
 const CANCEL_POLL_INTERVAL: u64 = 50_000;
-
-/// Build a value-only map for alignment (avoids cloning formulas).
-fn cell_map_to_align(cells: &CellMap) -> AlignCellMap {
-    cells.iter().map(|(k, v)| (*k, v.value.clone())).collect()
-}
 
 // ---------------------------------------------------------------------------
 // Coordinate-set key (D-03: keeps old-row and new-row numbering distinct)
@@ -381,11 +388,9 @@ fn build_sheet_diff(
 
     // Alignment (RFC-011): compute row mapping if mode is not Positional.
     let align_mapping = if !matches!(opts.matching.alignment, AlignmentMode::Positional) {
-        let old_align = cell_map_to_align(&old_map);
-        let new_align = cell_map_to_align(&new_map);
         compute_row_mapping(
-            &old_align,
-            &new_align,
+            &old_map,
+            &new_map,
             &opts.matching.alignment,
             opts.limits.max_alignment_product,
             sheet_diag,
