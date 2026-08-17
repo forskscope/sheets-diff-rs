@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **CLI contract change: exit code 3 for invalid/corrupt input (M4).** RFC-013
+  specified this from the start; it was never emitted. `src/main.rs` collapsed
+  every non-option, non-comparison-result failure to exit code 2, including
+  corrupt input — a caller could not distinguish "this file is not a workbook"
+  from "you passed a bad flag." Now: **3** when something about the bytes at
+  the given path make them unusable as a workbook (wrong format, corrupt
+  internals, or encrypted); **2** narrows to everything else — reaching those
+  bytes in the first place (missing file, permissions, a lock held elsewhere),
+  caller misconfiguration, a resource limit, or an internal bug. Full mapping
+  and reasoning: [`docs/src/migration/v1-to-v2.md`](docs/src/migration/v1-to-v2.md#cli-exit-codes),
+  also printed by `sheets-diff --help`.
+
+  **This is a behaviour change to the CLI contract, not a bugfix footnote.**
+  A script matching exit code `2` for "something went wrong with the file"
+  will now see `3` for the corrupt-input subset of that. It is correct per
+  RFC-013 and it is still a compatibility event — this is why the M4 release
+  is 2.4.0 rather than 2.3.1. The library is unchanged; only `src/main.rs`
+  moved. Covered by five new subprocess tests
+  (`tests/cli.rs`) exercising the real binary — no exit code had ever been
+  verified by anything before this.
+
 ### Added
 
 - **The fixture corpus grew from 7 to 18 scenarios**, closing every gap
@@ -263,6 +286,11 @@ what is defended, what is not, and where each control is checked:
   `WorkbookDiff` comments no longer reference "v2.0" or "always empty in v2.0";
   they correctly describe the v2.2 state (RFC-021/023 surface through
   `diagnostics`; structured variants reserved for future).
+  **Correction (see Unreleased, M4):** this entry is also wrong. `WorkbookChange`'s
+  and `WorkbookObjectChange`'s doc comments still read "Always empty in v2.0"
+  immediately before M4 unit 01 removed them — the same defect as the
+  `cells_compared` entry two bullets above, in the same audit section that
+  first named the problem, uncaught until now.
 - **`criterion::black_box` deprecation** resolved — switched to
   `std::hint::black_box` throughout `benches/workbook_diff.rs`.
 

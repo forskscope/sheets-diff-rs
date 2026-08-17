@@ -11,7 +11,7 @@ use std::process;
 use clap::{Parser, ValueEnum};
 
 use sheets_diff::{
-    DiffOptions,
+    DiffOptions, OpenErrorKind, SheetsDiffError,
     output::text::{render_summary, render_unified},
 };
 
@@ -23,6 +23,15 @@ use sheets_diff::{
 #[command(
     name = "sheets-diff",
     about = "Structured diff engine for Excel .xlsx workbooks",
+    after_help = "EXIT CODES:\n  \
+                  0  no differences found\n  \
+                  1  differences found\n  \
+                  2  operational error (invalid options, a resource limit was \
+                  hit, an environment issue such as a missing or unreadable \
+                  file, or an internal bug)\n  \
+                  3  invalid or corrupt input (the file at the given path is \
+                  not a readable .xlsx workbook: wrong format, corrupt \
+                  internals, or encrypted)",
     version
 )]
 struct Cli {
@@ -51,6 +60,45 @@ enum OutputFormat {
     Summary,
     /// Unified diff.
     Unified,
+}
+
+// ---------------------------------------------------------------------------
+// Exit-code mapping (RFC-013)
+// ---------------------------------------------------------------------------
+
+/// Maps a comparison failure to an exit code.
+///
+/// The line: **3** when something about the bytes at the given path make
+/// them unusable as a workbook (wrong format, corrupt internals, encrypted);
+/// **2** for everything else — reaching those bytes in the first place
+/// (missing file, permissions, a lock held by another process), caller
+/// misconfiguration, a resource limit, or an internal bug. `NotFound` /
+/// `PermissionDenied` / `Locked` are about the environment around the file,
+/// not the file's own content, so they stay environment errors (2) rather
+/// than joining the corrupt-input bucket (3).
+///
+/// `_` arms exist because `SheetsDiffError` and `OpenErrorKind` are
+/// `#[non_exhaustive]`: an unclassified future variant defaults to 2 rather
+/// than being guessed into 3.
+fn exit_code_for(err: &SheetsDiffError) -> i32 {
+    match err {
+        SheetsDiffError::OpenWorkbook { kind, .. } => match kind {
+            OpenErrorKind::NotXlsx | OpenErrorKind::Corrupt => 3,
+            OpenErrorKind::NotFound | OpenErrorKind::PermissionDenied | OpenErrorKind::Locked => 2,
+            _ => 2,
+        },
+        // The workbook opened, but a sheet inside it couldn't be read --
+        // that is the workbook's own internal structure not holding up,
+        // which is what "corrupt input" means here.
+        SheetsDiffError::ReadSheet { .. } => 3,
+        SheetsDiffError::UnsupportedFormat { .. } => 3,
+        SheetsDiffError::EncryptedWorkbook { .. } => 3,
+        SheetsDiffError::InvalidOptions { .. } => 2,
+        SheetsDiffError::Cancelled => 2,
+        SheetsDiffError::LimitExceeded { .. } => 2,
+        SheetsDiffError::Internal { .. } => 2,
+        _ => 2,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -94,8 +142,7 @@ fn main() {
             if let Some(src) = std::error::Error::source(&e) {
                 eprintln!("  caused by: {src}");
             }
-            // Exit code 2 = operational error
-            process::exit(2);
+            process::exit(exit_code_for(&e));
         }
     }
 }

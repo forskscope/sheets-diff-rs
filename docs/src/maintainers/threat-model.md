@@ -238,12 +238,6 @@ All surfaced during M2; none currently fixed.
   review §3). Eliminating it would need `Xlsx<Cursor<&[u8]>>` and a lifetime
   parameter on the internal `OpenedWorkbook` type — a real refactor with API
   reach, not a line change — and was never in scope for M2.
-- **`DiffMetrics.cells_compared` is wrong.** It counts only changed cells,
-  not all coordinate pairs visited, despite the CHANGELOG's 2.2.3 entry
-  once claiming otherwise (corrected in `[Unreleased]`, not fixed — the
-  fix is M3's). A caller using this metric for anything beyond "how many
-  diffs were emitted" (which `diffs_emitted` already reports directly) is
-  relying on a number that does not measure what its name says.
 
 ## Advisory-response policy
 
