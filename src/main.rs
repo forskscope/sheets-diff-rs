@@ -11,7 +11,7 @@ use std::process;
 use clap::{Parser, ValueEnum};
 
 use sheets_diff::{
-    DiffOptions, OpenErrorKind, SheetsDiffError,
+    DiffOptions, OpenErrorKind, ReadErrorKind, SheetsDiffError,
     output::text::{render_summary, render_unified},
 };
 
@@ -87,10 +87,24 @@ fn exit_code_for(err: &SheetsDiffError) -> i32 {
             OpenErrorKind::NotFound | OpenErrorKind::PermissionDenied | OpenErrorKind::Locked => 2,
             _ => 2,
         },
-        // The workbook opened, but a sheet inside it couldn't be read --
-        // that is the workbook's own internal structure not holding up,
-        // which is what "corrupt input" means here.
-        SheetsDiffError::ReadSheet { .. } => 3,
+        // The workbook opened, but a sheet inside it couldn't be read.
+        SheetsDiffError::ReadSheet { kind, .. } => match kind {
+            // The workbook's own internal structure not holding up --
+            // what "corrupt input" means once you're past the open step.
+            //
+            // Sound only because the CLI has no sheet-selection flag: every
+            // sheet the workbook's own index promises gets read, so a
+            // missing one is the workbook's inconsistency, not a caller's
+            // request for a sheet that was never going to exist. If a
+            // `--sheet` flag is ever added, `SheetNotFound` becomes caller
+            // error for an unmatched selection and must move to 2.
+            ReadErrorKind::SheetNotFound | ReadErrorKind::MalformedSheet => 3,
+            // An I/O failure mid-read (disk, network filesystem) is not
+            // evidence the workbook is corrupt -- conservative default,
+            // same reasoning as `OpenErrorKind::Other` above.
+            ReadErrorKind::Other => 2,
+            _ => 2,
+        },
         SheetsDiffError::UnsupportedFormat { .. } => 3,
         SheetsDiffError::EncryptedWorkbook { .. } => 3,
         SheetsDiffError::InvalidOptions { .. } => 2,

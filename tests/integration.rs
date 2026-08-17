@@ -749,6 +749,53 @@ fn limits_struct_update_syntax_still_compiles() {
     assert!(limits.max_input_bytes.is_some());
 }
 
+// ============================================================================
+// M4 unit 04 — F-A: `max_cells_compared` bounds coordinates, not diffs
+// ============================================================================
+
+#[test]
+fn cells_compared_limit_fires_on_coordinates_with_zero_diffs() {
+    // The discriminating case: many coordinates, zero diffs. Comparing a
+    // workbook against itself gives exactly that -- 1000 populated cells,
+    // all unchanged.
+    //
+    // Under the OLD enforcement (`compared_so_far = cell_diffs.len() + 1`),
+    // zero diffs means `cell_diffs` never grows, so `compared_so_far` is a
+    // constant `1` on every iteration -- it would never exceed any `max`
+    // greater than 0, no matter how many coordinates are visited. This
+    // input and this limit could not trip the old check; they trip the new
+    // one, which is what makes this a real discrimination rather than a
+    // limit low enough to catch both.
+    let wb = wb_large(50, 20, "same"); // 50 * 20 = 1000 identical cells
+    let opts = DiffOptions::builder()
+        .max_cells_compared(100)
+        .build()
+        .unwrap();
+    match compare_bytes_with_options(&wb, &wb, opts) {
+        Err(SheetsDiffError::LimitExceeded {
+            limit: sheets_diff::LimitKind::CellsCompared,
+            observed,
+        }) => {
+            // `observed` must report coordinates compared -- exactly 1000
+            // for this fixture -- not a diff count (which would be 0, and
+            // could never have exceeded `max` in the first place).
+            assert_eq!(observed, 1000);
+        }
+        other => panic!("expected LimitExceeded{{CellsCompared}}, got {other:?}"),
+    }
+}
+
+#[test]
+fn cells_compared_limit_does_not_fire_below_bound() {
+    let wb = wb_large(50, 20, "same"); // 1000 identical cells
+    let opts = DiffOptions::builder()
+        .max_cells_compared(2_000)
+        .build()
+        .unwrap();
+    let diff = compare_bytes_with_options(&wb, &wb, opts).unwrap();
+    assert_eq!(diff.summary.cells_changed, 0);
+}
+
 #[test]
 fn alignment_bound_exceeded_degrades_not_errors() {
     use sheets_diff::options::{AlignmentMode, MatchingOptions};

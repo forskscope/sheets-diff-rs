@@ -151,7 +151,12 @@ genuinely linear paths (`max_sheets`, `max_cells_read`, `max_cells_compared`,
 scales predictably with input the caller chose to open would break working
 code for no safety benefit the caller couldn't have anticipated (RFC-035
 §5.1). `Limits::hardened()` sets a concrete value on every dimension for
-callers comparing genuinely untrusted input at scale. **Residual risk:** a
+callers comparing genuinely untrusted input at scale. `max_cells_compared`
+specifically bounds **coordinates visited** — the union of both sides'
+populated cells per sheet, remapped by alignment when alignment applies —
+checked cumulatively across the whole comparison and before each sheet's
+comparison work begins, not the number of differences found (that is
+`max_diffs_returned`'s separate dimension). **Residual risk:** a
 caller who does not call `Limits::hardened()` and does not set the four
 linear limits explicitly has no protection against a workbook with an
 enormous number of sheets, cells, or diffs — this is the documented,
