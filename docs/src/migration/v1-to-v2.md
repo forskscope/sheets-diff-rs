@@ -210,7 +210,23 @@ let unified = render_unified(&diff);   // unified-style per-cell diff
 |---|---|---|
 | No differences | 0 | 0 |
 | Differences found | — (always 0) | 1 |
-| Operational error | panic / unhandled | 2 |
+| Operational error — invalid CLI options, a resource limit, an environment issue (missing/unreadable file, permissions, a lock held elsewhere), or an internal bug | panic / unhandled | 2 |
+| Invalid or corrupt input — the file at the given path is not a readable `.xlsx` workbook: wrong format, corrupt internals, or encrypted (M4, 2.4.0) | panic / unhandled | 3 |
+
+**2 vs. 3, and why the line falls where it does.** 3 covers cases where
+something about the *bytes at the path* make them unusable as a workbook.
+2 covers everything else: reaching those bytes in the first place
+(`NotFound`, `PermissionDenied`, a lock held by another process — properties
+of the environment around the file, not its content), caller
+misconfiguration, a resource limit, or an internal bug. A workbook that
+opened but had an unreadable sheet inside it, an unrecognised (non-`.xlsx`)
+format, or a password counts as 3 — the tool cannot proceed with the file as
+given, for reasons intrinsic to that file.
+
+**This narrowed 2's meaning.** Before M4, every non-difference, non-option
+error was 2, including corrupt input. A script matching `2` for "something
+went wrong with the file" will now see `3` for that specific subset. Run
+`sheets-diff --help` for this table in the CLI itself.
 
 ---
 
