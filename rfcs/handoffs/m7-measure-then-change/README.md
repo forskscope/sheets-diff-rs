@@ -37,9 +37,9 @@ a third time.
 | | Unit | Governing | Status |
 |---|---|---|---|
 | 01 | [Measure](./01-measure.md) | RFC-024, RFC-012 | ✅ merged — reordered the milestone |
-| 02 | [The v1.2-vs-v2 comparison](./02-v1-2-comparison.md) | RFC-027 | **Next** — unit 03 has merged; see its 2026-08-17 amendment |
+| 02 | [The v1.2-vs-v2 comparison](./02-v1-2-comparison.md) | RFC-027 | ✅ merged — RFC-027 fully implemented |
 | 03 | [Cancellation that fires](./03-cancellation-that-fires.md) | RFC-012, RFC-024 | ✅ merged `db88706` |
-| 04+ | Memory candidates, scope set by unit 01's report | RFC-024 | Not yet written |
+| 04 | [Delete the alignment clone](./04-delete-the-alignment-clone.md) | RFC-024 | **Ready** — the only candidate the measurement justified |
 
 Unit 02 moved here from M6 — it is measurement, not documentation. It is
 independent of unit 01 and gates nothing, but it is **not the easy one**: v1.2
@@ -74,8 +74,33 @@ something still true. Measure the engine we ship. Unit 02's report must also
 name the commit it measured, since "v2" is no longer one thing across this
 milestone.
 
-The memory candidates remain unwritten pending a decision on which are worth
-doing — see the table below, now populated with measured sizes.
+**The memory candidates were decided on 2026-08-17, on the measurements rather
+than on intuition: one accepted, two declined.**
+
+- **Accepted — the alignment clone (+33% of peak).** Unit 04. Alignment only
+  ever calls `display_string()` on the values it is handed, so the copy is
+  *deletable* rather than reducible, and `mod align` is private so nothing
+  public moves.
+- **Declined — RFC-024 §7's density choice (+12.4%).** The smallest structural
+  change available for the largest increase in engine complexity: a density
+  heuristic and two code paths through the loop where every silent-wrong-answer
+  defect this project has fixed lived.
+- **Declined — `compare_bytes`'s copy (+2.6–4.8%).** The one we had called a
+  doubling. A cheap route does exist — the internals already take an owned
+  `Vec<u8>`, and only the public `AsRef<[u8]>` bound forces the copy — but it
+  must be additive (`&Vec<u8>` does not satisfy `Into<Vec<u8>>`), recovers only
+  the input's ~2.5% share, and costs permanent public API on a crate whose
+  non-goals page already explains a model larger than its engine.
+
+**Declined, not deferred**, and recorded with their numbers in
+[`performance.md`](../../../docs/src/maintainers/performance.md) and RFC-024's
+Status. "Deferred" is what these were for four releases and carries no
+information; "declined, and here is the measurement" tells the next person why.
+
+Two of three declined is the milestone succeeding. M7 existed to find out which
+were worth building, and it found that the item we were most confident about is
+the smallest, that the tidiest-sounding one buys least for most disruption, and
+that the real work was somewhere nobody had listed.
 
 ## The candidate items, and what would settle each
 
