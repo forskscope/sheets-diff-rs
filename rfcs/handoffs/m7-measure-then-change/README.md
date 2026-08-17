@@ -37,7 +37,7 @@ a third time.
 | | Unit | Governing | Status |
 |---|---|---|---|
 | 01 | [Measure](./01-measure.md) | RFC-024, RFC-012 | **Ready** — gates everything else |
-| 02 | [The v1.2-vs-v2 comparison](./02-v1-2-comparison.md) | RFC-027 | **Ready** — separable, gates nothing |
+| 02 | [The v1.2-vs-v2 comparison](./02-v1-2-comparison.md) | RFC-027 | Ready — but **run after unit 03**, see below |
 | 03 | [Cancellation that fires](./03-cancellation-that-fires.md) | RFC-012, RFC-024 | **Ready** — scoped from unit 01's report |
 | 04+ | Memory candidates, scope set by unit 01's report | RFC-024 | Not yet written |
 
@@ -58,6 +58,21 @@ caller who cancels is never seen and the comparison returns `Ok`.
 
 That is a feature that does not work, and it now leads the milestone as unit 03,
 ahead of every memory candidate. Those are optimisations.
+
+**Order: 01 → 03 → 02 → 04+.** *(Clarified 2026-08-17 after the dev team asked;
+the text above ordered 03 ahead of units 04+ and said nothing about 02, which
+was a real ambiguity.)* Unit 02 is still independent in the sense that nothing
+blocks it — but **unit 03 modifies the code unit 02 measures.** Unit 03 adds a
+polling checkpoint inside both per-sheet loops (`src/diff.rs:472` and `:595`),
+which are exactly the hot paths unit 02 benchmarks. Running 02 first would
+publish a v1.2-vs-v2 comparison against a version of v2 that stops existing when
+03 lands.
+
+The overhead will likely be well under a percent, and that is not the point:
+this milestone's discipline is that a published number stays attributable to
+something still true. Measure the engine we ship. Unit 02's report must also
+name the commit it measured, since "v2" is no longer one thing across this
+milestone.
 
 The memory candidates remain unwritten pending a decision on which are worth
 doing — see the table below, now populated with measured sizes.
