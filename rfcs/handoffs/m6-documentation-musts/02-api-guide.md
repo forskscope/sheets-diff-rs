@@ -119,3 +119,42 @@ must be demonstrated:
 
 Per development policy §9.2, plus the per-category mapping showing which example
 satisfies which of NF-024's five.
+
+---
+
+## Amendment — 2026-08-17 (after unit 01's review)
+
+**Added: close the MSRV doctest gap (F-N).**
+
+Unit 01 established that the `msrv` job runs `cargo check --all-features`, and
+`cargo check` never builds doctests. So `docs/`'s examples are compiled against
+stable and **never against the declared 1.88 floor**.
+
+That was an acceptable boundary for unit 01's nine examples of ordinary syntax.
+This unit adds NF-024's five categories, and unit 03 adds five more plus a
+limitations page — at which point an example using a post-1.88 idiom would pass
+CI, ship, and fail for a consumer on our declared MSRV.
+
+**Add to the `msrv` job:**
+
+```yaml
+- name: cargo test --doc --all-features at MSRV
+  run: cargo test --doc --all-features
+```
+
+as an **additional** step. Leave `cargo check --all-features` in place — the
+job's purpose is "does the crate build at the floor", and this extends its
+coverage rather than repurposing it. Unit 01 was right not to make that call
+unilaterally; this is the call.
+
+**Additional change scope:** `.github/workflows/ci.yaml`.
+
+**Additional acceptance criterion (11):** the `msrv` job compiles `docs/`'s
+doctests at 1.88, demonstrated by a CI run link showing the new step green. If
+any existing example fails at 1.88 but passes on stable, **that is a finding —
+report it**; it means we have been shipping an example our own MSRV cannot
+build.
+
+**Also: follow the fence convention** set in this milestone's README §"Fence
+convention". In short — `no_run`, not `ignore`, for code that cannot run here.
+`no_run` still compiles, which is the property NF-024 requires.

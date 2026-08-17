@@ -71,6 +71,23 @@ platforms. No new tooling, no new dependency, no docs job to add.
 Whether that is the right mechanism is unit 01's decision to make and justify —
 `mdbook test` is the obvious alternative, and there may be others.
 
+## Fence convention
+
+Set after unit 01, which established it on the migration guide. Units 02 and 03
+inherit it:
+
+| Fence | When | Compiled? |
+|---|---|---|
+| ` ```rust ` | v2 code that compiles and runs | yes, and runs |
+| ` ```rust,no_run ` | v2 code needing a real file or workbook | **yes**, not executed |
+| ` ```text ` | not Rust-to-be-compiled: v1 shapes, output samples, JSON | no |
+| ` ```rust,ignore ` | **avoid** — if used, the prose must say why | no |
+
+**`no_run` is almost always the right answer for "this cannot actually run
+here", not `ignore`.** `no_run` still compiles, which is the property NF-024
+needs. `ignore` compiles nothing and is indistinguishable from an example nobody
+checked — the state unit 01 just fixed.
+
 ## Standing constraints
 
 - **No behaviour change.** `src/` changes in this milestone are doc comments and
