@@ -192,6 +192,13 @@ NF-024 and NF-026 — **MUST** requirements unmet across four releases — plus 
 migration guide's missing JSON section and uncompiled code blocks, and the
 absent v1.2-vs-v2 benchmark comparison.
 
+Also **`DiffMetrics`'s undocumented fields** (F-D, raised in M4 unit 02's
+review). M4 unit 02 documented `cells_compared`, leaving it the only documented
+field of five. The gap that matters is `cells_read`: on the `sparse_range`
+fixture it reads 5200 against 2 compared, because it counts every physically
+visited cell including empties — a 2600× difference no consumer would predict
+from the name.
+
 ### M7 — "Measure, then change" *(release; scope set by measurement)*
 
 Large-workbook memory; cancellation granularity (polled per sheet pair, not per
