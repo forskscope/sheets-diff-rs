@@ -63,3 +63,7 @@ zip = { version = "8.6", features = ["deflate"], default-features = false }
 [[bench]]
 name = "workbook_diff"
 harness = false
+
+[[bench]]
+name = "memory"
+harness = false
