@@ -85,6 +85,39 @@
   fixture changed. This is not a fix — the detection worked before this
   unit; it is now verified rather than believed.
 
+- **Every Rust example in `docs/` now compiles in CI (M6, NF-025).**
+  `docs/src/migration/v1-to-v2.md` held 11 ```rust code blocks; nothing
+  compiled any of them — no `include_str!`, no `mdbook test`, no docs job.
+  `src/lib.rs` now `include_str!`s the guide into a `#[cfg(doctest)]`-only
+  item, so `cargo test --doc` (part of every plain `cargo test`, which CI
+  already runs on 5 feature combinations × 2 platforms) treats each
+  ```rust fence as a doctest; `#[cfg(doctest)]` keeps the item — and the
+  guide's text — out of every normal build entirely (absent from `cargo
+  build`, `cargo clippy`, and `cargo doc`'s generated item index; confirmed,
+  not assumed). Adding a future page needs one more
+  `#[doc = include_str!(...)] #[cfg(doctest)]` item.
+
+  **The 11-block tally**, checked individually rather than assumed:
+  **2 already compiled unchanged**; **4 were legitimate v1 "before" code**
+  (cannot compile against v2 by nature — re-marked ` ```text `, content
+  untouched); **5 needed a fix to actually compile**, all in the harness
+  sense (missing context, a missing import, or a real scoping bug in the
+  example's own code — not a library defect; every referenced field and
+  method was checked against current `src/` first). One of the 5 had a
+  genuine bug: a `match` referenced a variable bound inside an `if let` one
+  block above it, which would never have compiled — nested rather than
+  rewritten. Two originally-mixed blocks (v1 and v2 code in one fence) were
+  split into a `text` fence and a `rust` fence each, since a single fence
+  cannot carry two classifications — 13 fences total after the split.
+  Every compiling block needing state uses a hidden (`# `-prefixed)
+  `compare_paths(...)` call and `no_run` — compiled, not executed, since
+  doctests can't open files that don't exist in the sandbox; `#[non_exhaustive]`
+  on every model type means no doctest can construct one by struct literal,
+  so a real (uncalled) entry-point call is the only way to get one.
+  Demonstrated the harness catching a real regression: a deliberately
+  introduced reference to a nonexistent field failed
+  `cargo test --doc` with `error[E0609]`, reverted.
+
 ## [2.4.0] - 2026-08-17
 
 **Truth-telling release.** Every change here closes a gap between what this
