@@ -235,7 +235,7 @@ unit 01 is what makes the sentence true.
 Source is currently clean and detection currently works: **M5 is prevention, not
 remediation.**
 
-### M6 — "The documentation MUSTs" — ✅ **UNITS COMPLETE 2026-08-17** *(release pending)*
+### M6 — "The documentation MUSTs" — ✅ **COMPLETE 2026-08-17** *(2.4.1)*
 
 Five units. Handoffs:
 [`rfcs/handoffs/m6-documentation-musts/`](rfcs/handoffs/m6-documentation-musts/README.md).
@@ -290,13 +290,25 @@ verified and corrected; correcting two of them closed RFC-013 and RFC-015
 outright, which moved the count to **nine** and made the new page's own table
 wrong within the hour. Reconciled, with the movement left visible on the page.
 
-**Two things remain before this milestone closes:**
+**Both closing items are settled.**
 
-1. **The release.** Documentation and CI only — no API addition, no behaviour
-   change — so **2.4.1**, a patch. Owner's call.
-2. **The v3 question**, the owner's alone under §6.7. The inventory it needs
-   now exists at [`docs/src/non-goals.md`](docs/src/non-goals.md). Decision
-   paper: `.git-exclude/tmp/v3-decision.md`.
+1. **Released as 2.4.1.** Documentation and CI only — no API addition (the four
+   doctest-harness structs are `#[cfg(doctest)]`-guarded and absent from every
+   normal build), no behaviour change.
+2. **The v3 question: not scheduled**, decided by the owner 2026-08-17 on
+   `.git-exclude/tmp/v3-decision.md`. To be reconsidered after M7, when
+   measurement may supply a real breaking requirement rather than an aesthetic
+   one. The inventory that informs it lives at
+   [`docs/src/non-goals.md`](docs/src/non-goals.md) and is now maintained as a
+   consumer-facing page rather than as planning notes.
+
+   **Still open from that paper, and not blocking:** whether the four
+   available-but-uncompared object types (hyperlinks, merged regions, tables,
+   pivot tables — calamine 0.36 exposes all four) should be scheduled, recorded
+   as a permanent non-goal, or left until ForskScope asks; and whether
+   `.git-exclude/specs/sheets-diff-v2-requirements.md` should be tracked, since
+   every NF citation in `rfcs/` currently resolves to nothing for a reader of
+   the repository alone.
 
 Also **`DiffMetrics`'s undocumented fields** (F-D, raised in M4 unit 02's
 review). M4 unit 02 documented `cells_compared`, leaving it the only documented

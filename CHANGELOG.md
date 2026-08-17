@@ -1,6 +1,29 @@
 # Changelog
 
-## [Unreleased]
+## [2.4.1] - 2026-08-17
+
+**Documentation and verification release.** No behaviour change, no API change:
+the comparison engine, the public types and every diff result are identical to
+2.4.0. What changed is what can be checked.
+
+Two **MUST** requirements are met for the first time since v2.0.0 — NF-024 (the
+API documented with examples for path, reader, bytes, options and formatter
+usage) and NF-026 (non-goals and limitations documented clearly) — along with
+NF-027's comparison semantics.
+
+The examples are not decoration. Every Rust block in `docs/` is compiled by CI
+on every feature combination and at the declared 1.88 MSRV floor, and the five
+semantics examples **execute** against the fixture corpus and assert on real
+output — so a change that alters what a comparison reports fails the
+documentation before it reaches a consumer. Before this release, the migration
+guide's eleven code blocks were compiled by nothing, and exactly one of them
+compiled.
+
+Two rules the project has stated for years also became enforceable rather than
+merely written down: the library core must not write to stdout or stderr (now a
+CI gate that cannot be waived), and source-path privacy is now tested rather
+than asserted.
+
 
 ### Added
 
