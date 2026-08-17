@@ -130,6 +130,7 @@ What must be demonstrated:
 10. RFC-027's Status line is updated to record this gap closed — **and only
     this one**; check whether its other clauses still hold before touching it.
 11. CHANGELOG under `### Documentation`; gates green, full matrix.
+12. **(amendment)** The report names the commit measured, at or after `db88706`.
 
 ## Prohibited shortcuts
 
@@ -168,3 +169,52 @@ What must be demonstrated:
 
 Per development policy §9.2, plus an explicit statement of how each of the three
 confounds was handled — controlled, bounded, or stated.
+
+---
+
+## Amendment — 2026-08-17 (after units 01 and 03 merged)
+
+This handoff was written when M7 opened, before either had landed. Three things
+are now settled that it left conditional or did not know.
+
+**1. Unit 01 has landed — its conditionals resolve.**
+
+`docs/src/maintainers/performance.md` **exists**; add a section, do not create
+the file. `benches/memory.rs` **exists** with a working peak-allocation harness;
+required-implementation item 5's *"if unit 01 has landed"* is now
+unconditional — **measure peak allocation as well as time.** The memory
+comparison is the one ForskScope would care about more, and the harness is
+already there.
+
+**2. Name the commit you measured. This is now an acceptance criterion (12).**
+
+Unit 03 added cancellation polling inside both per-sheet loops — `src/diff.rs`'s
+coordinate loop and row loop — which are exactly the hot paths this unit
+benchmarks. **"v2" is no longer one thing across this milestone**, and a
+comparison that does not say which v2 it measured stops being interpretable the
+next time units 04+ touch those loops.
+
+Measure at or after `db88706` (unit 03's merge) and state the commit in the
+report section. This is why the sequencing answer put unit 03 first.
+
+**3. A fourth confound, and it is ours.**
+
+The handoff names three. There is now a fourth: **v2's compare loop carries a
+polling counter that v1.2's has no equivalent of.** Unit 03 measured its cost as
+below run-to-run noise at every ladder size, so it should not distort your
+numbers — but you are comparing against a v1.2 that does no such work at all,
+and the honest framing of any v2-slower result includes it.
+
+Do not attempt to subtract it. Unit 03's overhead table
+(`performance.md`, Q5) is the reference; cite it and move on. Manufacturing a
+correction smaller than the measurement noise would be false precision.
+
+**4. On `cargo deny` and the two calamine versions.**
+
+Still the risk the handoff names, and now worth stating more sharply: if
+`multiple-versions` rejects calamine 0.35 alongside 0.36 in the dev graph,
+**that is a finding to report, not a config to loosen.** `deny.toml` is a
+resource-safety control this project built deliberately in M2. Weakening it to
+publish a benchmark would be a poor trade, and there are other routes — two
+binaries compared by a script is worse engineering and does not touch the
+dependency policy.

@@ -36,9 +36,9 @@ a third time.
 
 | | Unit | Governing | Status |
 |---|---|---|---|
-| 01 | [Measure](./01-measure.md) | RFC-024, RFC-012 | **Ready** — gates everything else |
-| 02 | [The v1.2-vs-v2 comparison](./02-v1-2-comparison.md) | RFC-027 | Ready — but **run after unit 03**, see below |
-| 03 | [Cancellation that fires](./03-cancellation-that-fires.md) | RFC-012, RFC-024 | **Ready** — scoped from unit 01's report |
+| 01 | [Measure](./01-measure.md) | RFC-024, RFC-012 | ✅ merged — reordered the milestone |
+| 02 | [The v1.2-vs-v2 comparison](./02-v1-2-comparison.md) | RFC-027 | **Next** — unit 03 has merged; see its 2026-08-17 amendment |
+| 03 | [Cancellation that fires](./03-cancellation-that-fires.md) | RFC-012, RFC-024 | ✅ merged `db88706` |
 | 04+ | Memory candidates, scope set by unit 01's report | RFC-024 | Not yet written |
 
 Unit 02 moved here from M6 — it is measurement, not documentation. It is
