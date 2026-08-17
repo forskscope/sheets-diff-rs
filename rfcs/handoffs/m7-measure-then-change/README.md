@@ -1,9 +1,9 @@
 # Handoffs — M7: measure, then change
 
-**Not yet open.** This directory exists because M7's first unit had to be
-written before the milestone could be proposed — its whole discipline is that
-**the rest of M7's scope cannot honestly be written until something is
-measured.**
+**Open 2026-08-17.** This directory was written before the milestone was
+proposed, because M7's discipline is that **the rest of its scope cannot
+honestly be written until something is measured** — so the measurement unit had
+to exist before the milestone could.
 
 Governed by RFC-024 (large-workbook memory), RFC-012 (progress, cancellation and
 resource bounds), RFC-027 (benchmark and performance governance). All in
@@ -37,12 +37,16 @@ a third time.
 | | Unit | Governing | Status |
 |---|---|---|---|
 | 01 | [Measure](./01-measure.md) | RFC-024, RFC-012 | **Ready** — gates everything else |
-| 02 | v1.2-vs-v2 benchmark comparison | RFC-027 | To be written; separable, gates nothing |
+| 02 | [The v1.2-vs-v2 comparison](./02-v1-2-comparison.md) | RFC-027 | **Ready** — separable, gates nothing |
 | 03+ | Scope set by unit 01's report | — | **Cannot be written yet** |
 
 Unit 02 moved here from M6 — it is measurement, not documentation. It is
-independent of unit 01 and of everything else; its obstacle is building v1.2,
-not deciding anything.
+independent of unit 01 and gates nothing, but it is **not the easy one**: v1.2
+resolved `calamine` 0.35.0 where we run 0.36.1, it compared cells as strings
+where v2 normalises and aligns, and it shipped no benchmarks at all. A naive
+comparison would produce a number that is partly upstream's and partly the cost
+of capability v1.2 did not have. The unit's difficulty is method, not
+mechanics.
 
 **Units 03 onward do not exist and will not be written speculatively.** When
 unit 01 reports, its numbers decide which of the candidate items are worth

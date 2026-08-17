@@ -334,7 +334,30 @@ the convention this file already applies three times over. Worth noting that it
 was caught by needing to state the number to someone outside the project, which
 is a check nothing in CI performs.
 
-### M7 — "Measure, then change" *(release; scope set by measurement)*
+### M7 — "Measure, then change" — 🔄 **OPEN 2026-08-17** *(release; scope set by measurement)*
+
+Handoffs: [`rfcs/handoffs/m7-measure-then-change/`](rfcs/handoffs/m7-measure-then-change/README.md).
+
+| Unit | Item | Status |
+|---|---|---|
+| 01 | Measure — peak allocation, its attribution, dense-vs-sparse cost, cancellation latency | Ready; **gates units 03+** |
+| 02 | The v1.2-vs-v2 comparison (RFC-027) | Ready; independent, gates nothing |
+| 03+ | Scope set by unit 01's report | **Cannot be written yet** |
+
+**Units 03 onward are deliberately unwritten.** Three of M7's four candidate
+items share the property that we know a cost exists and not what it is:
+`compare_bytes`'s copy is called a doubling in the threat model on the strength
+of reading the code; `cell_map_to_align` clones every `CellValue` in both
+sheets and nobody knows what fraction of peak that is; and cancellation's
+polling granularity is called a gap by RFC-024's status while RFC-012's own
+goal — *"cancellation checks at major pipeline stages"* — arguably describes
+what we already do. That last disagreement cannot be settled by reading either
+document, and is settled in one measurement by timing how long a caller waits.
+
+Unit 01 changes no library code and optimises nothing. Its report's candidates
+section is what units 03+ get scoped from. The mechanism is verified: a
+tracking global allocator works in a bench target, since `#![forbid(unsafe_code)]`
+binds the library crate and not `benches/`.
 
 Large-workbook memory; cancellation granularity (polled per sheet pair, not per
 cell batch as RFC-012 specifies); the shared display address; and **the
