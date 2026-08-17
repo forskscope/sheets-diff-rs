@@ -194,15 +194,35 @@ this is a minor at minimum.
 of M5's three items, because implementing an exit code without testing it would
 be the same defect class M4 exists to remove.
 
-### M5 — "Nothing checks it" *(no release)*
+### M5 — "Nothing checks it" — 🔄 **OPEN 2026-08-17** *(no release)*
 
-Two items after M4 absorbs the third:
+Three units, one property: a rule this project states and nothing verifies.
+Handoffs: [`rfcs/handoffs/m5-nothing-checks-it/`](rfcs/handoffs/m5-nothing-checks-it/README.md).
 
-- No CI check enforces the `println!`/`eprintln!`/`dbg!` prohibition, and no
-  test covers source-path privacy. **NF-015's "the library must not write to
-  stdout/stderr" is enforced by nothing** — M2 made "no network" a build-time
-  property via `deny.toml` bans; the stdout rule never got the same treatment.
-- Encrypted-workbook detection exists with zero test coverage.
+| Unit | Item |
+|---|---|
+| 01 | The stdout/stderr prohibition is enforced by nothing — four RFCs state it, no CI step checks it |
+| 02 | Source-path privacy is untested: non-UTF-8 handling and `display_name` semantics |
+| 03 | Encrypted-workbook detection has zero coverage, and no fixture exists |
+
+**Correction to this entry, 2026-08-17.** It previously attributed the
+stdout/stderr rule to **NF-015**. That is wrong: NF-015 is *no network*, and it
+has been a build-time property since M2 via `deny.toml` bans. The stdout
+prohibition is RFC-016 §"Guarantee no stdout/stderr writes from library core",
+restated by RFC-005, RFC-013 line 82 and RFC-032. Caught while writing the
+handoffs; recorded rather than quietly corrected, since handing the dev team a
+unit citing the wrong requirement is the defect class M4 just closed.
+
+**A second finding from the same reading.**
+`rfcs/done/1.2/006-regression-fixture-and-ci-hardening.md` claims v1.2 delivered
+*"the CI stdout-hygiene check."* It did not — at tag `1.2.0` the only workflow
+is `release-executable.yaml`, and `git grep stdout` across that whole tree
+returns documentation only. An RFC in `done/` records a check that was never
+built, and the rule has been unenforced since. Unit 01 annotates it, because
+unit 01 is what makes the sentence true.
+
+Source is currently clean and detection currently works: **M5 is prevention, not
+remediation.**
 
 ### M6 — "The documentation MUSTs" *(release)*
 
