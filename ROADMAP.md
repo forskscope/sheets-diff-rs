@@ -130,7 +130,13 @@ named.** Remaining owner decisions: merge PR #10, release 2.3.0, then notify
 ForskScope — in that order, since the notification is only honest once the
 release exists.
 
-### M3 — "Real files, and a record that is true" — 🔄 **OPEN 2026-08-16** *(no release)*
+### M3 — "Real files, and a record that is true" — ✅ **COMPLETE 2026-08-16** *(no release)*
+
+*Status corrected 2026-08-17. This line said **OPEN** until then, and had done
+since the milestone actually finished — verified now rather than assumed: the
+corpus is 19 scenarios asserted by `tests/integration.rs`, `rfcs/done/033-…` is
+reconstructed and present, and all 30 RFC statuses were verified in track D. See
+the closing note at the end of this section.*
 
 Agreed jointly 2026-08-16 from
 `.git-exclude/tmp/m3-planning-proposal.md`. Everything here is gated by nothing
@@ -148,7 +154,10 @@ Serial: A before B. **Exit:** the matrix runs in CI with every dimension covered
 or explicitly deferred; RFC-033 exists; every RFC status is verified or
 corrected.
 
-### M4 — "The code contradicts itself" — 🔄 **OPEN 2026-08-17** *(2.4.0)*
+### M4 — "The code contradicts itself" — ✅ **COMPLETE 2026-08-17** *(2.4.0)*
+
+*Status corrected 2026-08-17. This line said **OPEN** until then. All four units
+are merged and 2.4.0 is tagged and published.*
 
 Agreed 2026-08-17 from `.git-exclude/tmp/m4-boundary-proposal.md`. M3's thirteen
 findings plus the earlier M4 sketch were regrouped by **what each item changes
@@ -334,7 +343,7 @@ the convention this file already applies three times over. Worth noting that it
 was caught by needing to state the number to someone outside the project, which
 is a check nothing in CI performs.
 
-### M7 — "Measure, then change" — ✅ **COMPLETE 2026-08-17** *(release pending: 2.5.0)*
+### M7 — "Measure, then change" — ✅ **COMPLETE 2026-08-17** *(2.5.0, published)*
 
 Handoffs: [`rfcs/handoffs/m7-measure-then-change/`](rfcs/handoffs/m7-measure-then-change/README.md).
 
