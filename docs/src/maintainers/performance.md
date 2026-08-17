@@ -138,6 +138,28 @@ callers who opt into `RowKey`, `RowSignature`, or `HeaderColumn` alignment.
 across two row counts before trusting it; the wrong number would have looked
 plausible in isolation. Corrected before this table was written.)*
 
+**Fixed in Handoff 04: the clone is deleted, not reduced.** `cell_map_to_align`
+built a second `BTreeMap` holding an owned `CellValue` clone per cell, purely
+so `align.rs` could call `display_string()` on two of its cells' fields.
+Alignment's functions now take `&CellMap` (the same borrowed map the compare
+loop already holds) instead of the owned copy; `cell_map_to_align` and the
+`AlignCellMap` type alias are gone. Re-run of the same isolation, same
+fixtures, same two row counts (pre-fix numbers above are preserved, not
+overwritten):
+
+| Rows | `Positional` peak | `RowKey` peak | delta | delta as % of `Positional` |
+|---|---:|---:|---:|---:|
+| 500 | 452,782 | 452,782 | 0 | 0.0% |
+| 5,000 | 4,366,990 | 4,366,990 | 0 | 0.0% |
+
+**The delta collapses exactly to zero at both scales** — not just smaller,
+identical to the `Positional` peak — which is the proof of effect this unit's
+handoff asked for: the entire 32.7–33.9% was the clone, nothing else in
+non-`Positional` alignment costs anything measurable against this fixture.
+`Positional`'s own peak is unchanged at both row counts (452,782 and
+4,366,990, matching the pre-fix row exactly), confirming it never paid this
+cost, as expected — `Positional` never called `cell_map_to_align`.
+
 ### Both `CellMap`s resident, vs. calamine's own buffers
 
 **Could not be isolated from each other, or — on the first attempt — from a
@@ -285,9 +307,9 @@ measured size and this report's confidence in the number.
 | Candidate | Measured size | Confidence | Note |
 |---|---|---|---|
 | Remove `compare_bytes`'s copy | +2.6–4.8% of peak at realistic scale (10k+ cells) | High | **Declined 2026-08-17.** Not "the single biggest win available" — Q1 settles this against the threat model's framing. Two routes exist: borrowing needs a lifetime on `OpenedWorkbook` across four modules; accepting an owned `Vec<u8>` needs no lifetime (the internals already take one — only the public `AsRef<[u8]>` bound forces the copy) but must be additive, since `&Vec<u8>` does not satisfy `Into<Vec<u8>>`. The cheap route recovers only the input's ~2.5% share and costs permanent public API. |
-| Reduce `cell_map_to_align`'s clone cost | +33% of peak, linear, confirmed at two scales | High | **Accepted — M7 Handoff 04.** Paid only by non-`Positional` alignment modes; `Positional` (default) unaffected. Alignment only ever calls `display_string()` on these values, so the copy is deletable rather than reducible. |
+| Reduce `cell_map_to_align`'s clone cost | **Done (M7 Handoff 04).** Was +33% of peak, linear, confirmed at two scales; re-measured after the fix at 0.0% — the delta collapses exactly to zero, both scales. | High | Paid only by non-`Positional` alignment modes; `Positional` (default) unaffected, and its own peak did not move. Alignment only ever called `display_string()` on these values, so the copy was deletable rather than reducible — deleted, not reduced. |
 | Reduce peak by not holding both `CellMap`s | Not isolable from calamine's own buffers with external measurement | None — no actionable number | Would need instrumentation inside `src/`, out of this unit's scope. Not recommended as a standalone candidate without a different measurement approach. |
-| RFC-024 §7's density choice (`Sparse`/`Dense`) | +12.4% per-populated-cell for sparse vs. dense at equal populated count | High | **Declined 2026-08-17.** Real, and the smallest structural change available for the largest increase in engine complexity: a density heuristic plus two code paths through the hottest loop in the crate — the loop where every silent-wrong-answer defect this project has fixed lived. Revisit only on a reported memory problem on dense workbooks, and measure again after Handoff 04, which changes what fraction of peak the remaining map is. |
+| RFC-024 §7's density choice (`Sparse`/`Dense`) | +12.4% per-populated-cell for sparse vs. dense at equal populated count | High | **Declined 2026-08-17.** Real, and the smallest structural change available for the largest increase in engine complexity: a density heuristic plus two code paths through the hottest loop in the crate — the loop where every silent-wrong-answer defect this project has fixed lived. Revisit only on a reported memory problem on dense workbooks, and measure again — Handoff 04 landed since this row was written and changed what fraction of peak the remaining map is. |
 | Finer cancellation polling | **Done (M7 Handoff 03).** Was structurally zero for single-sheet workbooks; now polls every 50,000 cells in both phases, ≈95 ms worst case, overhead not measurable above noise. | High | Was the milestone's top priority — "a feature that does not work," not an optimisation. Closed, not deferred further. |
 | Shared display address (G) | N/A | N/A | Not a measurement question — a design one, additive on `#[non_exhaustive]` types. Out of this report's scope entirely. |
 

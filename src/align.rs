@@ -6,8 +6,9 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+use crate::diff::CellMap;
 use crate::model::{
-    CellValue, Diagnostic, DiagnosticKind, DiagnosticLocation, DiffStage, MatchConfidence, Severity,
+    Diagnostic, DiagnosticKind, DiagnosticLocation, DiffStage, MatchConfidence, Severity,
 };
 use crate::options::AlignmentMode;
 
@@ -43,12 +44,6 @@ pub struct RowMapping {
 }
 
 // ---------------------------------------------------------------------------
-// CellMap type alias (mirrors diff.rs internal)
-// ---------------------------------------------------------------------------
-
-pub type AlignCellMap = BTreeMap<(u32, u32), CellValue>;
-
-// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
@@ -63,8 +58,8 @@ pub type AlignCellMap = BTreeMap<(u32, u32), CellValue>;
 /// rows, so this is a conservative (never-too-low) estimate of the LCS
 /// matrix a mode would allocate.
 pub fn compute_row_mapping(
-    old_cells: &AlignCellMap,
-    new_cells: &AlignCellMap,
+    old_cells: &CellMap,
+    new_cells: &CellMap,
     mode: &AlignmentMode,
     max_alignment_product: Option<u64>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -123,7 +118,7 @@ pub fn compute_row_mapping(
 }
 
 /// Number of distinct 1-based row indices with at least one cell present.
-fn distinct_row_count(cells: &AlignCellMap) -> u64 {
+fn distinct_row_count(cells: &CellMap) -> u64 {
     cells.keys().map(|(r, _)| *r).collect::<BTreeSet<_>>().len() as u64
 }
 
@@ -132,8 +127,8 @@ fn distinct_row_count(cells: &AlignCellMap) -> u64 {
 // ---------------------------------------------------------------------------
 
 fn row_key_alignment(
-    old_cells: &AlignCellMap,
-    new_cells: &AlignCellMap,
+    old_cells: &CellMap,
+    new_cells: &CellMap,
     key_cols: &[u32],
     diagnostics: &mut Vec<Diagnostic>,
 ) -> RowMapping {
@@ -175,8 +170,8 @@ fn row_key_alignment(
 // ---------------------------------------------------------------------------
 
 fn row_signature_alignment(
-    old_cells: &AlignCellMap,
-    new_cells: &AlignCellMap,
+    old_cells: &CellMap,
+    new_cells: &CellMap,
     sample_cols: Option<&[u32]>,
     _diagnostics: &mut Vec<Diagnostic>,
 ) -> RowMapping {
@@ -190,8 +185,8 @@ fn row_signature_alignment(
 // ---------------------------------------------------------------------------
 
 fn header_column_alignment(
-    old_cells: &AlignCellMap,
-    new_cells: &AlignCellMap,
+    old_cells: &CellMap,
+    new_cells: &CellMap,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> RowMapping {
     // Treat row 1 as the header; use the header values as column identity.
@@ -286,26 +281,23 @@ fn lcs_match(old_seq: BTreeMap<u32, RowKey>, new_seq: BTreeMap<u32, RowKey>) -> 
 
 type RowKey = Vec<String>;
 
-fn extract_row_keys(cells: &AlignCellMap, key_cols: &[u32]) -> BTreeMap<u32, RowKey> {
+fn extract_row_keys(cells: &CellMap, key_cols: &[u32]) -> BTreeMap<u32, RowKey> {
     let mut rows: BTreeMap<u32, RowKey> = BTreeMap::new();
     for col in key_cols {
         // Collect all rows that have a value in this key column.
-        for ((r, c), val) in cells {
+        for ((r, c), cell) in cells {
             if c == col {
                 let entry = rows.entry(*r).or_default();
-                entry.push(val.display_string());
+                entry.push(cell.value.display_string());
             }
         }
     }
     rows
 }
 
-fn compute_row_signatures(
-    cells: &AlignCellMap,
-    sample_cols: Option<&[u32]>,
-) -> BTreeMap<u32, RowKey> {
+fn compute_row_signatures(cells: &CellMap, sample_cols: Option<&[u32]>) -> BTreeMap<u32, RowKey> {
     let mut rows: BTreeMap<u32, RowKey> = BTreeMap::new();
-    for ((r, c), val) in cells {
+    for ((r, c), cell) in cells {
         if let Some(cols) = sample_cols
             && !cols.contains(c)
         {
@@ -313,7 +305,7 @@ fn compute_row_signatures(
         }
         rows.entry(*r)
             .or_default()
-            .push(format!("{c}:{}", val.display_string()));
+            .push(format!("{c}:{}", cell.value.display_string()));
     }
     rows
 }
@@ -336,10 +328,17 @@ fn find_duplicate_keys(keys: &BTreeMap<u32, RowKey>) -> Vec<RowKey> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::diff::NormalizedCell;
+    use crate::model::CellValue;
 
-    fn make_cells(data: &[(u32, u32, &str)]) -> AlignCellMap {
+    fn make_cells(data: &[(u32, u32, &str)]) -> CellMap {
         data.iter()
-            .map(|(r, c, v)| ((*r, *c), CellValue::Text(v.to_string())))
+            .map(|(r, c, v)| {
+                (
+                    (*r, *c),
+                    NormalizedCell::for_test(CellValue::Text(v.to_string())),
+                )
+            })
             .collect()
     }
 

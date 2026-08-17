@@ -22,6 +22,24 @@
   checkpoint. **No library code changed to produce this report** — `src/`
   is untouched; this unit measures only, and scopes M7's remaining units.
 
+### Changed
+
+- **Peak memory for non-`Positional` comparisons drops materially — the
+  alignment clone is deleted, not reduced (M7 Handoff 04).** `RowKey`,
+  `RowSignature`, and `HeaderColumn` alignment modes previously cloned every
+  `CellValue` in both sheets into a second `BTreeMap` (`cell_map_to_align`),
+  measured at +33% of peak, purely so alignment could read
+  `display_string()` off two cells' worth of values. Alignment now borrows
+  the same `CellMap` the compare loop already holds; `cell_map_to_align` and
+  the private `AlignCellMap` type alias are gone. Re-measured with the same
+  isolation unit 01 used: the delta collapses from 32.7–33.9% of
+  `Positional` peak to 0.0% at both row counts tested (500 and 5,000 rows) —
+  see `docs/src/maintainers/performance.md`. **No observable result
+  differs** — same diff results, same row mappings, same diagnostics, fixture
+  corpus byte-identical; `Positional` comparisons (the default) were never
+  affected and their peak is unchanged. No public API change: `mod align`
+  remains private.
+
 ### Fixed
 
 - **A comparison that previously ran to completion despite a cancellation
