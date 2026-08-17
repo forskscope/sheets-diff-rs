@@ -1,6 +1,54 @@
 # Changelog
 
-## [Unreleased]
+## [2.4.0] - 2026-08-17
+
+**Truth-telling release.** Every change here closes a gap between what this
+crate said about itself and what it did. The CLI gained the exit code RFC-013
+specified from the start and never emitted; `DiffMetrics.cells_compared` began
+counting what its name and its 2.2.3 changelog entry both claimed;
+`max_cells_compared` began bounding the resource it names rather than the one
+`max_diffs_returned` already bounds; and the threat model stopped promising a
+protection that limit was not providing. Source comments describing types that
+were never built, and version anchors naming releases that had passed, are gone.
+
+**Two compatibility events, both in `### Changed`** — the CLI exit-code change
+and `max_cells_compared`'s enforcement. Neither is a library API break; both
+can change what a consumer observes. Read that section before upgrading.
+
+The comparison engine is untouched: no cell, sheet, alignment or diagnostic
+result differs from 2.3.0. `DiffMetrics.cells_compared` does differ — it was
+wrong — which moved 13 fixture goldens in that field alone.
+
+### Added
+
+- **The fixture corpus grew from 7 to 18 scenarios**, closing every gap
+  ranked 1–5 by consequence in RFC-030 Handoff 01's coverage-dimension
+  report (RFC-036). Each new scenario carries a dedicated assertion, not
+  only a golden — RFC-036 §5.1 defines "covered" as an assertion that would
+  fail if the behaviour broke, precisely because a golden alone cannot
+  detect having been *born* wrong, which is what happened to the `formula`
+  fixture for over a year. New coverage: row/formula origins shifted below
+  row 1 (plus the D-04 negative control where the origins coincide);
+  `AlignmentMode::RowSignature` and `HeaderColumn`, previously exercised by
+  no test at any level; `CellError` comparison and
+  `ValueDifferenceKind::ErrorKindChanged`, also previously untested at any
+  level; `SheetChange::Moved`, never before distinguished from `Unchanged`
+  by any assertion; ordinary serial-based dates in the golden corpus for
+  the first time, despite dates being where four M2 defects lived; non-ASCII
+  sheet names and cell text; a chart sheet beside a worksheet; a
+  physically-present-but-empty leading cell (confirmed not to anchor the
+  range origin, matching calamine's read source); and the ISO-datetime
+  reachability case promoted from a hand-built test into a durable corpus
+  trip-wire. Full matrix and the standing coverage obligation this creates
+  for future changes to `normalize.rs`/`compare.rs`/`align.rs`/`diff.rs`:
+  [`tests/fixtures/corpus/README.md`](tests/fixtures/corpus/README.md).
+- `examples/gen-fixtures.rs` gained a `patch_xlsx_xml` helper (duplicated
+  from `tests/support.rs`, consistent with the generator's existing
+  independence from anything under `tests/`) for the two new scenarios
+  `rust_xlsxwriter`'s public API cannot produce directly.
+
+No comparison behaviour changed. This is test-corpus and test-infrastructure
+work only; `src/` is untouched.
 
 ### Changed
 
@@ -49,36 +97,47 @@
   `LimitExceeded { observed, .. }` now reports the coordinate count, not a
   diff count, for this limit.
 
-### Added
+### Fixed
 
-- **The fixture corpus grew from 7 to 18 scenarios**, closing every gap
-  ranked 1–5 by consequence in RFC-030 Handoff 01's coverage-dimension
-  report (RFC-036). Each new scenario carries a dedicated assertion, not
-  only a golden — RFC-036 §5.1 defines "covered" as an assertion that would
-  fail if the behaviour broke, precisely because a golden alone cannot
-  detect having been *born* wrong, which is what happened to the `formula`
-  fixture for over a year. New coverage: row/formula origins shifted below
-  row 1 (plus the D-04 negative control where the origins coincide);
-  `AlignmentMode::RowSignature` and `HeaderColumn`, previously exercised by
-  no test at any level; `CellError` comparison and
-  `ValueDifferenceKind::ErrorKindChanged`, also previously untested at any
-  level; `SheetChange::Moved`, never before distinguished from `Unchanged`
-  by any assertion; ordinary serial-based dates in the golden corpus for
-  the first time, despite dates being where four M2 defects lived; non-ASCII
-  sheet names and cell text; a chart sheet beside a worksheet; a
-  physically-present-but-empty leading cell (confirmed not to anchor the
-  range origin, matching calamine's read source); and the ISO-datetime
-  reachability case promoted from a hand-built test into a durable corpus
-  trip-wire. Full matrix and the standing coverage obligation this creates
-  for future changes to `normalize.rs`/`compare.rs`/`align.rs`/`diff.rs`:
-  [`tests/fixtures/corpus/README.md`](tests/fixtures/corpus/README.md).
-- `examples/gen-fixtures.rs` gained a `patch_xlsx_xml` helper (duplicated
-  from `tests/support.rs`, consistent with the generator's existing
-  independence from anything under `tests/`) for the two new scenarios
-  `rust_xlsxwriter`'s public API cannot produce directly.
+- **`DiffMetrics.cells_compared` now counts what it claims to (M4).** It
+  previously equalled `cells_changed` exactly, always — a dead `filter(...)`
+  term in its accumulation formula could never contribute, so every
+  compared-but-unchanged coordinate went uncounted. It is now accumulated
+  where the comparison actually happens (once per coordinate in the
+  aligned/positional coordinate set built in `build_sheet_diff`, regardless
+  of whether that coordinate produces a diff), so it is always
+  `>= diffs_emitted` rather than always equal to it. **2.2.3's changelog
+  entry claiming this was already fixed is true as of this release; it was
+  not true when written** (flagged wrong in M2 unit 06's audit; this closes
+  that annotation). `cells_read` and `diffs_emitted` were checked and are
+  unaffected — both were already counting correctly.
 
-No comparison behaviour changed. This is test-corpus and test-infrastructure
-work only; `src/` is untouched.
+  This changes `DiffMetrics.cells_compared`'s value for any comparison with
+  at least one compared-but-unchanged cell — which is the normal case. The
+  fixture corpus moved accordingly: 13 goldens changed, each in exactly the
+  `cells_compared` field and nothing else.
+
+- **Defensive: an I/O failure while reading a sheet would have reported as a
+  corrupt workbook (M4).** **No released version could reach this path, and
+  no user was affected** — the workbook reader is `Xlsx<Cursor<Vec<u8>>>`
+  (input is fully drained before any parsing begins), so sheet reads touch no
+  I/O and `XlsxError::Io` cannot arise at that stage. The fix is forward-
+  looking, recorded because the misclassification was real and would have
+  become user-visible the moment that stopped being true.
+
+  `classify_read_error`'s catch-all routed every `calamine::XlsxError` other
+  than `WorksheetNotFound` to `ReadErrorKind::MalformedSheet`, including
+  `XlsxError::Io` — an I/O failure part-way through a read has nothing to do
+  with the workbook's own content, and combined with the CLI's exit-code-3
+  change (above) it would have told a user their file was corrupt when
+  nothing was wrong with it. `XlsxError::Io` now classifies as
+  `ReadErrorKind::Other`; `exit_code_for` maps `ReadSheet`'s sub-kinds
+  individually rather than wholesale, with `Other` conservatively exiting 2
+  rather than 3 — the same default already applied to `OpenErrorKind::Other`.
+  **This changes which `ReadErrorKind` variant a given input can produce**
+  (a `#[non_exhaustive]` public enum) — existing `match` arms compile
+  unchanged since they must already have a catch-all, but the value observed
+  for this input class changes.
 
 ### Documentation
 
@@ -103,42 +162,6 @@ work only; `src/` is untouched.
   variants without an implemented normaliser.
 
 No behaviour changed; these are documentation-only corrections.
-
-### Fixed
-
-- **`DiffMetrics.cells_compared` now counts what it claims to (M4).** It
-  previously equalled `cells_changed` exactly, always — a dead `filter(...)`
-  term in its accumulation formula could never contribute, so every
-  compared-but-unchanged coordinate went uncounted. It is now accumulated
-  where the comparison actually happens (once per coordinate in the
-  aligned/positional coordinate set built in `build_sheet_diff`, regardless
-  of whether that coordinate produces a diff), so it is always
-  `>= diffs_emitted` rather than always equal to it. **2.2.3's changelog
-  entry claiming this was already fixed is true as of this release; it was
-  not true when written** (flagged wrong in M2 unit 06's audit; this closes
-  that annotation). `cells_read` and `diffs_emitted` were checked and are
-  unaffected — both were already counting correctly.
-
-  This changes `DiffMetrics.cells_compared`'s value for any comparison with
-  at least one compared-but-unchanged cell — which is the normal case. The
-  fixture corpus moved accordingly: 13 goldens changed, each in exactly the
-  `cells_compared` field and nothing else.
-
-- **A disk or filesystem I/O failure while reading a sheet no longer
-  reports as a corrupt workbook (M4).** `classify_read_error`'s catch-all
-  routed every `calamine::XlsxError` other than `WorksheetNotFound` to
-  `ReadErrorKind::MalformedSheet`, including `XlsxError::Io` — an I/O
-  failure part-way through a read has nothing to do with the workbook's own
-  content, and as of the CLI's exit-code-3 change (above) this
-  misclassification would have told a user their file was corrupt when
-  nothing was wrong with it. `XlsxError::Io` now classifies as
-  `ReadErrorKind::Other`; `exit_code_for` maps `ReadSheet`'s sub-kinds
-  individually rather than wholesale, with `Other` conservatively exiting 2
-  rather than 3 — the same default already applied to `OpenErrorKind::Other`.
-  **This changes which `ReadErrorKind` variant a given input can produce**
-  (a `#[non_exhaustive]` public enum) — existing `match` arms compile
-  unchanged since they must already have a catch-all, but the value observed
-  for this input class changes.
 
 ## [2.3.0] - 2026-08-16
 
