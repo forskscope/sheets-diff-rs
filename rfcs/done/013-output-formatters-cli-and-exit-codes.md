@@ -1,6 +1,6 @@
 # RFC-013: Output Formatters, CLI, and Exit Codes
 
-**Status.** Partially implemented (2.0.0–2.2.3) — verified 2026-08-16. Deferred: exit code 3 (invalid/corrupt input) is never emitted — `src/main.rs` uses exit code 2 for both invalid CLI options and comparison errors; no exit code 3 exists anywhere in the CLI.
+**Status.** Implemented (2.0.0–2.4.x) — verified 2026-08-16; the deferral closed 2026-08-17 (M4 Handoff 03). Exit code 3 is emitted for invalid/corrupt input: `exit_code_for` in `src/main.rs` maps `OpenWorkbook{NotXlsx|Corrupt}`, `ReadSheet{SheetNotFound|MalformedSheet}`, `UnsupportedFormat` and `EncryptedWorkbook` to 3, narrowing 2 to environment, caller, limit and internal errors. Covered by six subprocess tests in `tests/cli.rs`.
 **Target:** v2.0.0  
 **Created:** 2026-06-11  
 **Category:** Output/CLI  

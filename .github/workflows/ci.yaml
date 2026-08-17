@@ -87,6 +87,13 @@ jobs:
       - name: cargo check --all-features at MSRV
         run: cargo check --all-features
 
+      # M6 Handoff 01 review, F-N: `cargo check` never builds doctests, so
+      # docs/'s examples were compiled against stable and never against the
+      # declared floor. Additional step, not a replacement -- this job's
+      # purpose (does the crate build at 1.88) stays intact.
+      - name: cargo test --doc --all-features at MSRV
+        run: cargo test --doc --all-features
+
   # ---------------------------------------------------------------------------
   # lint — a gate, not advice. No #[allow(...)] silencing; findings get fixed
   # or reported (RFC-034 §5.4, prohibited shortcuts).

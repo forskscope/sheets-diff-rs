@@ -1,6 +1,6 @@
 # RFC-015: Test Fixtures, Regression, and Property Testing
 
-**Status.** Partially implemented (2.0.0–2.2.3) — verified 2026-08-16. Deferred: CLI exit-code behavior has no subprocess test — `tests/integration.rs` contains no `Command::new`/`assert_cmd` invocation of the built binary.
+**Status.** Implemented (2.0.0–2.4.x) — verified 2026-08-16; the deferral closed 2026-08-17 (M4 Handoff 03, extended by M5 Handoff 03). `tests/cli.rs` invokes the built binary via `Command::new(env!("CARGO_BIN_EXE_sheets-diff"))` and pins every exit code the CLI can produce — 0, 1, 2 (from two distinct sources) and 3 (corrupt input, and encrypted workbooks).
 **Target:** v2.0.0 release gate  
 **Created:** 2026-06-11  
 **Category:** Testing  

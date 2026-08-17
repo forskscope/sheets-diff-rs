@@ -25,13 +25,20 @@
   gate's own `-D warnings` failure message suggests its own bypass —
   `#[allow(clippy::disallowed_macros)]` on the offending function silenced
   it and the gate exited 0, found during this gate's own review. `forbid`
-  turns that attempt into `error[E0453]`, a hard compile error an inner
-  `#[allow]` cannot downgrade; `deny` would not have. Demonstrated with the
-  same attribute against a deliberate `println!`, reverted. Costs nothing
-  elsewhere: with no config loaded outside the scoped gate, these two lints
-  have no configured paths, so `cargo build --all-features` and the
-  unscoped `cargo clippy --all-targets --all-features -- -D warnings` both
-  still pass unchanged.
+  turns that attempt into `error[E0453]` under any `cargo clippy`
+  invocation — the `forbid`/`allow` conflict is resolved by the compiler
+  before lint configuration is consulted, so it fires whether or not the
+  scoped gate's `disallowed_macros`/`disallowed_methods` paths are loaded,
+  and an inner `#[allow]` cannot downgrade it; `deny` would not have.
+  Demonstrated with the same attribute against a deliberate `println!`,
+  reverted. **`cargo build` alone does not catch it** — `rustc` does not
+  evaluate `clippy::` tool-lint level conflicts when clippy is not the
+  driver, so a build without clippy in the loop would still succeed with
+  the bypass in place; the protection is clippy-scoped, not build-wide.
+  Costs nothing where it doesn't apply: with no config loaded outside the
+  scoped gate, `cargo build --all-features` and the unscoped `cargo
+  clippy --all-targets --all-features -- -D warnings` both still pass
+  unchanged on a clean tree.
 
   **Indirection through a named function pointer is caught, not a gap.**
   `let f: fn() -> std::io::Stdout = std::io::stdout;` still fires
@@ -118,6 +125,122 @@
   introduced reference to a nonexistent field failed
   `cargo test --doc` with `error[E0609]`, reverted.
 
+- **NF-024 met: a new API guide, `docs/src/api-guide.md` (M6).** Linked
+  from `SUMMARY.md` and the docs index. All five required categories, each
+  with a compiled example: **path** (`compare_paths`), **reader**
+  (`compare_readers`), **bytes** (`compare_bytes` — including its real,
+  current cost: `to_vec()` roughly doubles peak memory over the path/reader
+  routes, which don't hold the caller's original buffer alongside their own
+  copy), **options** (`DiffOptions::builder()`, including
+  `.limits(Limits::hardened())` — `DiffOptions::default()` leaves every
+  linear bound unset, and an options example that never shows a limit
+  being set is the gap that let untrusted input run unbounded before M2;
+  links to the threat model rather than restating its reasoning), and
+  **formatter** (`render_summary`/`render_unified`, always available, plus
+  `output::json::to_json`/`to_json_pretty` behind the `serde` feature, gate
+  stated explicitly in prose). A dedicated error-handling example shows
+  matching `SheetsDiffError` variants and `DiagnosticKind::code()` — every
+  other example `unwrap()`s for brevity, which this one calls out rather
+  than leaving implicit. 7 compiled examples, all `no_run`
+  (`#[non_exhaustive]` model types can't be built by struct literal outside
+  the crate, so a real, uncalled entry-point call is the only way to get a
+  typed value to show field access on); one demonstrated failing
+  (`error[E0609]` on a nonexistent field, reverted) to confirm this page —
+  not just the migration guide unit 01 covered — is genuinely checked. The
+  `serde` JSON example only type-checks on the `serde` and
+  `serde+chrono+cli` legs (2 of 5 `test`-job feature combinations, ×2
+  platforms) — expected, since `output::json` doesn't exist without the
+  feature; it compiles to an empty stub on the other three rather than
+  silently going unchecked.
+
+  **Also closes the MSRV doctest gap** flagged reviewing unit 01
+  (`.github/workflows/ci.yaml`): the `msrv` job now also runs
+  `cargo test --doc --all-features`, as an additional step alongside its
+  existing `cargo check` — confirmed locally against the pinned 1.88.0
+  toolchain before relying on CI to catch anything: all 19 doctests
+  (migration guide + this page + pre-existing) pass identically to stable,
+  no MSRV-only failure found.
+
+- **NF-026 met, NF-027 addressed: `docs/src/semantics.md` and
+  `docs/src/non-goals.md` (M6).** Both linked from `SUMMARY.md` and the
+  docs index.
+
+  **Semantics** (NF-027): one worked example per named scenario — typed
+  value change, formula change, sheet rename, inserted row, warning
+  handling — each run for real (not merely compiled) against a fixture
+  already committed to `tests/fixtures/generated/`, with `assert_eq!` on
+  the actual observed output rather than a description of expected output.
+  5 examples, all executing, none `no_run` — no new file or dependency was
+  needed, since referencing an already-committed corpus fixture by its
+  real relative path lets a doctest genuinely run to completion in the
+  same sandbox `cargo test` already uses. The inserted-row example states
+  its `AlignmentMode` explicitly and runs the *same* fixture pair under
+  both `Positional` (default: 12 cells cascade) and `RowSignature` (2
+  cells — only the real insertion) to make the contrast a checked number,
+  not an assertion in prose. Warning handling runs a fixture producing
+  real `Diagnostic` entries alongside a real cell change, showing a
+  comparison can succeed while reporting them. Demonstrated one example
+  failing at runtime — not just failing to compile — when a deliberately
+  wrong expected value was substituted (`assertion left == right failed:
+  left: 1, right: 999`), reverted.
+
+  **Non-goals and limitations** (NF-026): non-goals (cell formatting,
+  decryption, formula evaluation, writing/merging, non-`.xlsx` formats)
+  marked deliberate where they are. Limitations split into three kinds —
+  upstream (`CellNumberFormat`, unexposed object categories), deliberate
+  deferral (`Deserialize`, `FormatChange`, `WorkbookChange`, and —
+  distinguished from the upstream-unavailable group above, since the cause
+  is different — hyperlinks/merged-regions/tables/pivot-tables, which
+  calamine 0.36 *does* expose but this crate doesn't yet call those APIs
+  for), and unreachable-by-construction (`CellValue::Integer`/`Duration`/
+  `Unsupported`, `ReadErrorKind::Other`) — reusing M4 unit 01's and M5
+  unit 04's established wording rather than restating it differently. The
+  resource-limits section links the threat model rather than duplicating
+  it, and states M4 unit 04's compatibility consequence directly. An
+  eleven-RFC table (not thirteen — see below) names each partially-shipped
+  RFC's specific remaining gap in one line, linking the RFC's own Status
+  field as the authoritative source. This page has no Rust code blocks —
+  it's a reference inventory, not a usage guide, so nothing needed
+  harness coverage; the harness inclusion is present for any future block.
+
+  **Five contradictions found assembling the inventory, none fixed here**
+  (out of this unit's non-change scope; recorded in the page itself under
+  "Corrections found writing this page" and here): RFC-013's and RFC-015's
+  Status lines both still describe gaps M4 unit 03 already closed (exit
+  code 3; the CLI subprocess test) — stale since 2.4.0. RFC-017's Status
+  line still says the migration guide's code blocks are "not compiled or
+  verified anywhere" — false since M6 unit 01. RFC-021's Status line still
+  says `meta.rs`'s comments "incorrectly claim" `WorkbookMetadataMode`
+  works — those comments were removed in M4 unit 01; the underlying gap is
+  still real, the false-comment clause is not. And this milestone's own
+  README claims "thirteen partially-implemented RFCs" — M5 closed two
+  (016, 032) after that was written; the current, re-verified count is
+  eleven.
+
+### Documentation
+
+- **All five `DiffMetrics` fields and all three `ReadErrorKind` variants
+  now carry doc comments (M6).** `cells_compared` was the only documented
+  `DiffMetrics` field (M4 unit 02); the other four had none, and
+  `cells_read` is the one that misleads by omission: it counts every
+  physically visited cell **including empty ones inside the used range**,
+  not cells with content — on `sparse_range` it reads 5200 against
+  `cells_compared`'s 2. Re-derived the stated relationship
+  (`cells_read >= cells_compared >= diffs_emitted`) against all 19 corpus
+  fixtures rather than copying it from a prior review: **0 violations**,
+  `sparse_range`'s 5200/2/1 matching exactly. `ReadErrorKind` gained a doc
+  comment on every variant: `SheetNotFound` now records the contingency
+  M4 unit 03's review established — its exit-code-3 mapping is sound only
+  because the CLI has no sheet-selection flag, and a caller matching on
+  the variant wouldn't otherwise read that from `main.rs`; `Other` states
+  plainly that it cannot currently occur, why (the workbook reader is
+  cursor-backed, so sheet reads touch no I/O), and that it's retained as a
+  conservative default rather than a live case — reusing M4 unit 01's
+  established wording for exactly this shape of finding, rather than
+  inventing new phrasing for the same fact. No behaviour, signature, or
+  variant change; `cargo doc --all-features` (including with
+  `RUSTDOCFLAGS="-D warnings"`) produces no new warnings.
+
 ## [2.4.0] - 2026-08-17
 
 **Truth-telling release.** Every change here closes a gap between what this
@@ -160,6 +283,12 @@ wrong — which moved 13 fixture goldens in that field alone.
   trip-wire. Full matrix and the standing coverage obligation this creates
   for future changes to `normalize.rs`/`compare.rs`/`align.rs`/`diff.rs`:
   [`tests/fixtures/corpus/README.md`](tests/fixtures/corpus/README.md).
+  **Correction (M6 Handoff 05, 2026-08-17):** the corpus grew to **19**
+  scenarios, not 18 — `ls tests/fixtures/generated | wc -l` returns 19
+  today, independently re-derived rather than taken from the finding that
+  caught it. Wrong when this entry was written and shipped in 2.4.0, not
+  overtaken since; annotated rather than rewritten, per this project's
+  convention for a tagged, published entry.
 - `examples/gen-fixtures.rs` gained a `patch_xlsx_xml` helper (duplicated
   from `tests/support.rs`, consistent with the generator's existing
   independence from anything under `tests/`) for the two new scenarios
