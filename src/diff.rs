@@ -37,6 +37,18 @@ type CellMap = BTreeMap<(u32, u32), NormalizedCell>;
 /// A sheet's normalised cells plus its used-range bounds (1-based, inclusive).
 type SheetReadResult = (CellMap, Option<(u32, u32)>, Option<(u32, u32)>);
 
+/// Mid-sheet cancellation polling interval, in cells (M7 Handoff 03).
+///
+/// Derived from a stated target latency, not chosen arbitrarily: unit 01
+/// measured ~1.9 microseconds/cell for a full sheet-pair pass (300,000
+/// cells in ~567 ms — `docs/src/maintainers/performance.md`, Q4). Targeting
+/// 100 ms worst-case latency between a cancellation request and the next
+/// checkpoint (the threshold at which a UI action reads as instantaneous)
+/// gives 100,000 / 1.9 ≈ 52,631 cells; rounded down to a plain number
+/// comfortably under that budget — 50,000 cells is ≈ 95 ms worst case at
+/// the measured per-cell rate.
+const CANCEL_POLL_INTERVAL: u64 = 50_000;
+
 /// Build a value-only map for alignment (avoids cloning formulas).
 fn cell_map_to_align(cells: &CellMap) -> AlignCellMap {
     cells.iter().map(|(k, v)| (*k, v.value.clone())).collect()
@@ -469,7 +481,15 @@ fn build_sheet_diff(
         formula: None,
     };
 
-    for key in &coords {
+    for (compare_idx, key) in coords.iter().enumerate() {
+        // Mid-sheet cancellation checkpoint (M7 Handoff 03). Polled on an
+        // interval, not every iteration — `is_cancelled()` is a dynamic
+        // trait call, and per-cell polling on a 300,000-cell sheet is
+        // 300,000 virtual calls. `check_cancel` itself short-circuits to a
+        // cheap `Option` check when no `Cancellation` is configured.
+        if (compare_idx as u64 + 1).is_multiple_of(CANCEL_POLL_INTERVAL) {
+            check_cancel(opts)?;
+        }
         // `old_lookup`/`new_lookup` are `None` when that side genuinely has
         // no counterpart for this coordinate (never a numeric fallback that
         // could accidentally hit an unrelated row — the D-03 defect).
@@ -592,8 +612,18 @@ fn read_sheet_cells(
     // top-left corner of the used range is range.start().
     let origin = range.start().unwrap_or((0, 0));
 
+    // Local to this call (this side of this sheet), not the cumulative
+    // `total_cells_read` accumulator below — a mid-sheet cancellation
+    // checkpoint every `CANCEL_POLL_INTERVAL` cells (M7 Handoff 03).
+    let mut read_poll_count: u64 = 0;
+
     for (row_idx, row) in range.rows().enumerate() {
         for (col_idx, cell) in row.iter().enumerate() {
+            read_poll_count += 1;
+            if read_poll_count.is_multiple_of(CANCEL_POLL_INTERVAL) {
+                check_cancel(opts)?;
+            }
+
             // max_cells_read limit
             *total_cells_read += 1;
             if let Some(max) = opts.limits.max_cells_read

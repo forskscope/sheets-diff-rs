@@ -330,13 +330,24 @@ impl<F: FnMut(DiffEvent) + Send> ProgressSink for F {
 ///
 /// # Cancellation latency
 ///
-/// `is_cancelled()` is polled **once before each sheet pair** is processed.
-/// On a workbook with many sheets, cancellation is observed promptly. On a
-/// single very large sheet, cancellation is **not** observed mid-sheet in the
-/// current implementation — it fires before the next sheet begins. If you need
-/// sub-sheet cancellation latency for huge single-sheet workbooks, also set a
-/// `max_cells_read` / `max_cells_compared` bound so the diff returns within a
-/// predictable amount of work.
+/// `is_cancelled()` is polled once before each sheet pair, **and** at an
+/// interval inside a sheet's own processing — every 50,000 cells, in both
+/// the read phase and the compare phase. On the largest single sheet this
+/// crate's own benchmark ladder covers (300,000 cells), that bounds
+/// worst-case latency to roughly 100 ms; see `docs/src/maintainers/performance.md`
+/// for the measured overhead of this polling, with and without a
+/// `Cancellation` configured.
+///
+/// **This changed in M7 Handoff 03.** Before it, `is_cancelled()` was polled
+/// **only** once before each sheet pair — on a workbook with many sheets,
+/// cancellation was observed promptly at the next sheet boundary, but on a
+/// single sheet (the ordinary shape of a spreadsheet) there was no next
+/// checkpoint, so a comparison ran to completion and returned `Ok` no matter
+/// when cancellation was requested. That gap is closed: a single-sheet
+/// workbook large enough to cross a polling interval is now cancellable
+/// mid-sheet, in both phases. Setting a `max_cells_read` / `max_cells_compared`
+/// bound remains useful for a hard resource ceiling, but is no longer the
+/// only way to get sub-sheet cancellation latency.
 pub trait Cancellation: Send + Sync {
     fn is_cancelled(&self) -> bool;
 }

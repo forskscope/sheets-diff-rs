@@ -1,14 +1,18 @@
 # Performance: measured, not inferred
 
-M7 Handoff 01. Four questions about memory and cancellation latency had been
-reasoned about from reading the code, never measured. This page reports what
-measuring them actually found — including two places the reasoning was
-wrong, and one place a measurement attempt itself had to be discarded and
-redone once the numbers didn't make sense.
+M7 Handoff 01, updated by Handoff 03. Four questions about memory and
+cancellation latency had been reasoned about from reading the code, never
+measured. This page reports what measuring them actually found — including
+two places the reasoning was wrong, and one place a measurement attempt
+itself had to be discarded and redone once the numbers didn't make sense.
 
-**No library code changed to produce this report.** `src/` is untouched;
-finding a defect while measuring would be a finding for a later unit, not
-something to fix here — none was found, but the discipline held regardless.
+**Handoff 01 changed no library code to produce this report** — `src/` was
+untouched; finding a defect while measuring was a finding for a later unit,
+not something to fix in that unit, and Q4 found exactly such a defect (see
+below). **Handoff 03 is that later unit**: it changed `src/diff.rs` to close
+the gap Q4 found, and this page's Q4 section and Candidates table are
+updated accordingly, with the original (pre-fix) findings kept rather than
+silently overwritten.
 
 ---
 
@@ -54,9 +58,10 @@ match, not an approximation.
   allocator-internal (arena/alignment) nondeterminism that only becomes
   visible at the largest working-set size measured; not investigated
   further since it does not affect any number that matters here. **Wall-clock
-  timing (Q4 only) is not reproducible to the byte** — it varied roughly
-  1.5% run to run, expected for a timed operation and reported as a range,
-  not a single number.
+  timing (Q4, and Handoff 03's polling-overhead measurement) is not
+  reproducible to the byte** — it varied roughly 1.5% run to run, expected
+  for a timed operation and reported as a range or an average of repeated
+  runs, not a single number.
 - The size ladder spans **1,000 to 300,000 cells** (2.5 orders of magnitude).
   Nothing below is extrapolated beyond that range — a real workbook far
   outside it (Excel's own ceiling is roughly 17 billion cells per sheet)
@@ -207,25 +212,75 @@ different and more clear-cut gap than "polling could be finer" — it is
 "polling does not exist at all, for the single most common shape of
 workbook" (one sheet is the common case, not the exception).
 
-**Recommendation:** RFC-024's status calls the current granularity a gap
-against acceptance criteria specifying row chunks or cell batches; RFC-012's
-own goal ("cancellation checks at major pipeline stages") arguably already
-covers a sheet pair. That disagreement is close to moot next to the
-single-sheet finding above, which neither document anticipated: **pursue
-finer-grained cancellation, scoped to at minimum restoring a checkpoint
-reachable within a single sheet's processing** — not primarily because
-~565 ms is unacceptable on its own (it is closer to the "non-issue" end of
-what would justify this), but because zero observability for single-sheet
-workbooks is a materially different and more serious characterization of
-the gap than either RFC currently states.
+**Recommendation (Handoff 01, at the time):** RFC-024's status calls the
+current granularity a gap against acceptance criteria specifying row chunks
+or cell batches; RFC-012's own goal ("cancellation checks at major pipeline
+stages") arguably already covers a sheet pair. That disagreement is close to
+moot next to the single-sheet finding above, which neither document
+anticipated: **pursue finer-grained cancellation, scoped to at minimum
+restoring a checkpoint reachable within a single sheet's processing** — not
+primarily because ~565 ms is unacceptable on its own (it is closer to the
+"non-issue" end of what would justify this), but because zero observability
+for single-sheet workbooks is a materially different and more serious
+characterization of the gap than either RFC currently states.
+
+### Fixed in Handoff 03: mid-sheet polling, and its measured cost
+
+**The gap above is closed.** `read_sheet_cells`'s row loop (`src/diff.rs:615`)
+and `build_sheet_diff`'s coordinate loop (`src/diff.rs:472`) each now poll
+`is_cancelled()` on an interval, not just once per sheet pair. The same
+15,000×20 single-sheet workbook, same cancel-after-first-poll policy, now
+returns **`Err(Cancelled)`** — re-run, not just asserted:
+
+```
+single-sheet workbook (15000x20), same cancel-after-first-poll policy:
+  result=Cancelled -- observed mid-sheet, via the new interval checkpoint
+```
+
+**Interval, derived from a stated target latency, not chosen arbitrarily:**
+targeting 100 ms worst-case latency between a cancellation request and the
+next checkpoint (the threshold at which a UI action reads as instantaneous),
+against Handoff 01's own measured ~1.9 µs/cell budget (300,000 cells in
+~567 ms), gives 100,000 / 1.9 ≈ 52,631 cells — rounded down to a plain
+number comfortably under that budget: **`CANCEL_POLL_INTERVAL = 50_000`
+cells**, ≈ 95 ms worst case at the measured per-cell rate. Applied
+identically to both the read-phase loop (all cells in the used range,
+including empty ones) and the compare-phase loop (only the coordinates
+actually compared).
+
+**Polling overhead — measured with and without a `Cancellation` configured,
+across the same ladder, three runs each:**
+
+| Size | cells | `None`, avg | `Some` (configured, never fires), avg | overhead |
+|---|---:|---:|---:|---:|
+| 1k | 1,000 | 1.77 ms | 1.72 ms | −2.9% |
+| 10k | 10,000 | 16.95 ms | 16.68 ms | −1.6% |
+| 100k | 100,000 | 182.63 ms | 184.13 ms | +0.8% |
+| 300k | 300,000 | 559.53 ms | 558.79 ms | −0.1% |
+
+**Overhead is not measurable above run-to-run noise at any size** — the
+sign flips between sizes, and every delta is smaller than the ~1.5% timing
+variance already noted above for wall-clock measurements. This satisfies
+Handoff 03's own requirement directly: `Cancellation: None` costs nothing
+measurable, and — the stronger, unplanned result — neither does a
+`Cancellation` that is configured but never fires. The dynamic dispatch
+cost of `is_cancelled()` at a 50,000-cell interval is simply too small a
+fraction of the per-cell comparison work to separate from noise.
+
+**The two-sheet timing above (~565 ms) is superseded, not just old:**
+re-run against the fixed engine, the same two-sheet workbook now returns
+`Err(Cancelled)` in **~267 ms** (three runs: 266–271 ms) — because the same
+cancel-after-first-poll policy now trips at the *first* mid-sheet checkpoint
+inside sheet 1's read phase, not at sheet 2's boundary after sheet 1
+finishes entirely. This is expected and correct, not a discrepancy: it is
+the fix working, timed the same way Handoff 01 timed the defect.
 
 ---
 
 ## Candidates for later M7 units
 
-The input units 03+ are scoped from — each with its measured size and this
-report's confidence in the number, not a recommendation on priority beyond
-what's stated above.
+The units this milestone's remaining scope is drawn from — each with its
+measured size and this report's confidence in the number.
 
 | Candidate | Measured size | Confidence | Note |
 |---|---|---|---|
@@ -233,5 +288,5 @@ what's stated above.
 | Reduce `cell_map_to_align`'s clone cost | +33% of peak, linear, confirmed at two scales | High | Paid only by non-`Positional` alignment modes; `Positional` (default) unaffected. |
 | Reduce peak by not holding both `CellMap`s | Not isolable from calamine's own buffers with external measurement | None — no actionable number | Would need instrumentation inside `src/`, out of this unit's scope. Not recommended as a standalone candidate without a different measurement approach. |
 | RFC-024 §7's density choice (`Sparse`/`Dense`) | +12.4% per-populated-cell for sparse vs. dense at equal populated count | High | Real, not urgent. Moderate priority. |
-| Finer cancellation polling | ~565 ms worst case (measured range), **but structurally zero for single-sheet workbooks** | High | The single-sheet finding, not the millisecond number, is the reason to prioritize this. |
+| Finer cancellation polling | **Done (M7 Handoff 03).** Was structurally zero for single-sheet workbooks; now polls every 50,000 cells in both phases, ≈95 ms worst case, overhead not measurable above noise. | High | Was the milestone's top priority — "a feature that does not work," not an optimisation. Closed, not deferred further. |
 | Shared display address (G) | N/A | N/A | Not a measurement question — a design one, additive on `#[non_exhaustive]` types. Out of this report's scope entirely. |

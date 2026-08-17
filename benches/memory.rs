@@ -1,4 +1,5 @@
-//! Peak-allocation measurement (M7 Handoff 01, RFC-024 / RFC-012).
+//! Peak-allocation measurement (M7 Handoff 01, RFC-024 / RFC-012); Q5 added
+//! by M7 Handoff 03 to measure the mid-sheet cancellation polling it added.
 //!
 //! Run with: `cargo bench --bench memory` (release profile; this crate's
 //! `[profile.release]` is `opt-level = "z"` -- noted here because it is part
@@ -502,7 +503,7 @@ impl Cancellation for CancelAfterFirstPoll {
 }
 
 fn q4_cancellation_latency() {
-    println!("== Q4: cancellation latency ==");
+    println!("== Q4: cancellation latency (M7 Handoff 01 baseline, re-run post-fix) ==");
     let big_rows = 15_000u32; // matches the ladder's largest point (300k cells)
     let (old, new) = make_two_sheet(big_rows, 20);
 
@@ -524,16 +525,17 @@ fn q4_cancellation_latency() {
         elapsed.as_secs_f64() * 1000.0
     );
     println!(
-        "  This equals \"how long processing sheet 1 alone takes\" -- check_cancel fires once \
-         per sheet pair, so cancellation requested during sheet 1 is not observed until sheet 1 \
-         finishes and the loop reaches sheet 2's check_cancel call."
+        "  Post-fix (M7 Handoff 03), this is now the time to the FIRST mid-sheet polling \
+         checkpoint inside sheet 1's read phase, not \"how long processing sheet 1 alone \
+         takes\" -- unit 01's original number here (~567 ms) measured the latter, because \
+         check_cancel fired only once per sheet pair before this fix existed."
     );
 
-    // Structural note: a genuinely single-sheet workbook has no SECOND
-    // check_cancel call at all, so a cancellation request made after the
-    // first (only) call is never observed -- the comparison always returns
-    // Ok, regardless of how long it takes or when cancellation was
-    // requested. Demonstrated, not just reasoned about.
+    // Structural note (unit 01): a genuinely single-sheet workbook had no
+    // SECOND check_cancel call at all before this fix, so a cancellation
+    // request made after the first (only) call was never observed -- the
+    // comparison always returned Ok. Re-run here, post-fix, to demonstrate
+    // the gap is closed rather than just asserting it.
     let single = make_dense(big_rows, 20, false);
     let single_new = make_dense(big_rows, 20, true);
     let cancel2 = CancelAfterFirstPoll {
@@ -547,10 +549,82 @@ fn q4_cancellation_latency() {
     println!(
         "  single-sheet workbook ({big_rows}x20), same cancel-after-first-poll policy: result={}",
         if single_result.is_ok() {
-            "Ok -- cancellation never observed (only one check_cancel call exists, at the start, before this was the second poll)"
+            "Ok -- cancellation never observed (pre-fix behaviour; would indicate a regression)"
         } else {
-            "Cancelled"
+            "Cancelled -- observed mid-sheet, via the new interval checkpoint (M7 Handoff 03)"
         }
+    );
+    println!();
+}
+
+// ---------------------------------------------------------------------------
+// Q5 (M7 Handoff 03): overhead of the mid-sheet polling checkpoints
+// ---------------------------------------------------------------------------
+
+/// Time `compare_bytes` across the ladder with no `Cancellation` configured
+/// at all, versus a `Cancellation` that is configured but never fires
+/// (`|| false`) -- so every interval poll pays its dynamic-dispatch cost but
+/// never short-circuits the comparison. The gap between the two is the
+/// overhead this unit's fix adds to a comparison that runs to completion,
+/// which is the common case.
+fn q5_polling_overhead() {
+    println!(
+        "== Q5 (M7 Handoff 03): mid-sheet polling overhead, None vs configured-but-unfired =="
+    );
+    let configs: [(&str, u32, u16); 4] = [
+        ("1k", 50, 20),
+        ("10k", 500, 20),
+        ("100k", 5_000, 20),
+        ("300k", 15_000, 20),
+    ];
+    const REPEATS: u32 = 3;
+
+    for (label, rows, cols) in configs {
+        let old = make_dense(rows, cols, false);
+        let new = make_dense(rows, cols, true);
+
+        let mut none_ms = Vec::with_capacity(REPEATS as usize);
+        let mut some_ms = Vec::with_capacity(REPEATS as usize);
+
+        for _ in 0..REPEATS {
+            let start = Instant::now();
+            let d = compare_bytes(black_box(&old), black_box(&new)).unwrap();
+            black_box(&d);
+            none_ms.push(start.elapsed().as_secs_f64() * 1000.0);
+
+            let opts = DiffOptions::builder()
+                .cancellation(|| false)
+                .build()
+                .unwrap();
+            let start = Instant::now();
+            let d = compare_bytes_with_options(black_box(&old), black_box(&new), opts).unwrap();
+            black_box(&d);
+            some_ms.push(start.elapsed().as_secs_f64() * 1000.0);
+        }
+
+        let avg = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+        let (none_avg, some_avg) = (avg(&none_ms), avg(&some_ms));
+        let overhead_pct = (some_avg - none_avg) / none_avg.max(1e-9) * 100.0;
+
+        println!(
+            "  {label:>5} ({:>7} cells): None avg={:>7.3} ms {:?}   Some(never fires) avg={:>7.3} ms {:?}   overhead={:+.2}%",
+            rows as u64 * cols as u64,
+            none_avg,
+            none_ms
+                .iter()
+                .map(|v| format!("{v:.2}"))
+                .collect::<Vec<_>>(),
+            some_avg,
+            some_ms
+                .iter()
+                .map(|v| format!("{v:.2}"))
+                .collect::<Vec<_>>(),
+            overhead_pct
+        );
+    }
+    println!(
+        "  Individual runs are shown, not just averages, because this is wall-clock timing \
+         (expected to vary run to run, unlike the byte-peak measurements above)."
     );
     println!();
 }
@@ -573,6 +647,7 @@ fn main() {
     q2_attribution();
     q3_density();
     q4_cancellation_latency();
+    q5_polling_overhead();
 
     println!("== Linearity check: first vs last ladder point, bytes/cell ==");
     if let (Some(first), Some(last)) = (points.first(), points.last()) {
