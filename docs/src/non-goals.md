@@ -122,19 +122,17 @@ old (broken) behaviour.
 
 ### RFCs that shipped in part
 
-Eleven RFCs are `Implemented` for their core design but carry a named,
+Nine RFCs are `Implemented` for their core design but carry a named,
 specific gap in their `Status` field — not "mostly done," but a stated
 remainder. Reading the RFC's own Status line is the authoritative source;
-this list exists so a reader doesn't have to open eleven files to get the
+this list exists so a reader doesn't have to open nine files to get the
 inventory:
 
 | RFC | Gap |
 |---|---|
 | [007](../../rfcs/done/007-typed-cell-values-and-normalization.md) | Three of nine `CellValue` variants unreachable (above) |
-| [013](../../rfcs/done/013-output-formatters-cli-and-exit-codes.md) | *(see correction below — RFC's own Status line is stale)* |
 | [014](../../rfcs/done/014-serde-feature-and-stable-report-schema.md) | `Deserialize` not implemented (above) |
-| [015](../../rfcs/done/015-test-fixtures-regression-and-property-testing.md) | *(see correction below — RFC's own Status line is stale)* |
-| [017](../../rfcs/done/017-v1-to-v2-migration-guide-and-adapter.md) | *(see correction below — RFC's own Status line is partly stale)* |
+| [017](../../rfcs/done/017-v1-to-v2-migration-guide-and-adapter.md) | No JSON section and no ForskScope-adapter example in the migration guide. Its code blocks *are* compiled as of M6 unit 01 |
 | [019](../../rfcs/done/019-numeric-date-and-tolerance-comparison-policies.md) | `CellValue::Duration` unreachable, so duration-tolerance comparison is unexercised |
 | [020](../../rfcs/done/020-display-formatting-and-number-format-capture.md) | `CellNumberFormat` always `None` (above) |
 | [021](../../rfcs/done/021-workbook-metadata-and-defined-name-diffs.md) | `WorkbookChange` reserved (above); defined-name/visibility diffing untested |
@@ -147,29 +145,38 @@ inventory:
 ## Corrections found writing this page
 
 Assembling this inventory surfaced five places where a record elsewhere in
-this project disagreed with the current code. Not fixed here — this page's
-non-change scope forbids it — reported so the record can be corrected
-deliberately rather than left to whoever next reads the wrong copy.
+this project disagreed with the current code. They were reported rather than
+edited here, because this page's non-change scope forbids touching RFC files —
+and **all five have since been corrected** by the architect, who owns the RFC
+record. They are kept below because the inventory above is only trustworthy if
+the reader can see what it was checked against.
 
-1. **RFC-013's Status line still says exit code 3 is never emitted.** It
-   was fixed in M4 unit 03 (2.4.0). `src/main.rs` has emitted it since.
-2. **RFC-015's Status line still says the CLI has no subprocess test.**
-   `tests/cli.rs` has existed since M4 unit 03, extended by M5 unit 03.
-3. **RFC-017's Status line still says the migration guide's 11 code blocks
-   are "not compiled or verified anywhere."** M6 unit 01 built exactly
-   that harness; the JSON-section and ForskScope-adapter gaps it also
-   names are still real.
-4. **RFC-021's Status line still says `meta.rs`'s code comments
-   "incorrectly claim" `WorkbookMetadataMode` works.** M4 unit 01 removed
-   those comments; the underlying gap (`WorkbookMetadataMode` never built)
-   is still real, but the false-comment clause describes code that no
-   longer exists.
-5. **This milestone's own README says "thirteen partially-implemented
-   RFCs."** M5 closed two of them (016, 032) after that text was written;
-   the current, verified count is eleven, per the table above.
+1. **RFC-013's Status said exit code 3 is never emitted.** It was fixed in
+   M4 unit 03 (2.4.0). *Corrected — RFC-013 is now `Implemented`, which is why
+   it no longer appears in the table above.*
+2. **RFC-015's Status said the CLI has no subprocess test.** `tests/cli.rs`
+   has existed since M4 unit 03, extended by M5 unit 03. *Corrected — also now
+   `Implemented`, and also dropped from the table above.*
+3. **RFC-017's Status said the migration guide's 11 code blocks are "not
+   compiled or verified anywhere."** M6 unit 01 built exactly that harness.
+   *Corrected — RFC-017 stays partial, because the JSON-section and
+   ForskScope-adapter gaps it also names are still real.*
+4. **RFC-021's Status said `meta.rs`'s code comments "incorrectly claim"
+   `WorkbookMetadataMode` works.** M4 unit 01 removed those comments.
+   *Corrected surgically — only that clause; the underlying gap
+   (`WorkbookMetadataMode` never built) is still real and RFC-021 stays
+   partial.*
+5. **M6's own handoff README said "thirteen partially-implemented RFCs."**
+   M5 closed two (016, 032) after that text was written. *Corrected. The count
+   was eleven when this page was written and is **nine** now, because
+   correcting items 1 and 2 closed RFC-013 and RFC-015 outright — the table
+   above reflects the current state.*
 
-None of these five are limitations or defects in themselves — they are
-the record lagging behind work that has already landed, which is the
-precise failure mode M4 and M5 exist to catch. Recorded here rather than
-silently corrected, per this project's standing practice for exactly this
-situation.
+None of these five are limitations or defects in themselves — they are the
+record lagging behind work that has already landed, which is the precise
+failure mode M4 and M5 exist to catch.
+
+The count moving from eleven to nine *while this page was being reviewed* is
+the same failure mode in miniature, and worth leaving visible: a number is only
+true as of the moment it was derived. The table above is authoritative for the
+list; each RFC's own `Status` field is authoritative for its gap.
