@@ -40,6 +40,28 @@
   route was never open. (An earlier review of this gate listed it as an
   unverified blind spot; it has since been verified closed.)
 
+- **Source-path privacy is now tested (M5).** `lib.rs` has documented, in
+  specific prose, that `compare_paths` never leaks a caller's directory —
+  only the file name reaches `SourceDescription.display_name`, a non-UTF-8
+  file name yields `None` rather than panicking, and byte/reader inputs
+  carry no path at all — since v2.0.0. Nothing verified any of it.
+  `tests/source_path_privacy.rs` (five tests) now proves: a parent
+  directory does not survive into `display_name` (asserted positively —
+  the value *is* the file name, not merely "the directory is absent") and
+  does not appear anywhere in the result, including `render_summary`'s and
+  `render_unified`'s output; a non-UTF-8 file name (`#[cfg(unix)]` —
+  constructing one needs `std::os::unix::ffi::OsStringExt`, so Windows CI
+  does not exercise this specific test, though the underlying code path is
+  platform-independent) yields `None` without panicking and the comparison
+  still succeeds; an error rendered from a nested path (a missing file)
+  carries the file name or `<unknown>`, never the directory; `compare_bytes`
+  and `compare_readers` both carry no `display_name` at all. Each test was
+  confirmed to actually discriminate — a deliberate regression (using the
+  full path instead of just the file name) was introduced, three of the
+  five tests failed with the leaked path visible in the failure output, and
+  the regression was reverted. This is not a fix — the property held before
+  this unit; it is now verified rather than believed.
+
 ## [2.4.0] - 2026-08-17
 
 **Truth-telling release.** Every change here closes a gap between what this
