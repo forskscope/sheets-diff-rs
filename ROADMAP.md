@@ -217,6 +217,23 @@ fixture it reads 5200 against 2 compared, because it counts every physically
 visited cell including empties — a 2600× difference no consumer would predict
 from the name.
 
+Also **`ReadErrorKind`'s undocumented variants** (F-G, raised in M4 unit 04's
+review). No variant carries a doc comment, and after M4 `Other` is a public
+variant that nothing can produce — the reader is `Xlsx<Cursor<Vec<u8>>>`, so the
+`XlsxError::Io` that would map to it cannot arise at read time — yet it has its
+own exit-code arm. That is unit 01's defect class exactly, and unit 01 already
+established the wording for it. Retained deliberately as a conservative default;
+the point is that nothing says so.
+
+Also **the corpus count in 2.4.0's changelog is wrong** (F-I, found 2026-08-17
+while drafting the ForskScope message). The M3 entry reads *"the fixture corpus
+grew from 7 to 18 scenarios"*. Seven scenarios predate M3 and twelve were added
+in `2679870`, so it grew from 7 to **19**. The entry was wrong when written and
+shipped in 2.4.0 — the truth-telling release. **Annotate, do not rewrite**, per
+the convention this file already applies three times over. Worth noting that it
+was caught by needing to state the number to someone outside the project, which
+is a check nothing in CI performs.
+
 ### M7 — "Measure, then change" *(release; scope set by measurement)*
 
 Large-workbook memory; cancellation granularity (polled per sheet pair, not per
