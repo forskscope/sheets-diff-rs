@@ -2,7 +2,10 @@
 
 **Governing RFC.** RFC-027 (benchmark and performance governance)
 **Roadmap.** M7
-**Sequence.** Independent of unit 01 and of everything else. Gates nothing.
+**Sequence.** **After unit 03**, which is merged. Gates nothing itself.
+*(Corrected 2026-08-17: this originally read "independent of unit 01 and of
+everything else", which was true of blocking and wrong about ordering — unit 03
+modifies the loops this unit benchmarks. See the amendment at the end.)*
 
 ## Purpose
 
@@ -15,7 +18,8 @@ RFC-027 has carried this gap since 2.0.0. It moved here from M6 because it is
 measurement, not documentation.
 
 **A naive version of this unit would produce a misleading number**, and that is
-the whole difficulty. Three confounds, all real:
+the whole difficulty. Three confounds were known when this was written, and the
+amendment at the end adds a fourth that arrived with unit 03. All four are real:
 
 ### Confound 1 — the dependency differs
 
@@ -167,8 +171,9 @@ What must be demonstrated:
 
 ## Review request format
 
-Per development policy §9.2, plus an explicit statement of how each of the three
-confounds was handled — controlled, bounded, or stated.
+Per development policy §9.2, plus an explicit statement of how each of the
+**four** confounds was handled — controlled, bounded, or stated — and the commit
+measured (criterion 12).
 
 ---
 
