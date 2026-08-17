@@ -725,6 +725,10 @@ pub struct DiffSummary {
 pub struct DiffMetrics {
     pub sheets_read: u32,
     pub cells_read: u64,
+    /// Every coordinate compared between the two sides: the union of both
+    /// sides' populated cells for each sheet pair, remapped by alignment
+    /// when alignment is not `Positional`. Counted once per coordinate
+    /// regardless of whether it produced a diff — always `>= diffs_emitted`.
     pub cells_compared: u64,
     pub diffs_emitted: u64,
     pub diagnostics_emitted: u64,

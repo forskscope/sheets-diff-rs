@@ -112,7 +112,7 @@
   "metrics": {
     "sheets_read": 1,
     "cells_read": 4,
-    "cells_compared": 1,
+    "cells_compared": 2,
     "diffs_emitted": 1,
     "diagnostics_emitted": 1
   }

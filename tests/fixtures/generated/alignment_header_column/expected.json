@@ -232,7 +232,7 @@
   "metrics": {
     "sheets_read": 1,
     "cells_read": 18,
-    "cells_compared": 8,
+    "cells_compared": 10,
     "diffs_emitted": 8,
     "diagnostics_emitted": 1
   }

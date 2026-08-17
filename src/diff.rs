@@ -219,6 +219,7 @@ fn run_pipeline(
     let mut sheet_diffs: Vec<SheetDiff> = Vec::with_capacity(total_sheets);
     let mut total_diffs: u64 = 0;
     let mut total_cells_read: u64 = 0;
+    let mut total_cells_compared: u64 = 0;
     let mut metrics = DiffMetrics::default();
 
     for (idx, pair) in matched.into_iter().enumerate() {
@@ -247,17 +248,13 @@ fn run_pipeline(
             &opts,
             &mut total_diffs,
             &mut total_cells_read,
+            &mut total_cells_compared,
         )?;
 
         let changed = sheet_diff.cell_diffs.len();
         metrics.sheets_read += 1;
-        // cells_read is accumulated in read_sheet_cells via total_cells_read
-        metrics.cells_compared += sheet_diff.summary.cells_changed as u64
-            + sheet_diff
-                .cell_diffs
-                .iter()
-                .filter(|cd| cd.value.is_none() && cd.formula.is_none())
-                .count() as u64;
+        // cells_read and cells_compared are accumulated in read_sheet_cells /
+        // build_sheet_diff via total_cells_read / total_cells_compared.
         metrics.diffs_emitted += changed as u64;
         emit(
             &mut opts,
@@ -279,6 +276,7 @@ fn run_pipeline(
     });
 
     metrics.cells_read = total_cells_read;
+    metrics.cells_compared = total_cells_compared;
     metrics.diagnostics_emitted = workbook_diagnostics.len() as u64
         + sheet_diffs
             .iter()
@@ -304,6 +302,7 @@ fn run_pipeline(
 // Per-sheet processing
 // ---------------------------------------------------------------------------
 
+#[allow(clippy::too_many_arguments)]
 fn process_sheet_pair(
     pair: &MatchedPair,
     old_wb: &mut OpenedWorkbook,
@@ -311,6 +310,7 @@ fn process_sheet_pair(
     opts: &DiffOptions,
     total_diffs: &mut u64,
     total_cells_read: &mut u64,
+    total_cells_compared: &mut u64,
 ) -> Result<SheetDiff, SheetsDiffError> {
     let mut sheet_diag: Vec<Diagnostic> = Vec::new();
 
@@ -346,6 +346,7 @@ fn process_sheet_pair(
         new_end,
         opts,
         total_diffs,
+        total_cells_compared,
         &mut sheet_diag,
     )
 }
@@ -361,6 +362,7 @@ fn build_sheet_diff(
     new_end: Option<(u32, u32)>,
     opts: &DiffOptions,
     total_diffs: &mut u64,
+    total_cells_compared: &mut u64,
     sheet_diag: &mut Vec<Diagnostic>,
 ) -> Result<SheetDiff, SheetsDiffError> {
     let compared_range = ComparedRange::union(old_start, old_end, new_start, new_end);
@@ -437,6 +439,11 @@ fn build_sheet_diff(
             coords.extend(new_map.keys().map(|&(r, c)| CoordKey::Positional(r, c)));
         }
     }
+
+    // Every coordinate in `coords` is compared below, whether or not it
+    // produces a diff — this is where "compared" happens, not something
+    // reconstructed afterwards from which cells ended up in `cell_diffs`.
+    *total_cells_compared += coords.len() as u64;
 
     let mut cell_diffs: Vec<CellDiff> = Vec::new();
     let mut summary = SheetSummary::default();

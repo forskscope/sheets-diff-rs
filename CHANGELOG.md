@@ -57,6 +57,26 @@ work only; `src/` is untouched.
 
 No behaviour changed; these are documentation-only corrections.
 
+### Fixed
+
+- **`DiffMetrics.cells_compared` now counts what it claims to (M4).** It
+  previously equalled `cells_changed` exactly, always — a dead `filter(...)`
+  term in its accumulation formula could never contribute, so every
+  compared-but-unchanged coordinate went uncounted. It is now accumulated
+  where the comparison actually happens (once per coordinate in the
+  aligned/positional coordinate set built in `build_sheet_diff`, regardless
+  of whether that coordinate produces a diff), so it is always
+  `>= diffs_emitted` rather than always equal to it. **2.2.3's changelog
+  entry claiming this was already fixed is true as of this release; it was
+  not true when written** (flagged wrong in M2 unit 06's audit; this closes
+  that annotation). `cells_read` and `diffs_emitted` were checked and are
+  unaffected — both were already counting correctly.
+
+  This changes `DiffMetrics.cells_compared`'s value for any comparison with
+  at least one compared-but-unchanged cell — which is the normal case. The
+  fixture corpus moved accordingly: 13 goldens changed, each in exactly the
+  `cells_compared` field and nothing else.
+
 ## [2.3.0] - 2026-08-16
 
 **Security and integrity release.** Clears two denial-of-service advisories
