@@ -1,6 +1,40 @@
 # Changelog
 
-## [Unreleased]
+## [2.5.0] - 2026-08-17
+
+**Measurement release.** Four questions this project had reasoned about for four
+releases were measured instead, and three of the four answers differed from what
+reading the code suggested.
+
+**The one that mattered was not a performance number.** Cancellation was
+described — in `Cancellation`'s own doc comment and in RFC-024's status — as a
+*latency* limitation: polled once per sheet pair, so observed late on a large
+sheet. It was not late. On any workbook with exactly one sheet, which is the
+ordinary shape of a spreadsheet, there was no second checkpoint to reach and a
+cancellation request was **never observed at all**. RFC-012 has existed since
+2.0.0 because GUI applications need users to be able to cancel; it did not work
+in the common case. That is fixed, and it is the reason this release is a minor
+rather than a patch — a comparison that previously ran to completion despite a
+cancel request now returns `Err(Cancelled)`.
+
+**Peak memory for non-`Positional` comparisons drops by roughly a third.** Row
+alignment cloned every `CellValue` in both sheets into a second map, so that it
+could read a display string off values it could have borrowed. Measured at
+32.7–33.9% of peak; now **0.0%**, with `Positional` peak byte-identical as the
+control. No observable result differs.
+
+**And a claim of ours turned out to be wrong.** The threat model said
+`compare_bytes` doubles peak memory. Measured, it is 2.6–4.8% — the raw bytes
+are held twice, but they are a small fraction of a peak dominated by the
+normalised representation both entry points build identically. The claim was
+inferred from reading the code, and it had been repeated to the only known
+consumer. It is corrected.
+
+Two further optimisation candidates were **declined on their measurements** and
+recorded with their numbers rather than deferred again. The full method, figures
+and reasoning are in `docs/src/maintainers/performance.md`, alongside the first
+v1.2-vs-v2 benchmark comparison this project has published.
+
 
 ### Added
 
