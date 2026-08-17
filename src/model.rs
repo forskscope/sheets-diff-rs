@@ -723,14 +723,26 @@ pub struct DiffSummary {
 #[cfg_attr(feature = "serde", derive(Serialize))]
 #[non_exhaustive]
 pub struct DiffMetrics {
+    /// Sheet pairs processed — one per matched, added, or removed sheet.
     pub sheets_read: u32,
+    /// Every cell physically visited while reading both workbooks,
+    /// **including empty cells inside the used range** — this is not the
+    /// number of cells with content. On the `sparse_range` corpus fixture
+    /// (two populated cells far apart in a large used range) this reads
+    /// **5200** against `cells_compared`'s **2**: almost the entire count
+    /// is empty cells the used range spans but never populates. Always
+    /// `>= cells_compared`.
     pub cells_read: u64,
     /// Every coordinate compared between the two sides: the union of both
     /// sides' populated cells for each sheet pair, remapped by alignment
     /// when alignment is not `Positional`. Counted once per coordinate
     /// regardless of whether it produced a diff — always `>= diffs_emitted`.
     pub cells_compared: u64,
+    /// Cell-level differences returned in the result — the count behind
+    /// every `CellDiff` across all sheets. Always `<= cells_compared`.
     pub diffs_emitted: u64,
+    /// `Diagnostic` entries attached to the result, workbook-level and
+    /// per-sheet combined.
     pub diagnostics_emitted: u64,
 }
 

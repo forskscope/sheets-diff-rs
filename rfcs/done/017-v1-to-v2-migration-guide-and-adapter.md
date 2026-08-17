@@ -1,6 +1,6 @@
 # RFC-017: v1 to v2 Migration Guide and Adapter
 
-**Status.** Partially implemented (2.0.0–2.2.3) — verified 2026-08-16. Deferred: the migration guide has no JSON section and no ForskScope-adapter example; its 11 `rust` code blocks are not compiled or verified anywhere (no mdbook step in CI or `Cargo.toml`).
+**Status.** Partially implemented (2.0.0–2.4.x) — verified 2026-08-16; partially closed 2026-08-17 (M6 Handoff 01). The migration guide's code blocks **are** now compiled: `src/lib.rs` includes the guide via `#[doc = include_str!]` behind `#[cfg(doctest)]`, so its fences are doctests on every CI leg that runs `cargo test`, and at the 1.88 MSRV floor (M6 Handoff 02). Of the original 11, one compiled as-is, five needed fixes and four were v1 shapes now marked `text`. **Still deferred:** the guide has no JSON section and no ForskScope-adapter example.
 **Target:** v2.0.0 docs  
 **Created:** 2026-06-11  
 **Category:** Migration  

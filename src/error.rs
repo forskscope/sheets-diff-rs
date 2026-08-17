@@ -40,8 +40,26 @@ impl fmt::Display for OpenErrorKind {
 #[non_exhaustive]
 #[derive(Debug)]
 pub enum ReadErrorKind {
+    /// The workbook's own sheet index names a sheet that could not be
+    /// located when reading it. Sound reasoning for the CLI's exit-code
+    /// mapping (3, alongside `MalformedSheet`) rests on there being no way
+    /// to *ask* for a specific sheet: this crate always reads every sheet
+    /// the index promises, so a missing one is the workbook's own internal
+    /// inconsistency, not a caller's request for something that was never
+    /// going to exist. If a sheet-selection option is ever added, this
+    /// variant becomes reachable as caller error too, and the exit-code
+    /// mapping would need to move to 2 for that case.
     SheetNotFound,
+    /// The sheet exists but its content could not be parsed.
     MalformedSheet,
+    /// Cannot occur through any input this crate currently accepts: the
+    /// workbook reader is `Xlsx<Cursor<Vec<u8>>>`, so every sheet read
+    /// operates on an in-memory cursor — there is no I/O left to fail
+    /// against at that point, and the `XlsxError::Io` case this variant
+    /// exists for cannot arise there. A match arm on this variant is
+    /// unreachable today; it is retained as a conservative default (see
+    /// `exit_code_for` in `main.rs`) against a future reader that performs
+    /// real I/O mid-read, not as a live case.
     Other,
 }
 

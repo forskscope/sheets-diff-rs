@@ -187,3 +187,15 @@ where
 #[doc = include_str!("../docs/src/migration/v1-to-v2.md")]
 #[cfg(doctest)]
 pub struct MigrationGuideDoctests;
+
+#[doc = include_str!("../docs/src/api-guide.md")]
+#[cfg(doctest)]
+pub struct ApiGuideDoctests;
+
+#[doc = include_str!("../docs/src/semantics.md")]
+#[cfg(doctest)]
+pub struct SemanticsDoctests;
+
+#[doc = include_str!("../docs/src/non-goals.md")]
+#[cfg(doctest)]
+pub struct NonGoalsDoctests;

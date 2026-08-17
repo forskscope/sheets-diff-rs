@@ -112,9 +112,15 @@ checked — the state unit 01 just fixed.
 deliberately last: writing NF-026's non-goals and limitations page forces an
 inventory of everything the public model promises and the engine does not
 deliver — three unreachable `CellValue` variants, four permanently-empty types,
-one unreachable `ReadErrorKind`, thirteen partially-implemented RFCs. That
+one unreachable `ReadErrorKind`, eleven partially-implemented RFCs. That
 inventory is the evidence the decision has been waiting for, and it is a
 by-product of work NF-026 requires anyway.
+
+*Corrected 2026-08-17: this said "thirteen partially-implemented RFCs". It is
+**eleven** — `grep -l "Partially implemented" rfcs/done/*.md` returns 007, 013,
+014, 015, 017, 019, 020, 021, 023, 024, 027. M5 closed 016 and 032 after the
+sentence was written, and I did not re-derive the count. Caught by unit 03. The
+second time this project has caught me asserting a count I had not checked.*
 
 ## Moved out of this milestone
 
