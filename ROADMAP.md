@@ -334,7 +334,7 @@ the convention this file already applies three times over. Worth noting that it
 was caught by needing to state the number to someone outside the project, which
 is a check nothing in CI performs.
 
-### M7 — "Measure, then change" — 🔄 **OPEN 2026-08-17** *(release; scope set by measurement)*
+### M7 — "Measure, then change" — ✅ **COMPLETE 2026-08-17** *(release pending: 2.5.0)*
 
 Handoffs: [`rfcs/handoffs/m7-measure-then-change/`](rfcs/handoffs/m7-measure-then-change/README.md).
 
@@ -342,7 +342,31 @@ Handoffs: [`rfcs/handoffs/m7-measure-then-change/`](rfcs/handoffs/m7-measure-the
 |---|---|---|
 | 01 | Measure — peak allocation, its attribution, dense-vs-sparse cost, cancellation latency | Ready; **gates units 03+** |
 | 02 | The v1.2-vs-v2 comparison (RFC-027) | Ready; independent, gates nothing |
-| 03+ | Scope set by unit 01's report | **Cannot be written yet** |
+| 03 | Cancellation that fires — RFC-012's requirement met for the first time | ✅ |
+| 04 | Delete the alignment clone — +33% of peak, now 0.0% | ✅ |
+
+**All four merged** (`main` at `7aa4c94`, 18/18). **Two candidates declined on
+their measurements** and recorded with their numbers: RFC-024 §7's density
+choice (+12.4%) and `compare_bytes`'s copy (+2.6–4.8%).
+
+**What the measurement changed.** Three of unit 01's four answers differed from
+what reading the code suggested, and the record was wrong in two places that
+mattered:
+
+- `compare_bytes` does **not** double peak memory — 2.6–4.8%. The threat model
+  said doubling, we told ForskScope twice, and it was inferred from reading the
+  code. Corrected.
+- Cancellation was **not** a latency problem. It was structurally unobservable
+  on any single-sheet workbook — the ordinary shape of a spreadsheet — and both
+  `Cancellation`'s doc comment and RFC-024's Status had described it as
+  granularity for four releases.
+- The alignment clone was the only large win, and it was **deletable rather
+  than reducible**: alignment only ever calls `display_string()` on the values
+  it is handed. Delta measured at 32.7–33.9%, now **0.0%** at both scales, with
+  `Positional` peak byte-identical as the control.
+
+One of three built, and not the one intuition or the threat model pointed at.
+That is the milestone succeeding.
 
 **Units 03 onward are deliberately unwritten.** Three of M7's four candidate
 items share the property that we know a cost exists and not what it is:
