@@ -38,7 +38,8 @@ a third time.
 |---|---|---|---|
 | 01 | [Measure](./01-measure.md) | RFC-024, RFC-012 | **Ready** — gates everything else |
 | 02 | [The v1.2-vs-v2 comparison](./02-v1-2-comparison.md) | RFC-027 | **Ready** — separable, gates nothing |
-| 03+ | Scope set by unit 01's report | — | **Cannot be written yet** |
+| 03 | [Cancellation that fires](./03-cancellation-that-fires.md) | RFC-012, RFC-024 | **Ready** — scoped from unit 01's report |
+| 04+ | Memory candidates, scope set by unit 01's report | RFC-024 | Not yet written |
 
 Unit 02 moved here from M6 — it is measurement, not documentation. It is
 independent of unit 01 and gates nothing, but it is **not the easy one**: v1.2
@@ -48,20 +49,32 @@ comparison would produce a number that is partly upstream's and partly the cost
 of capability v1.2 did not have. The unit's difficulty is method, not
 mechanics.
 
-**Units 03 onward do not exist and will not be written speculatively.** When
-unit 01 reports, its numbers decide which of the candidate items are worth
-doing, in what order, and whether any of them is worth doing at all. That is
-the milestone's point.
+**Unit 01 has reported, and it reordered the milestone.** Three of its four
+answers differed from what reading the code suggested, and one was not a
+measurement at all but a defect: **cancellation is never observed on a
+single-sheet workbook** — not coarse, absent. `check_cancel` fires once per
+sheet pair, before that sheet's work, so on the ordinary one-sheet case a
+caller who cancels is never seen and the comparison returns `Ok`.
+
+That is a feature that does not work, and it now leads the milestone as unit 03,
+ahead of every memory candidate. Those are optimisations.
+
+The memory candidates remain unwritten pending a decision on which are worth
+doing — see the table below, now populated with measured sizes.
 
 ## The candidate items, and what would settle each
 
-| Candidate | Settled by |
-|---|---|
-| Remove `compare_bytes`'s copy | Whether the copy is a material fraction of peak, and at what workbook size |
-| Reduce peak by not holding both `CellMap`s | Attribution — how much of peak is the maps versus the alignment clone versus calamine's own buffers |
-| RFC-024 §7's density choice (`Sparse`/`Dense`) | Whether `BTreeMap` overhead is material on dense sheets, measured |
-| Finer cancellation polling | How long a caller waits after requesting cancellation on the largest realistic single sheet |
-| Shared display address (G) | Not a measurement question — a design one, and additive on `#[non_exhaustive]` types |
+Measured by unit 01. Full method and figures:
+[`docs/src/maintainers/performance.md`](../../../docs/src/maintainers/performance.md).
+
+| Candidate | Measured | Verdict |
+|---|---|---|
+| Finer cancellation polling | Never fires on one sheet; ~567 ms on two | **Unit 03.** Not an optimisation — a broken feature |
+| Reduce `cell_map_to_align`'s clone | **+33% of peak**, ~296 B/row at two scales | Largest real win. Non-`Positional` modes only |
+| RFC-024 §7's density choice | +12.4% per populated cell, dense vs sparse | Real, modest. Not urgent |
+| Remove `compare_bytes`'s copy | **+2.6–4.8%**, not the doubling we claimed | Small. The threat model was wrong and is corrected |
+| Not holding both `CellMap`s | Not isolable by external measurement | No actionable number without instrumenting `src/` |
+| Shared display address (G) | N/A | Design question, additive on `#[non_exhaustive]` types |
 
 ## Standing constraints
 
