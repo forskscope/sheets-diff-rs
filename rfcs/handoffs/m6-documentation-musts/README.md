@@ -98,8 +98,10 @@ checked — the state unit 01 just fixed.
   plainly. This project has spent two milestones removing statements that
   described an engine better than the one that exists; do not add more.
 - **Every example must compile**, or be explicitly marked as non-compiling with
-  a reason (v1 "before" code cannot compile against v2 and should be `text` or
-  `ignore` — the point is that the marking is deliberate, not accidental).
+  a reason — per the fence convention above. The point is that the marking is
+  deliberate, not accidental. *(Corrected 2026-08-17: this originally said v1
+  code "should be `text` or `ignore`", which contradicts the convention unit 01
+  established. `text` is the answer for v1 shapes; `ignore` is to be avoided.)*
 - **The fixture corpus must not move.**
 - Gates as always: fmt, clippy `-D warnings`, the scoped stdout gate, `deny`,
   MSRV 1.88, the full matrix.
