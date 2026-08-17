@@ -1,4 +1,14 @@
 #![forbid(unsafe_code)]
+// M5 Handoff 01/04 (RFC-016, RFC-005, RFC-013): library core must not write
+// to stdout/stderr. `forbid`, not `deny` -- `deny` can be overridden by an
+// inner `#[allow(clippy::disallowed_macros)]`, which is exactly the bypass
+// this closes (clippy's own `-D warnings` failure message suggests that
+// override; `forbid` turns the attempt into a compile error instead). The
+// scoped gate (`.github/clippy-no-stdout/clippy.toml`, loaded via
+// `CLIPPY_CONF_DIR` for `cargo clippy --lib`) supplies the actual macro/method
+// paths; with no config loaded elsewhere, these two lints have nothing
+// configured and are free everywhere else in the tree.
+#![forbid(clippy::disallowed_macros, clippy::disallowed_methods)]
 
 //! # sheets-diff
 //!

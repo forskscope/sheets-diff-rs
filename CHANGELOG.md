@@ -7,16 +7,38 @@
 - **CI now fails the build if library core writes to stdout or stderr
   (M5).** RFC-016, RFC-005, and RFC-013 have stated this prohibition since
   v2.0.0; nothing enforced it — `println!`, `eprintln!`, `print!`,
-  `eprint!`, and `dbg!` could all be added to any file under `src/` tomorrow
-  without any check objecting. A `clippy::disallowed_macros` gate, scoped
-  to `cargo clippy --lib` via a dedicated `CLIPPY_CONF_DIR`
+  `eprint!`, `dbg!`, or a direct `std::io::stdout()`/`std::io::stderr()`
+  call could all be added to any file under `src/` tomorrow without any
+  check objecting. A `clippy::disallowed_macros` + `clippy::disallowed_methods`
+  gate, scoped to `cargo clippy --lib` via a dedicated `CLIPPY_CONF_DIR`
   (`.github/clippy-no-stdout/clippy.toml`), now runs in CI's `lint` job and
-  fails the build on any of the five. `src/main.rs` (the CLI, RFC-013's
-  sole sanctioned exception) is excluded structurally — it is a separate
-  target, never compiled by `--lib` — not by an in-code `#[allow]`.
-  Demonstrated failing on a deliberately introduced `println!` before this
-  landed; no `src/` file changed. This is not a fix — nothing under `src/`
-  was ever in violation.
+  fails the build on any of them. `src/main.rs` (the CLI, RFC-013's sole
+  sanctioned exception) is excluded structurally — it is a separate target,
+  never compiled by `--lib` — not by an in-code `#[allow]`. Demonstrated
+  failing on a deliberately introduced `println!` and a deliberate direct
+  `std::io::stdout()` call before this landed; no `src/` file changed. This
+  is not a fix — nothing under `src/` was ever in violation.
+
+  **The gate cannot be waved through.** `src/lib.rs` now carries
+  `#![forbid(clippy::disallowed_macros, clippy::disallowed_methods)]`
+  alongside its existing `#![forbid(unsafe_code)]`. Without it, the scoped
+  gate's own `-D warnings` failure message suggests its own bypass —
+  `#[allow(clippy::disallowed_macros)]` on the offending function silenced
+  it and the gate exited 0, found during this gate's own review. `forbid`
+  turns that attempt into `error[E0453]`, a hard compile error an inner
+  `#[allow]` cannot downgrade; `deny` would not have. Demonstrated with the
+  same attribute against a deliberate `println!`, reverted. Costs nothing
+  elsewhere: with no config loaded outside the scoped gate, these two lints
+  have no configured paths, so `cargo build --all-features` and the
+  unscoped `cargo clippy --all-targets --all-features -- -D warnings` both
+  still pass unchanged.
+
+  **Indirection through a named function pointer is caught, not a gap.**
+  `let f: fn() -> std::io::Stdout = std::io::stdout;` still fires
+  `disallowed_methods` at the point `std::io::stdout` is named — naming is
+  unavoidable in any indirection starting from a disallowed path, so this
+  route was never open. (An earlier review of this gate listed it as an
+  unverified blind spot; it has since been verified closed.)
 
 ## [2.4.0] - 2026-08-17
 
