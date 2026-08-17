@@ -155,16 +155,34 @@ findings plus the earlier M4 sketch were regrouped by **what each item changes
 for a consumer**, which is what decides the release. Twelve schedulable items
 across four milestones; two are upstream-blocked and one is the v3 decision.
 
-Four items, one defect class: **a statement that sounds like a fact because it
+Four units, one defect class: **a statement that sounds like a fact because it
 sits next to code.** This project has been bitten by it three times — the
 `parallel` feature that never compiled, `cells_compared`'s changelog claim, and
-`meta.rs`'s comments.
+`meta.rs`'s comments. Unit 04 makes it five, and moves the class from comments
+into the safety claims themselves.
 
 | Unit | Item |
 |---|---|
 | 01 | Two doc-only truths: `meta.rs`'s comments describing a `WorkbookMetadataMode` that was never built, and the absence of any note that `Integer`/`Duration`/`Unsupported` are unreachable |
 | 02 | `DiffMetrics.cells_compared` counts changed cells, not coordinates visited — and 2.2.3's changelog claimed it fixed exactly this |
 | 03 | Exit code 3 for invalid/corrupt input is specified by RFC-013 and never emitted, plus the subprocess test that has never existed |
+| 04 | The safety claims: `max_cells_compared` bounds diffs rather than coordinates (F-A), the threat model tells callers it bounds coordinates (F-E), and a disk error mid-read is classified as a corrupt file (F-F) |
+
+**Unit 04 was added 2026-08-17, opened on the owner's ruling.** It was not in
+the agreed set. Units 02 and 03 each surfaced it: reviewing the metric defect
+exposed the same root cause in a resource limit, and reviewing the exit-code
+mapping exposed the classifier feeding it. F-E is the one that decided the
+priority — a threat model that promises a bound we do not provide is worse than
+a limit that silently does not fire, because a consumer can read it and plan
+around it.
+
+**The owner ruled on its compatibility consequence.** `Limits::hardened()` sets
+`max_cells_compared: Some(5_000_000)`; today that bounds diffs, so a hardened
+caller comparing a large workbook with few differences never trips it, and
+after unit 04 they will. A comparison that succeeded in 2.3.0 can return
+`LimitExceeded` in 2.4.0. `Limits::default()` leaves the limit unset, so
+default-configured callers are unaffected. Accepted deliberately: the limit
+doing what it was always documented to do is the point of the fix.
 
 **Released as 2.4.0, not 2.3.1 — a correction to the proposal.** I called this a
 patch release. Unit 03 falsifies that: corrupt input currently exits 2, and
