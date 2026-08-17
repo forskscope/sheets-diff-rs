@@ -22,6 +22,28 @@
   checkpoint. **No library code changed to produce this report** — `src/`
   is untouched; this unit measures only, and scopes M7's remaining units.
 
+### Fixed
+
+- **A comparison that previously ran to completion despite a cancellation
+  request, on any workbook with exactly one sheet, now returns
+  `Err(SheetsDiffError::Cancelled)` (M7 Handoff 03).** `Cancellation::is_cancelled()`
+  was polled only once per sheet pair, before that pair's work began; a
+  workbook with more than one sheet observed a cancellation request at the
+  next sheet's checkpoint, but a single-sheet workbook — the ordinary shape
+  of a spreadsheet — had no next checkpoint to reach, so the comparison
+  always completed and returned `Ok`, no matter when cancellation was
+  requested. Polling is now also performed at a 50,000-cell interval inside
+  both the read phase and the compare phase of each sheet, derived from a
+  100 ms target latency against unit 01's measured ~1.9 µs/cell budget
+  (worst case ≈ 95 ms on the largest ladder point). Measured overhead with
+  and without a `Cancellation` configured is reported in
+  `docs/src/maintainers/performance.md`. **This is an observable behaviour
+  change** for any caller that set a `Cancellation` and relied — knowingly
+  or not — on it being ignored mid-sheet; there is no reasonable code
+  depending on that, and this is a bug fix (a documented feature now works
+  as documented), not a compatibility event. `Cancellation`'s doc comment
+  and RFC-024's Status line are corrected to match.
+
 ## [2.4.1] - 2026-08-17
 
 **Documentation and verification release.** No behaviour change, no API change:

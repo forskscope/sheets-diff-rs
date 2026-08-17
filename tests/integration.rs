@@ -10,7 +10,7 @@ use rust_xlsxwriter::Workbook;
 use support::*;
 
 use sheets_diff::{
-    CellChangeKind, CellError, CellValue, DateComparePolicy, DiffEvent, DiffOptions,
+    Cancellation, CellChangeKind, CellError, CellValue, DateComparePolicy, DiffEvent, DiffOptions,
     FormulaCompareMode, SheetChange, SheetMatchingMode, SheetsDiffError, ValueDifferenceKind,
     compare_bytes, compare_bytes_with_options, compare_paths_with_options,
     compare_readers_with_options,
@@ -532,6 +532,132 @@ fn cancellation_returns_cancelled() {
         compare_bytes_with_options(&b, &b, opts),
         Err(SheetsDiffError::Cancelled)
     ));
+}
+
+// ---------------------------------------------------------------------------
+// M7 Handoff 03 — cancellation observed mid-sheet, not just between sheets
+// ---------------------------------------------------------------------------
+
+/// A workbook with a single dense block of populated cells, offset by
+/// `row_offset` rows. Not shared via `tests/support.rs` — only this file
+/// needs a row-offset variant of `wb_large`, to build two sheets whose
+/// populated coordinates are disjoint (see
+/// `cancellation_observed_during_compare_phase` below).
+fn wb_dense_block(row_offset: u32, rows: u32, cols: u16, prefix: &str) -> Vec<u8> {
+    let mut wb = Workbook::new();
+    let ws = wb.add_worksheet();
+    for r in 0..rows {
+        for c in 0..cols {
+            ws.write_string(row_offset + r, c, format!("{prefix}_{r}_{c}"))
+                .unwrap();
+        }
+    }
+    wb.save_to_buffer().unwrap()
+}
+
+/// Cancelled from the *second* poll onward, never the first.
+///
+/// A naive `|| true` cancels on poll #1 — which, for any workbook, is the
+/// pre-existing per-sheet-pair `check_cancel` call that already ran before
+/// this unit's fix. A test built on that policy would pass identically
+/// whether or not the new mid-sheet checkpoints exist, "passing for the
+/// wrong reason" (the handoff's own Known Risks warning). Reporting
+/// not-cancelled on the first poll and cancelled on every poll after it
+/// guarantees the *first* internal checkpoint reached — not the outer,
+/// already-existing one — is what this test actually exercises.
+struct CancelFromSecondPoll(std::sync::atomic::AtomicUsize);
+
+impl CancelFromSecondPoll {
+    fn new() -> Self {
+        Self(std::sync::atomic::AtomicUsize::new(0))
+    }
+}
+
+impl Cancellation for CancelFromSecondPoll {
+    fn is_cancelled(&self) -> bool {
+        // fetch_add returns the pre-increment value: poll #1 sees 0 (not
+        // cancelled), poll #2 sees 1, poll #3 sees 2, ... (cancelled).
+        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst) >= 1
+    }
+}
+
+#[test]
+fn cancellation_observed_during_read_phase() {
+    // 300 x 200 = 60,000 cells, one dense sheet — comfortably more than
+    // CANCEL_POLL_INTERVAL (50,000), so reading this single sheet alone
+    // crosses an interval boundary. The "new" side shares the sheet's
+    // default name but is trivial, so old-side reading runs first and
+    // alone is what the fix must catch: `read_sheet_cells` for "new", and
+    // `build_sheet_diff`, are never reached if this is observed correctly.
+    let old = wb_dense_block(0, 300, 200, "old");
+    let new = wb_strings(&[(0, 0, "x")]);
+
+    let opts = DiffOptions::builder()
+        .cancellation(CancelFromSecondPoll::new())
+        .build()
+        .unwrap();
+    assert!(
+        matches!(
+            compare_bytes_with_options(&old, &new, opts),
+            Err(SheetsDiffError::Cancelled)
+        ),
+        "a 60,000-cell single sheet must be cancellable mid-read, not just \
+         at the sheet-pair boundary before it starts"
+    );
+}
+
+#[test]
+fn cancellation_observed_during_compare_phase() {
+    // Two dense blocks of 200 x 200 = 40,000 cells each — individually
+    // under CANCEL_POLL_INTERVAL (50,000), so neither side's own read
+    // crosses an interval boundary on its own. Placed at disjoint row
+    // ranges (0..200 vs 300..500) so Positional alignment's union of both
+    // sides' populated coordinates does not collapse them: the coordinate
+    // set compared is 40,000 + 40,000 = 80,000 entries, which *does* cross
+    // an interval boundary — but only in `build_sheet_diff`'s compare loop,
+    // after both reads have already completed cleanly. If only the read
+    // checkpoint existed, this test would time out, not fail fast.
+    let old = wb_dense_block(0, 200, 200, "old");
+    let new = wb_dense_block(300, 200, 200, "new");
+
+    let opts = DiffOptions::builder()
+        .cancellation(CancelFromSecondPoll::new())
+        .build()
+        .unwrap();
+    assert!(
+        matches!(
+            compare_bytes_with_options(&old, &new, opts),
+            Err(SheetsDiffError::Cancelled)
+        ),
+        "an 80,000-coordinate comparison, built from two reads that each \
+         individually stay under one polling interval, must still be \
+         cancellable mid-compare"
+    );
+}
+
+#[test]
+fn cancellation_configured_but_never_fires_leaves_result_unchanged() {
+    // Corpus-strength proof (required test 3) that adding polling
+    // checkpoints does not alter what a non-cancelled comparison returns.
+    // Large enough (100 x 50 = 5,000 cells) to actually pass through a few
+    // poll checks without crossing CANCEL_POLL_INTERVAL, so this exercises
+    // the "poll, find not-cancelled, continue" path, not just the trivial
+    // small-workbook case.
+    let old = wb_large(100, 50, "old");
+    let new = wb_large(100, 50, "new");
+
+    let without = compare_bytes(&old, &new).unwrap();
+    let opts = DiffOptions::builder()
+        .cancellation(|| false)
+        .build()
+        .unwrap();
+    let with = compare_bytes_with_options(&old, &new, opts).unwrap();
+
+    assert_eq!(without.summary.cells_changed, with.summary.cells_changed);
+    assert_eq!(
+        without.sheets[0].cell_diffs.len(),
+        with.sheets[0].cell_diffs.len()
+    );
 }
 
 // ============================================================================
