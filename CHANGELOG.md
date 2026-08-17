@@ -44,6 +44,40 @@
   as documented), not a compatibility event. `Cancellation`'s doc comment
   and RFC-024's Status line are corrected to match.
 
+### Documentation
+
+- **RFC-027's last named gap closed: a v1.2-vs-v2 benchmark comparison
+  (M7 Handoff 02).** New `benches/v1_2_comparison.rs` (`cargo bench --bench
+  v1_2_comparison`) drives both versions through their path-based entry
+  points — `Diff::try_new` (v1.2, a new dev-dependency,
+  `sheets-diff-v1_2 = "=1.2.0"` from crates.io) and `compare_paths` (v2).
+  **Confound 1 (the dependency differs) is eliminated by construction, not
+  bounded**: v1.2.0's loose `calamine = "0"` pin lets Cargo's resolver unify
+  both versions onto the same calamine 0.36.1 already in this workspace's
+  lockfile — confirmed with `cargo tree -i calamine`, not assumed — so both
+  sides of every number below run on the literal same calamine code, a
+  stronger outcome than the separate 0.35-vs-0.36 measurement the handoff
+  anticipated needing. The other three confounds (differing capability,
+  v1.2 having no benchmarks of its own, v2's cancellation-polling counter
+  M7 Handoff 03 added) are each stated explicitly rather than folded into
+  one number. Per-scenario results across three shapes, not a single
+  aggregate: v2 is consistently **20–38% slower in time** across every
+  shape (typed normalisation, alignment, diagnostics, and metrics tracking
+  that v1.2's string comparison never does), but **peak memory does not
+  move in one direction** — `+126.5%` on `tall`, the largest gap this
+  report found on any dimension, versus `−21.1%` on `sparse`, reproducibly,
+  on the same measurement. An aggregate ratio would have hidden that
+  reversal entirely. Both versions independently confirmed to agree on
+  changed-cell count for an unambiguous fixture before any of the above was
+  trusted. `cargo deny check` passes with the new dev-dependency —
+  `multiple-versions-include-dev` defaults to false, so the calamine
+  0.35/0.36 possibility this could have raised doesn't apply once the
+  versions unified to begin with. Commit measured: `c1422ea` (at or after
+  `db88706`, M7 Handoff 03's merge, since Handoff 03 changed the exact
+  per-sheet loops this comparison benchmarks). Full report:
+  `docs/src/maintainers/performance.md`. No library code changed; the
+  fixture corpus is untouched.
+
 ## [2.4.1] - 2026-08-17
 
 **Documentation and verification release.** No behaviour change, no API change:

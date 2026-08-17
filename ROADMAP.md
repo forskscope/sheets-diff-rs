@@ -367,6 +367,27 @@ benchmarks, which is measurement, not writing. These share the
 property that **their scope cannot honestly be written until something is
 measured**, so they are grouped to keep that discipline in one place.
 
+### Settled by the consumer, 2026-08-17
+
+**`serde::Deserialize`: declined, not deferred.** ForskScope was asked directly
+and said no — they have no read path for anything they serialise, and noted that
+if they ever gained one they would need a *stable format* rather than a derive,
+which is the larger commitment. Recorded in RFC-014's Status and on
+[`docs/src/non-goals.md`](docs/src/non-goals.md) as **not planned**, with the
+note that the decision rests on one data point and would be revisited on a
+second. This closes a question open since M3.
+
+**The cancellation fix does not get its own release.** Also ForskScope's call,
+also asked directly: they have shipped nothing against any version of this
+crate, `.xlsx` is still failing closed on their side, so there is no released
+ForskScope in which a user can start a comparison, let alone cancel one. Their
+instruction was *"do not prioritise a release for us — ship it with the rest of
+the milestone."* It ships with M7.
+
+They also confirmed **2.4.1 as the adoption target**, and reported their
+acceptance matrix now blocked on an upstream dependency whose fix is merged but
+unpublished — outside their control and ours. Their own blockers are closed.
+
 ### Not scheduled
 
 - **`serde` `Deserialize`** — a public API expansion needing its own RFC, and

@@ -1,6 +1,6 @@
 # RFC-027 — Benchmark and Performance Governance
 
-**Status.** Partially implemented (2.0.0–2.2.3) — verified 2026-08-16. Deferred: no benchmark documentation compares v1.2 and v2 performance, as required.
+**Status.** Implemented (2.0.0–2.4.x) — verified 2026-08-16; the deferral closed 2026-08-17 (M7 Handoff 02). `benches/v1_2_comparison.rs` compares v1.2 and v2 through their path-based entry points across three workbook shapes, with the comparison's four confounds (calamine version, differing capability, v1.2 having no benchmarks of its own, v2's cancellation-polling counter) each handled explicitly; documented in `docs/src/maintainers/performance.md`. The other three acceptance criteria (programmatic fixtures, `cargo bench` covering the core scenarios, a >255-column benchmark) were already met and re-confirmed rather than assumed still true.
 **Target:** v2.0 guardrail  
 **Related:** RFC-011, RFC-012, RFC-024, RFC-025
 
