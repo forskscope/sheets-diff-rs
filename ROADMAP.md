@@ -235,11 +235,46 @@ unit 01 is what makes the sentence true.
 Source is currently clean and detection currently works: **M5 is prevention, not
 remediation.**
 
-### M6 — "The documentation MUSTs" *(release)*
+### M6 — "The documentation MUSTs" — 🔄 **OPEN 2026-08-17** *(release)*
 
-NF-024 and NF-026 — **MUST** requirements unmet across four releases — plus the
-migration guide's missing JSON section and uncompiled code blocks, and the
-absent v1.2-vs-v2 benchmark comparison.
+Five units. Handoffs:
+[`rfcs/handoffs/m6-documentation-musts/`](rfcs/handoffs/m6-documentation-musts/README.md).
+
+**The requirements, quoted rather than paraphrased** — from
+`.git-exclude/specs/sheets-diff-v2-requirements.md`:
+
+| | Level | Text |
+|---|---|---|
+| NF-024 | **MUST** | Document the v2 API with examples for path, reader, bytes, options, and formatter usage. |
+| NF-025 | **MUST** | Document migration from v1/v1.2 to v2. |
+| NF-026 | **MUST** | Document non-goals and limitations clearly. |
+| NF-027 | SHOULD | Document comparison semantics with examples: typed value change, formula change, sheet rename, inserted row, and warning handling. |
+
+**Noted while opening this milestone: the requirements register lives outside
+the tracked repository.** `NF-024`, `NF-026` and `NF-027` appear nowhere in
+`rfcs/`, `docs/`, or any tracked file — only in this roadmap and in
+`.git-exclude/specs/`. So the normative requirements this project is measured
+against are not under version control, and every citation of an NF number in a
+tracked file is unresolvable to anyone reading the repository alone. Not
+scheduled here — it is a governance question for the owner, not a documentation
+unit — but recorded rather than left to be rediscovered.
+
+| Unit | Item |
+|---|---|
+| 01 | Make documentation checkable — the migration guide has 11 Rust blocks nothing compiles |
+| 02 | The API guide (**NF-024**) — five example categories, none of which exist |
+| 03 | Semantics and non-goals (**NF-026**, NF-027) — neither page exists |
+| 04 | The undocumented public surface — F-D, F-G |
+| 05 | Record corrections — F-I, F-L, and two RFC statuses M5 made stale |
+
+**01 comes first and is not optional.** 02 and 03 write the examples NF-024 and
+NF-027 name; without a harness they would ship unverified, which is the defect
+class M4 and M5 spent eight units removing, manufactured at scale in the release
+meant to fix the documentation. The mechanism is verified — a markdown file
+pulled in via `#[doc = include_str!]` behind `#[cfg(doctest)]` turns its ```rust
+blocks into doctests, and a broken block fails `cargo test --doc`.
+
+**Exit: NF-024 and NF-026 met, NF-027 addressed, and then the v3 question.**
 
 Also **`DiffMetrics`'s undocumented fields** (F-D, raised in M4 unit 02's
 review). M4 unit 02 documented `cells_compared`, leaving it the only documented
@@ -268,7 +303,10 @@ is a check nothing in CI performs.
 ### M7 — "Measure, then change" *(release; scope set by measurement)*
 
 Large-workbook memory; cancellation granularity (polled per sheet pair, not per
-cell batch as RFC-012 specifies); the shared display address. These share the
+cell batch as RFC-012 specifies); the shared display address; and **the
+v1.2-vs-v2 benchmark comparison (RFC-027), moved here from M6** — it was grouped
+as documentation debt, but it requires building v1.2 and running comparable
+benchmarks, which is measurement, not writing. These share the
 property that **their scope cannot honestly be written until something is
 measured**, so they are grouped to keep that discipline in one place.
 
