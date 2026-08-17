@@ -66,3 +66,16 @@ fn exit_3_for_corrupt_input() {
         .unwrap();
     assert_eq!(status.code(), Some(3));
 }
+
+#[test]
+fn exit_3_for_encrypted_workbook() {
+    // M4 unit 03 mapped EncryptedWorkbook => 3 deliberately (RFC-032: the
+    // tool cannot proceed with the file as given, for reasons intrinsic to
+    // it, same bucket as corrupt/wrong-format input). Unprotected until now.
+    let new = fixture("empty_sheet", "new.xlsx");
+    let status = bin()
+        .args(["tests/fixtures/corrupt/encrypted.xlsx", new.as_str()])
+        .status()
+        .unwrap();
+    assert_eq!(status.code(), Some(3));
+}

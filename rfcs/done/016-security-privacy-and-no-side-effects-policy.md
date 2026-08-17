@@ -1,6 +1,6 @@
 # RFC-016: Security, Privacy, and No-Side-Effects Policy
 
-**Status.** Partially implemented (2.0.0–2.4.x) — verified 2026-08-16; the `println!`/`eprintln!`/`dbg!` deferral closed 2026-08-17 (M5 Handoff 01 — a `clippy::disallowed_macros` gate scoped to the library target, enforced in CI). Deferred: no test verifies source-path privacy (non-UTF-8/display-name handling is untested; M5 Handoff 02).
+**Status.** Implemented (2.0.0–2.4.x) — verified 2026-08-16. Both deferrals closed 2026-08-17: the `println!`/`eprintln!`/`dbg!` prohibition is a `clippy::disallowed_macros`/`clippy::disallowed_methods` gate scoped to the library target and unwaivable, enforced in CI (M5 Handoff 01, closed by Handoff 04); source-path privacy — a parent directory does not survive into a result or its rendered output, a non-UTF-8 file name yields `None` without panicking, error paths don't leak the directory, and byte/reader inputs carry no path at all — is tested (`tests/source_path_privacy.rs`, M5 Handoff 02).
 **Target:** v2.0.0  
 **Created:** 2026-06-11  
 **Category:** Security/privacy  
