@@ -176,6 +176,172 @@ fn write_fixture_pair(dir: &Path, old: &[u8], new: &[u8]) {
 }
 
 // ---------------------------------------------------------------------------
+// Encrypted-workbook fixture (M5 Handoff 03, RFC-032)
+//
+// Not an .xlsx at all, and not encrypted -- a minimal hand-built CFB
+// (Compound File Binary / OLE2) container shaped exactly enough to trigger
+// calamine 0.36.1's password-protection detection, which is purely
+// structural:
+//
+//   fn check_for_password_protected(...) -> Result<(), XlsxError> {
+//       ...
+//       if let Ok(cfb) = crate::cfb::Cfb::new(reader, offset_end) {
+//           if cfb.has_directory("EncryptedPackage") {
+//               return Err(XlsxError::Password);
+//           }
+//       }
+//       Ok(())
+//   }
+//
+// It checks for a CFB directory entry literally named "EncryptedPackage" --
+// nothing about real encryption. A container with that one entry and no
+// payload satisfies it. rust_xlsxwriter cannot produce a CFB container at
+// all (it only ever emits ZIP/xlsx), so this is written by hand rather than
+// generated through the usual builder helpers above.
+//
+// This is a fact about calamine 0.36.1's internals, not a public contract --
+// if a future calamine version changes what it looks for, this fixture stops
+// tripping the check and the resulting test failure is the coupling
+// surfacing correctly, not a bug in the fixture. See [MS-CFB] for the
+// container format; the layout below is the smallest structurally valid
+// instance of it: one FAT sector, one directory sector, no data streams.
+// ---------------------------------------------------------------------------
+
+fn cfb_u32le(n: u32) -> [u8; 4] {
+    n.to_le_bytes()
+}
+
+/// A 128-byte CFB directory entry. `name` must fit in 32 UTF-16 code units
+/// (including the required null terminator, per [MS-CFB] 2.6.1).
+#[allow(clippy::too_many_arguments)]
+fn cfb_dir_entry(
+    name: &str,
+    object_type: u8,
+    color_black: bool,
+    left_sibling: u32,
+    right_sibling: u32,
+    child: u32,
+    start_sector: u32,
+    stream_size: u64,
+) -> Vec<u8> {
+    let mut e = Vec::with_capacity(128);
+
+    let mut name_field = [0u8; 64];
+    let units: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
+    assert!(
+        units.len() <= 32,
+        "CFB entry name '{name}' exceeds 32 UTF-16 units including the null terminator"
+    );
+    for (i, u) in units.iter().enumerate() {
+        let b = u.to_le_bytes();
+        name_field[i * 2] = b[0];
+        name_field[i * 2 + 1] = b[1];
+    }
+    e.extend_from_slice(&name_field);
+
+    let name_len_bytes: u16 = if name.is_empty() {
+        0
+    } else {
+        (units.len() as u16) * 2
+    };
+    e.extend_from_slice(&name_len_bytes.to_le_bytes());
+    e.push(object_type);
+    e.push(if color_black { 0x01 } else { 0x00 });
+    e.extend_from_slice(&cfb_u32le(left_sibling));
+    e.extend_from_slice(&cfb_u32le(right_sibling));
+    e.extend_from_slice(&cfb_u32le(child));
+    e.extend_from_slice(&[0u8; 16]); // CLSID -- zero for a non-storage-controlled entry
+    e.extend_from_slice(&[0u8; 4]); // state bits -- unused here
+    e.extend_from_slice(&[0u8; 8]); // creation time -- unused here
+    e.extend_from_slice(&[0u8; 8]); // modified time -- unused here
+    e.extend_from_slice(&cfb_u32le(start_sector));
+    e.extend_from_slice(&stream_size.to_le_bytes());
+    debug_assert_eq!(e.len(), 128);
+    e
+}
+
+/// Builds the smallest CFB container calamine 0.36.1 recognises as
+/// password-protected: a 512-byte header, one FAT sector, one directory
+/// sector containing a Root Entry and a single child storage entry named
+/// "EncryptedPackage" -- no stream data anywhere. 1536 bytes total.
+fn build_encrypted_workbook_fixture() -> Vec<u8> {
+    const FREESECT: u32 = 0xFFFFFFFF;
+    const ENDOFCHAIN: u32 = 0xFFFFFFFE;
+    const FATSECT: u32 = 0xFFFFFFFD;
+    const NOSTREAM: u32 = 0xFFFFFFFF;
+
+    let mut out = Vec::with_capacity(1536);
+
+    // --- Header (512 bytes), [MS-CFB] 2.2 ---
+    out.extend_from_slice(&[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]); // signature
+    out.extend_from_slice(&[0u8; 16]); // CLSID, reserved
+    out.extend_from_slice(&[0x3E, 0x00]); // minor version
+    out.extend_from_slice(&[0x03, 0x00]); // major version 3 -> 512-byte sectors
+    out.extend_from_slice(&[0xFE, 0xFF]); // byte order mark, little-endian
+    out.extend_from_slice(&[0x09, 0x00]); // sector shift: 2^9 = 512
+    out.extend_from_slice(&[0x06, 0x00]); // mini sector shift: 2^6 = 64
+    out.extend_from_slice(&[0u8; 6]); // reserved
+    out.extend_from_slice(&cfb_u32le(0)); // directory sector count -- must be 0 for major version 3
+    out.extend_from_slice(&cfb_u32le(1)); // FAT sector count
+    out.extend_from_slice(&cfb_u32le(1)); // first directory sector -- sector 1
+    out.extend_from_slice(&cfb_u32le(0)); // transaction signature, unused
+    out.extend_from_slice(&cfb_u32le(0x1000)); // mini stream cutoff (4096, standard, unused here)
+    out.extend_from_slice(&cfb_u32le(ENDOFCHAIN)); // first mini FAT sector -- none
+    out.extend_from_slice(&cfb_u32le(0)); // mini FAT sector count
+    out.extend_from_slice(&cfb_u32le(ENDOFCHAIN)); // first DIFAT sector -- none, one FAT sector fits in the header array below
+    out.extend_from_slice(&cfb_u32le(0)); // DIFAT sector count
+    // DIFAT array: 109 entries. Entry 0 -> FAT sector 0; the rest unused.
+    out.extend_from_slice(&cfb_u32le(0));
+    for _ in 0..108 {
+        out.extend_from_slice(&cfb_u32le(FREESECT));
+    }
+    debug_assert_eq!(out.len(), 512);
+
+    // --- Sector 0: the FAT itself (512 bytes / 128 four-byte entries) ---
+    out.extend_from_slice(&cfb_u32le(FATSECT)); // entry 0: this sector is a FAT sector
+    out.extend_from_slice(&cfb_u32le(ENDOFCHAIN)); // entry 1: directory sector, one-sector chain
+    for _ in 0..126 {
+        out.extend_from_slice(&cfb_u32le(FREESECT));
+    }
+    debug_assert_eq!(out.len(), 1024);
+
+    // --- Sector 1: directory (512 bytes / four 128-byte entries) ---
+    // Entry 0: Root Entry, object type 0x05, points at entry 1 as its child.
+    out.extend_from_slice(&cfb_dir_entry(
+        "Root Entry",
+        0x05,
+        true,
+        NOSTREAM,
+        NOSTREAM,
+        1,
+        ENDOFCHAIN,
+        0,
+    ));
+    // Entry 1: "EncryptedPackage", object type 0x01 (storage) -- the entry
+    // calamine's check looks for. No children, no stream data.
+    out.extend_from_slice(&cfb_dir_entry(
+        "EncryptedPackage",
+        0x01,
+        true,
+        NOSTREAM,
+        NOSTREAM,
+        NOSTREAM,
+        0,
+        0,
+    ));
+    // Entries 2-3: unused, zeroed (object type 0x00).
+    out.extend_from_slice(&cfb_dir_entry(
+        "", 0x00, false, NOSTREAM, NOSTREAM, NOSTREAM, 0, 0,
+    ));
+    out.extend_from_slice(&cfb_dir_entry(
+        "", 0x00, false, NOSTREAM, NOSTREAM, NOSTREAM, 0, 0,
+    ));
+    debug_assert_eq!(out.len(), 1536);
+
+    out
+}
+
+// ---------------------------------------------------------------------------
 // Scenarios
 // ---------------------------------------------------------------------------
 
@@ -733,6 +899,19 @@ fn main() {
              corpus trip-wire for the exact bug D-01 was (RFC-036 #11).",
         );
         println!("✓ iso_datetime");
+    }
+
+    // Encrypted-workbook fixture (M5 Handoff 03) -- a single standalone
+    // negative-input file, like `not_a_zip.xlsx`, not an old/new scenario
+    // pair, so it does not go under `base` or get a `scenario.toml`.
+    {
+        let corrupt_dir = Path::new("tests/fixtures/corrupt");
+        std::fs::write(
+            corrupt_dir.join("encrypted.xlsx"),
+            build_encrypted_workbook_fixture(),
+        )
+        .unwrap();
+        println!("✓ encrypted.xlsx (tests/fixtures/corrupt/)");
     }
 
     println!("\nAll fixtures generated in {}", base.display());

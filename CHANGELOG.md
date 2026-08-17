@@ -62,6 +62,29 @@
   the regression was reverted. This is not a fix — the property held before
   this unit; it is now verified rather than believed.
 
+- **`SheetsDiffError::EncryptedWorkbook` has its first test (M5).** The
+  detection has existed since v2.0.0 and gained a dedicated CLI exit code
+  (M4 unit 03); nothing exercised any of it — no fixture in the tree was
+  encrypted, and `grep -ri encrypted tests/` returned nothing. New fixture
+  `tests/fixtures/corrupt/encrypted.xlsx`: not an `.xlsx` file and not
+  encrypted — a minimal hand-built CFB (Compound File Binary) container
+  with a single `EncryptedPackage` directory entry and no payload, which is
+  the entirety of what calamine 0.36.1 checks for. No new dependency: built
+  by a new `build_encrypted_workbook_fixture()` in `examples/gen-fixtures.rs`
+  (pure byte construction, ~1500 bytes, regenerable with
+  `cargo run --example gen-fixtures`) rather than committing an
+  unreproducible binary or adding the `cfb` crate as a dev-dependency for a
+  one-entry container simple enough to build by hand. Full provenance:
+  `tests/fixtures/corrupt/README.md`. Six new tests: opening the
+  fixture from either side yields `EncryptedWorkbook` with the correct
+  `Side` (`tests/encrypted_workbook.rs`, both via `compare_bytes` and
+  `compare_paths`); the rendered message names the condition
+  ("password-protected") and the side, with a negative control confirming
+  an ordinary corrupt-input error does not; the CLI exits 3 for it
+  (`tests/cli.rs`, extending M4 unit 03's exit-code coverage). No existing
+  fixture changed. This is not a fix — the detection worked before this
+  unit; it is now verified rather than believed.
+
 ## [2.4.0] - 2026-08-17
 
 **Truth-telling release.** Every change here closes a gap between what this
