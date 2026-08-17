@@ -1346,6 +1346,25 @@ fn sparse_range_fixture_reports_one_change() {
 }
 
 #[test]
+fn cells_compared_exceeds_cells_changed_when_most_cells_are_unchanged() {
+    // `metrics.cells_compared` must count every coordinate compared, not
+    // just the ones that produced a diff. `sparse_range` has exactly one
+    // changed cell among many populated ones, so a formula that (bug)
+    // equals `cells_changed` would report 1 here too -- this fails under
+    // that bug and passes only when the real coordinate count is counted.
+    let (old, new) = read_fixture_pair("sparse_range");
+    let diff = compare_bytes(&old, &new).unwrap();
+    assert_eq!(diff.summary.cells_changed, 1);
+    assert!(
+        diff.metrics.cells_compared > diff.summary.cells_changed as u64,
+        "cells_compared ({}) should exceed cells_changed ({}) when most \
+         compared cells are unchanged",
+        diff.metrics.cells_compared,
+        diff.summary.cells_changed
+    );
+}
+
+#[test]
 fn row_insertion_cascade_fixture_reports_cascade() {
     let (old, new) = read_fixture_pair("row_insertion_cascade");
     let diff = compare_bytes(&old, &new).unwrap();
