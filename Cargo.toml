@@ -50,6 +50,25 @@ clap      = { version = "4", features = ["derive"], optional = true }
 rust_xlsxwriter = "0"
 serde_json = "1"
 criterion = { version = "0.8", features = ["html_reports"] }
+# M7 Handoff 02 (RFC-027): the v1.2-vs-v2 benchmark comparison. Pinned exactly
+# (not "1.2") so a fresh resolve can't silently pick up a later 1.2.x with
+# different behaviour than what was measured. Renamed so both major versions
+# coexist in one bench binary.
+#
+# This does NOT introduce a second calamine. v1.2.0's manifest pins
+# `calamine = "0"` with no minor constraint, and a dependency's own committed
+# lockfile does not constrain a consuming workspace, so Cargo unifies v1.2 and
+# v2 onto the single `calamine 0.36.1` already here -- confirmed with
+# `cargo tree -i calamine`. Both sides of the comparison therefore run on the
+# literal same parser, which removes the largest confound the benchmark would
+# otherwise have had. Do not pin calamine down for this dependency: doing so
+# would manufacture exactly that confound.
+#
+# `cargo deny` consequently reports nothing about calamine because there is
+# nothing to report -- not because `multiple-versions-include-dev` defaults to
+# false. That default is real and is what covers the pre-existing zip 7.2/8.6
+# dev-only split (see deny.toml's comment); it is unrelated to this.
+sheets-diff-v1_2 = { package = "sheets-diff", version = "=1.2.0" }
 # Test-only: patches a generated xlsx's internal XML (e.g. workbookPr
 # date1904, a raw t="d" cell) to reach calamine code paths rust_xlsxwriter's
 # public API cannot produce (RFC-035 Handoff 05, D-01/D-02 reachability).
@@ -66,4 +85,8 @@ harness = false
 
 [[bench]]
 name = "memory"
+harness = false
+
+[[bench]]
+name = "v1_2_comparison"
 harness = false

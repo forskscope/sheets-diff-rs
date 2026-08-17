@@ -56,9 +56,15 @@ no live case today.
 
 ### Deliberate deferral
 
-- **`serde::Deserialize` is not implemented** on public model types.
-  `Serialize` ships; round-tripping a `WorkbookDiff` back into this crate's
-  types from JSON is not supported.
+- **`serde::Deserialize` is not implemented** on public model types, and is
+  **not planned**. `Serialize` ships; round-tripping a `WorkbookDiff` back into
+  this crate's types from JSON is not supported. This moved from "deferred" to
+  "not planned" on 2026-08-17: the only known consumer was asked directly and
+  declined, on the grounds that they have no read path for anything they
+  serialise, and that if they ever gained one they would need a *stable format*
+  rather than a derive — which is a materially larger commitment. If you need
+  it, say so; the decision was made on one data point and would be revisited on
+  a second.
 - **`FormatChange` is reserved and permanently empty** (RFC-022) — no cell-
   style comparison exists. Partly forced (calamine 0.36 does not expose a
   cell-style API either, so this is upstream *and* deferred at once), but
@@ -122,23 +128,21 @@ old (broken) behaviour.
 
 ### RFCs that shipped in part
 
-Nine RFCs are `Implemented` for their core design but carry a named,
+Seven RFCs are `Implemented` for their core design but carry a named,
 specific gap in their `Status` field — not "mostly done," but a stated
 remainder. Reading the RFC's own Status line is the authoritative source;
-this list exists so a reader doesn't have to open nine files to get the
+this list exists so a reader doesn't have to open seven files to get the
 inventory:
 
 | RFC | Gap |
 |---|---|
 | [007](../../rfcs/done/007-typed-cell-values-and-normalization.md) | Three of nine `CellValue` variants unreachable (above) |
-| [014](../../rfcs/done/014-serde-feature-and-stable-report-schema.md) | `Deserialize` not implemented (above) |
 | [017](../../rfcs/done/017-v1-to-v2-migration-guide-and-adapter.md) | No JSON section and no ForskScope-adapter example in the migration guide. Its code blocks *are* compiled as of M6 unit 01 |
 | [019](../../rfcs/done/019-numeric-date-and-tolerance-comparison-policies.md) | `CellValue::Duration` unreachable, so duration-tolerance comparison is unexercised |
 | [020](../../rfcs/done/020-display-formatting-and-number-format-capture.md) | `CellNumberFormat` always `None` (above) |
 | [021](../../rfcs/done/021-workbook-metadata-and-defined-name-diffs.md) | `WorkbookChange` reserved (above); defined-name/visibility diffing untested |
 | [023](../../rfcs/done/023-non-cell-workbook-objects-and-unsupported-features.md) | `WorkbookObjectChange` always empty (above, with the upstream/deferred split) |
 | [024](../../rfcs/done/024-large-workbook-memory-strategy.md) | Cancellation is polled once per sheet pair, not between row chunks or cell batches as the RFC's own acceptance criterion specifies |
-| [027](../../rfcs/done/027-benchmark-and-performance-governance.md) | No v1.2-vs-v2 benchmark comparison documentation (moved to M7 — this is measurement work, not documentation) |
 
 ---
 
@@ -178,5 +182,11 @@ failure mode M4 and M5 exist to catch.
 
 The count moving from eleven to nine *while this page was being reviewed* is
 the same failure mode in miniature, and worth leaving visible: a number is only
-true as of the moment it was derived. The table above is authoritative for the
-list; each RFC's own `Status` field is authoritative for its gap.
+true as of the moment it was derived.
+
+It has since moved again, to **seven** — M7 closed RFC-027 (the v1.2-vs-v2
+benchmark comparison now exists) and RFC-014 (`Deserialize` is not deferred but
+declined; see above). Three revisions in two milestones is the point rather than
+an embarrassment: the table above is authoritative for the list, each RFC's own
+`Status` field is authoritative for its gap, and any count quoted anywhere else
+is a snapshot.

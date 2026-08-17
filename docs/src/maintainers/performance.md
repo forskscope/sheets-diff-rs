@@ -290,3 +290,125 @@ measured size and this report's confidence in the number.
 | RFC-024 §7's density choice (`Sparse`/`Dense`) | +12.4% per-populated-cell for sparse vs. dense at equal populated count | High | Real, not urgent. Moderate priority. |
 | Finer cancellation polling | **Done (M7 Handoff 03).** Was structurally zero for single-sheet workbooks; now polls every 50,000 cells in both phases, ≈95 ms worst case, overhead not measurable above noise. | High | Was the milestone's top priority — "a feature that does not work," not an optimisation. Closed, not deferred further. |
 | Shared display address (G) | N/A | N/A | Not a measurement question — a design one, additive on `#[non_exhaustive]` types. Out of this report's scope entirely. |
+
+---
+
+## v1.2 vs. v2 (M7 Handoff 02, RFC-027)
+
+**Commit measured: `c1422ea`** (at or after `db88706`, M7 Handoff 03's
+merge — required, since Handoff 03 added polling checkpoints inside the
+exact per-sheet loops this comparison benchmarks; "v2" is no longer one
+thing across this milestone). `benches/v1_2_comparison.rs`.
+
+RFC-027 has named this gap since 2.0.0: *"Benchmark docs explain how to
+compare v1.2 and v2."* Doing it naively would produce a misleading number —
+four confounds apply, and each is handled explicitly rather than folded
+into one aggregate ratio.
+
+### Method
+
+A dev-dependency on the published `sheets-diff = "1.2.0"` (crates.io),
+renamed `sheets-diff-v1_2` so both major versions coexist in one bench
+binary. Both driven through their path-based entry points — `Diff::try_new`
+(v1.2) and `compare_paths` (v2), the only shape both share.
+`#[global_allocator]` peak-tracking, duplicated from `benches/memory.rs`
+(one allocator per binary; see that file's own note on why this is
+duplicated rather than shared). No criterion group across the two crate
+versions — criterion isn't built for that, and this report doesn't need
+its statistical machinery to say what it needs to say.
+
+### The four confounds
+
+1. **The dependency differs — resolved by construction, not bounded.**
+   v1.2.0's manifest pins `calamine = "0"` (unconstrained minor/patch).
+   With no lockfile forcing 0.35.0 specifically for it, Cargo's resolver
+   unifies **both** v1.2 and v2 onto the same `calamine 0.36.1` in this
+   workspace's `Cargo.lock` — confirmed with `cargo tree -i calamine`, not
+   assumed:
+   ```
+   calamine v0.36.1
+   ├── sheets-diff v1.2.0
+   │   [dev-dependencies]
+   │   └── sheets-diff v2.4.1 (this crate)
+   └── sheets-diff v2.4.1 (this crate)
+   ```
+   Both versions in this comparison run on the literal same calamine code.
+   **This eliminates the confound rather than merely bounding it** — a
+   stronger outcome than a separate 0.35-vs-0.36 measurement would have
+   given, and different from what the handoff anticipated (it expected
+   v1.2's lockfile-pinned 0.35.0 and asked for that gap to be controlled or
+   bounded). Not pinning calamine down for the v1.2 dependency is a
+   deliberate choice — pinning it would reintroduce exactly the confound
+   this resolution removes.
+2. **They don't do the same work.** v1.2 compares cells as strings; v2
+   normalises into typed `CellValue`s, aligns rows, produces diagnostics,
+   and tracks metrics (`DiffMetrics`). Every number below is a comparison
+   between a string-diff and a typed, capability-richer engine, not two
+   implementations of the same algorithm — stated once here, and it stays
+   true for every row in the table below.
+3. **v1.2 has no benchmarks.** `git ls-tree 1.2.0` confirms no `benches/`
+   at that tag. This harness is the first for either version to compare
+   directly.
+4. **v2's polling counter.** v1.2 has no cancellation mechanism at all, so
+   there is no equivalent cost to compare against. M7 Handoff 03's own
+   measurement (Q5, above) found this overhead below run-to-run noise at
+   every ladder size — cited, not re-measured or subtracted here; doing so
+   would be false precision smaller than this harness's own timing
+   variance.
+
+### Agreement check (required, before trusting anything else)
+
+A fixture with exactly one value-only change (v1.2 emits up to two
+`CellDiff` entries per address — one `Value`, one `Formula` — so a
+value-only fixture keeps its total count directly comparable to v2's
+per-address `cells_changed`):
+
+```
+v1.2 cell_diffs (summed across sheets): 1
+v2   summary.cells_changed:             1
+PASS -- both versions agree
+```
+
+### Per-scenario results
+
+Three shapes, not one aggregate — averaged over 5 in-process repeats per
+version per scenario, two full separate process invocations to check
+cross-run stability (both shown; memory is byte-identical between
+invocations, as it was for `benches/memory.rs`'s ladder — time varies, as
+expected for wall-clock measurement):
+
+| Scenario | Shape | v2 vs v1.2 time (run 1 / run 2) | v2 vs v1.2 peak memory |
+|---|---|---:|---:|
+| `small_dense` | 50×20, one cell changed | +24.1% / +21.4% | +46.4% |
+| `tall` | 5,000×20, one cell changed | +34.5% / +38.2% | **+126.5%** |
+| `sparse` | 1,000×100, 5% density, one cell changed | +30.5% / +33.7% | **−21.1%** |
+
+**Time: v2 is consistently slower, by roughly a quarter to over a third,
+across every shape measured.** Given confound 2, this is not automatically
+a defect — v2 does typed normalisation, alignment support, diagnostics, and
+metrics tracking that v1.2's string comparison never attempts. No number
+here says how much of the gap is "capability" versus "avoidable
+inefficiency"; that split would need per-phase instrumentation inside
+`src/`, out of this unit's non-change scope, and is not claimed.
+
+**Memory does not move in one direction, which is the finding an aggregate
+would have destroyed.** `tall` shows v2 using more than double v1.2's peak
+(+126.5%) — the largest gap this report found anywhere, on any dimension.
+`sparse` shows the **opposite sign**: v2 uses about a fifth *less* peak
+memory than v1.2 on the same shape, reproducibly (−21.1% on both separate
+invocations). Not investigated further here — isolating why would need the
+same kind of internal instrumentation Q2's third suspect above already
+found itself blocked on without touching `src/` — but recorded as a
+genuine, reproducible, shape-dependent reversal rather than smoothed into
+an average that would have hidden it entirely.
+
+### What this does and does not settle
+
+Confirms the threat model's general framing (v2 does more, and it costs
+something) with actual numbers instead of "significant" or "acceptable."
+Does not identify which of v2's added capabilities costs the most, or
+explain `tall`'s outsized memory gap — both would be new measurement work,
+not benchmark documentation, and are recorded as open questions rather than
+guessed at.
+
+

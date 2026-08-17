@@ -743,6 +743,15 @@ dependencies = [
 
 [[package]]
 name = "sheets-diff"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce556ccd60e318bb5df4b9dd5729b7912c00fa5395a9a46325e50d3c41613512"
+dependencies = [
+ "calamine",
+]
+
+[[package]]
+name = "sheets-diff"
 version = "2.4.1"
 dependencies = [
  "calamine",
@@ -752,6 +761,7 @@ dependencies = [
  "rust_xlsxwriter",
  "serde",
  "serde_json",
+ "sheets-diff 1.2.0",
  "zip 8.6.0",
 ]
 
