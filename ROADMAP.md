@@ -194,16 +194,27 @@ this is a minor at minimum.
 of M5's three items, because implementing an exit code without testing it would
 be the same defect class M4 exists to remove.
 
-### M5 — "Nothing checks it" — 🔄 **OPEN 2026-08-17** *(no release)*
+### M5 — "Nothing checks it" — ✅ **COMPLETE 2026-08-17** *(no release)*
 
-Three units, one property: a rule this project states and nothing verifies.
+Four units, one property: a rule this project states and nothing verifies.
 Handoffs: [`rfcs/handoffs/m5-nothing-checks-it/`](rfcs/handoffs/m5-nothing-checks-it/README.md).
 
 | Unit | Item |
 |---|---|
-| 01 | The stdout/stderr prohibition is enforced by nothing — four RFCs state it, no CI step checks it |
-| 02 | Source-path privacy is untested: non-UTF-8 handling and `display_name` semantics |
-| 03 | Encrypted-workbook detection has zero coverage, and no fixture exists |
+| 01 | The stdout/stderr prohibition is enforced by nothing — four RFCs state it, no CI step checks it | ✅ |
+| 02 | Source-path privacy is untested: non-UTF-8 handling and `display_name` semantics | ✅ |
+| 03 | Encrypted-workbook detection has zero coverage, and no fixture exists | ✅ |
+| 04 | Unit 01's gate can be waived with `#[allow]` — which its own error message advertises | ✅ |
+
+**Unit 04 was added mid-milestone.** Unit 01's review found the gate stopped an
+accident but not a decision: clippy's failure message prints the bypass
+verbatim. `#![forbid(...)]` makes the override `error[E0453]`, and it fires in
+every clippy invocation rather than only the scoped gate. My scoping failure —
+unit 01 forbade touching `src/`, and the fix is a crate-level attribute.
+
+**Nothing under `src/` changed in any of the four.** Every property held before
+the milestone; now something objects if it stops. RFC-016 moved from *Partially
+implemented* to *Implemented* (both deferrals closed), and RFC-032 likewise.
 
 **Correction to this entry, 2026-08-17.** It previously attributed the
 stdout/stderr rule to **NF-015**. That is wrong: NF-015 is *no network*, and it
