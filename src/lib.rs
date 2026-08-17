@@ -169,3 +169,21 @@ where
 {
     diff::run_compare_readers(old, new, opts)
 }
+
+// ---------------------------------------------------------------------------
+// Documentation doctest harness (M6 Handoff 01, NF-025)
+// ---------------------------------------------------------------------------
+//
+// `include_str!`-ing a `docs/` page as this item's doc comment turns every
+// ```rust fence in it into a doctest `cargo test --doc` compiles — the same
+// mechanism, and the same guarantee, as any other doc example in this file.
+// `#[cfg(doctest)]` means the item exists only while doctests are being
+// collected, so it is absent from every normal build (`cargo build`,
+// `cargo doc`, `cargo clippy`) and costs nothing there.
+//
+// To add a future page to this harness: add one more
+// `#[doc = include_str!("../docs/src/<path>.md")] #[cfg(doctest)]` item
+// below, following this one.
+#[doc = include_str!("../docs/src/migration/v1-to-v2.md")]
+#[cfg(doctest)]
+pub struct MigrationGuideDoctests;

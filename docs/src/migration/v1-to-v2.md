@@ -25,26 +25,34 @@ v2 equivalent.
 
 ## Entry points
 
-```rust
+```text
 // v1 — panicking constructor, path strings
 let diff = sheets_diff::core::diff::Diff::new("old.xlsx", "new.xlsx");
 
 // v1 — fallible constructor (v1.2+)
 let diff = sheets_diff::core::diff::Diff::try_new("old.xlsx", "new.xlsx")?;
+```
 
+```rust,no_run
 // v2 — fallible always; accepts any AsRef<Path>
 use sheets_diff::compare_paths;
 let diff = compare_paths("old.xlsx", "new.xlsx")?;
+# Ok::<(), sheets_diff::SheetsDiffError>(())
 ```
 
 v2 also accepts byte slices and readers — useful when you already hold the
 file contents:
 
-```rust
+```rust,no_run
 use sheets_diff::{compare_bytes, compare_readers};
 
+# let old_bytes: Vec<u8> = Vec::new();
+# let new_bytes: Vec<u8> = Vec::new();
+# let old_file = std::io::Cursor::new(Vec::<u8>::new());
+# let new_file = std::io::Cursor::new(Vec::<u8>::new());
 let diff = compare_bytes(&old_bytes, &new_bytes)?;
 let diff = compare_readers(old_file, new_file)?;
+# Ok::<(), sheets_diff::SheetsDiffError>(())
 ```
 
 ---
@@ -53,7 +61,7 @@ let diff = compare_readers(old_file, new_file)?;
 
 v1 represented sheet-level changes as:
 
-```rust
+```text
 // v1
 pub struct SheetDiff {
     pub old: Option<String>,   // sheet name on old side, or None if added
@@ -63,8 +71,10 @@ pub struct SheetDiff {
 
 v2 uses explicit variants:
 
-```rust
+```rust,no_run
 // v2
+# use sheets_diff::{SheetChange, compare_paths};
+# let diff = compare_paths("old.xlsx", "new.xlsx")?;
 for sheet in &diff.sheets {
     match &sheet.change {
         SheetChange::Added   => { /* new_sheet is Some */ }
@@ -78,6 +88,7 @@ for sheet in &diff.sheets {
         _ => {}
     }
 }
+# Ok::<(), sheets_diff::SheetsDiffError>(())
 ```
 
 ---
@@ -89,7 +100,7 @@ for sheet in &diff.sheets {
 v1 emitted up to two `CellDiff` entries for the same address — one with
 `kind = Value` and one with `kind = Formula`:
 
-```rust
+```text
 // v1
 for cell in &diff.cell_diffs {
     println!("{} {:?}: {:?} → {:?}",
@@ -101,8 +112,10 @@ for cell in &diff.cell_diffs {
 
 v2 merges both into a single `CellDiff`:
 
-```rust
+```rust,no_run
 // v2
+# use sheets_diff::compare_paths;
+# let diff = compare_paths("old.xlsx", "new.xlsx")?;
 for sheet in &diff.sheets {
     for cell in &sheet.cell_diffs {
         let addr = &cell.address.a1;
@@ -117,6 +130,7 @@ for sheet in &diff.sheets {
         }
     }
 }
+# Ok::<(), sheets_diff::SheetsDiffError>(())
 ```
 
 ---
@@ -127,26 +141,30 @@ v1 stored `old: Option<String>` and `new: Option<String>`.
 
 v2 preserves the spreadsheet type:
 
-```rust
+```rust,no_run
 use sheets_diff::CellValue;
 
+# use sheets_diff::compare_paths;
+# let diff = compare_paths("old.xlsx", "new.xlsx")?;
+# let cell = &diff.sheets[0].cell_diffs[0];
 // v2 — getting a display string (equivalent to v1's string)
 if let Some(vc) = &cell.value {
     let old_str = vc.old.display_string();
     let new_str = vc.new.display_string();
-}
 
-// v2 — checking the type
-match &vc.new {
-    CellValue::Text(s)    => { /* string cell */ }
-    CellValue::Integer(i) => { /* integer — note: Text("100") ≠ Integer(100) */ }
-    CellValue::Number(f)  => { /* float */ }
-    CellValue::Bool(b)    => { /* boolean */ }
-    CellValue::DateTime(dt) => { /* date/time serial */ }
-    CellValue::Error(e)   => { /* formula error, e.g. #REF! */ }
-    CellValue::Empty      => { /* explicitly empty */ }
-    _ => {}
+    // v2 — checking the type
+    match &vc.new {
+        CellValue::Text(s)    => { /* string cell */ }
+        CellValue::Integer(i) => { /* integer — note: Text("100") ≠ Integer(100) */ }
+        CellValue::Number(f)  => { /* float */ }
+        CellValue::Bool(b)    => { /* boolean */ }
+        CellValue::DateTime(dt) => { /* date/time serial */ }
+        CellValue::Error(e)   => { /* formula error, e.g. #REF! */ }
+        CellValue::Empty      => { /* explicitly empty */ }
+        _ => {}
+    }
 }
+# Ok::<(), sheets_diff::SheetsDiffError>(())
 ```
 
 **Important:** `Text("100")` and `Integer(100)` are considered *different* in
@@ -161,8 +179,8 @@ display-string comparison.
 
 v1 panicked on many bad inputs. v2 returns structured errors:
 
-```rust
-use sheets_diff::SheetsDiffError;
+```rust,no_run
+use sheets_diff::{SheetsDiffError, compare_paths};
 
 match compare_paths("missing.xlsx", "other.xlsx") {
     Err(SheetsDiffError::OpenWorkbook { side, kind, .. }) => {
@@ -178,7 +196,9 @@ match compare_paths("missing.xlsx", "other.xlsx") {
 
 v1 wrote warnings to stdout/stderr. v2 attaches them to the result:
 
-```rust
+```rust,no_run
+# use sheets_diff::compare_paths;
+# let diff = compare_paths("old.xlsx", "new.xlsx")?;
 for d in &diff.diagnostics {
     eprintln!("[{}] {}", d.kind.code(), d.message);
 }
@@ -186,20 +206,26 @@ for d in &diff.diagnostics {
 for sheet in &diff.sheets {
     for d in &sheet.diagnostics { /* … */ }
 }
+# Ok::<(), sheets_diff::SheetsDiffError>(())
 ```
 
 ---
 
 ## Text output
 
-```rust
+```text
 // v1
 let text = diff.unified_diff();
+```
 
+```rust,no_run
 // v2
+# use sheets_diff::compare_paths;
+# let diff = compare_paths("old.xlsx", "new.xlsx")?;
 use sheets_diff::output::text::{render_summary, render_unified};
 let summary = render_summary(&diff);   // compact overview
 let unified = render_unified(&diff);   // unified-style per-cell diff
+# Ok::<(), sheets_diff::SheetsDiffError>(())
 ```
 
 ---
