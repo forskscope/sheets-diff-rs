@@ -17,6 +17,30 @@ v2 planning package it follows from is now restored under [`rfcs/`](./rfcs/).
 > answers where it currently returns silently wrong ones — without expanding
 > scope.
 
+## 1a. Objective status — met 2026-09-02
+
+**ForskScope is adopting, on 2.5.0.** Their letter of 2026-09-02
+(`.git-exclude/tmp/SEND-sheets-diff-2026-09-02.md`) confirms `.xlsx` comparison
+is being re-enabled: they re-verified against 2.5.0 rather than carrying their
+2.3.0 result forward — `calamine 0.36.1`, `quick-xml 0.41.0`, `zip 8.6.0`,
+`cargo audit` clean over 32 crates — and record that the reason for the July
+suspension is gone.
+
+They also **retracted their earlier answer that cancellation was not
+load-bearing**, which was true only while their `.xlsx` path was disabled.
+Nothing had been deprioritised on it: their instruction was to ship it with the
+milestone, and it is in 2.5.0.
+
+The objective in §1 was *"make `sheets-diff` a library ForskScope can re-enable
+and trust."* The re-enabling is scheduled and no longer waiting on anything of
+ours.
+
+**Open:** one design question from their §4 — whether to expose a result shaped
+like their internal `SpreadsheetDiff`. Investigation and recommendation (decline,
+on grounds that serve them) in
+`.git-exclude/tmp/sheets-diff-to-forskscope-adoption-2026-09.md`. It is an
+API-surface decision, so it is the owner's, and a yes would need an RFC first.
+
 ## 2. Situation
 
 ForskScope — the only known consumer — has **disabled `.xlsx` comparison** and
