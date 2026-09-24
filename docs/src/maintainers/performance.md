@@ -270,6 +270,15 @@ identically to both the read-phase loop (all cells in the used range,
 including empty ones) and the compare-phase loop (only the coordinates
 actually compared).
 
+> **Provenance note, added for 2.5.1.** The ≈ 95 ms above, and the ~1.9 µs/cell
+> it is derived from, were measured on the *dense* `worksheet_range` read, before
+> the streaming read replaced it. The read phase now counts **streamed cell
+> records**, blank or not, over two passes that share one counter, so the
+> parenthetical "all cells in the used range, including empty ones" describes the
+> dense read and not the current one. Neither figure has been re-measured on the
+> streamed reader; treat 100 ms as the target the interval was chosen against, not
+> as a measured latency of the current code.
+
 **Polling overhead — measured with and without a `Cancellation` configured,
 across the same ladder, three runs each:**
 
@@ -310,7 +319,7 @@ measured size and this report's confidence in the number.
 | Reduce `cell_map_to_align`'s clone cost | **Done (M7 Handoff 04).** Was +33% of peak, linear, confirmed at two scales; re-measured after the fix at 0.0% — the delta collapses exactly to zero, both scales. | High | Paid only by non-`Positional` alignment modes; `Positional` (default) unaffected, and its own peak did not move. Alignment only ever called `display_string()` on these values, so the copy was deletable rather than reducible — deleted, not reduced. |
 | Reduce peak by not holding both `CellMap`s | Not isolable from calamine's own buffers with external measurement | None — no actionable number | Would need instrumentation inside `src/`, out of this unit's scope. Not recommended as a standalone candidate without a different measurement approach. |
 | RFC-024 §7's density choice (`Sparse`/`Dense`) | +12.4% per-populated-cell for sparse vs. dense at equal populated count | High | **Declined 2026-08-17.** Real, and the smallest structural change available for the largest increase in engine complexity: a density heuristic plus two code paths through the hottest loop in the crate — the loop where every silent-wrong-answer defect this project has fixed lived. Revisit only on a reported memory problem on dense workbooks, and measure again — Handoff 04 landed since this row was written and changed what fraction of peak the remaining map is. |
-| Finer cancellation polling | **Done (M7 Handoff 03).** Was structurally zero for single-sheet workbooks; now polls every 50,000 cells in both phases, ≈95 ms worst case, overhead not measurable above noise. | High | Was the milestone's top priority — "a feature that does not work," not an optimisation. Closed, not deferred further. |
+| Finer cancellation polling | **Done (M7 Handoff 03).** Was structurally zero for single-sheet workbooks; now polls every 50,000 cells in both phases, ≈95 ms worst case *(at the time, on the dense read — not re-measured since the streaming read; see the provenance note above)*, overhead not measurable above noise. | High | Was the milestone's top priority — "a feature that does not work," not an optimisation. Closed, not deferred further. |
 | Shared display address (G) | N/A | N/A | Not a measurement question — a design one, additive on `#[non_exhaustive]` types. Out of this report's scope entirely. |
 
 ---

@@ -725,13 +725,19 @@ pub struct DiffSummary {
 pub struct DiffMetrics {
     /// Sheet pairs processed — one per matched, added, or removed sheet.
     pub sheets_read: u32,
-    /// Every cell physically visited while reading both workbooks,
-    /// **including empty cells inside the used range** — this is not the
-    /// number of cells with content. On the `sparse_range` corpus fixture
-    /// (two populated cells far apart in a large used range) this reads
-    /// **5200** against `cells_compared`'s **2**: almost the entire count
-    /// is empty cells the used range spans but never populates. Always
-    /// `>= cells_compared`.
+    /// The **area of the bounding box of each sheet's populated cells**, summed
+    /// over every sheet and both workbooks: `(last row - first row + 1) *
+    /// (last column - first column + 1)`, worked out from the box's corners as
+    /// the sheet streams. Empty positions inside the box are counted by that
+    /// arithmetic; none is visited. It is **not** the number of cells with
+    /// content, and it is not a count of anything the reader handled: one
+    /// populated cell far from the rest widens the box, and this figure with it.
+    ///
+    /// On the `sparse_range` corpus fixture (two populated cells, `A1` and
+    /// `Z100`) each side's box is 100 x 26 = 2,600 positions, so this is
+    /// **5200** against `cells_compared`'s **2** — almost all of it is the empty
+    /// area the box spans between the two cells. `Limits::max_cells_read` bounds
+    /// this same figure. Always `>= cells_compared`.
     pub cells_read: u64,
     /// Every coordinate compared between the two sides: the union of both
     /// sides' populated cells for each sheet pair, remapped by alignment

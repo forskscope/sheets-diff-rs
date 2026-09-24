@@ -47,16 +47,21 @@ pub(crate) type CellMap = BTreeMap<(u32, u32), NormalizedCell>;
 /// A sheet's normalised cells plus its used-range bounds (1-based, inclusive).
 type SheetReadResult = (CellMap, Option<(u32, u32)>, Option<(u32, u32)>);
 
-/// Mid-sheet cancellation polling interval, in cells (M7 Handoff 03).
+/// Mid-sheet cancellation polling interval (M7 Handoff 03): the number of
+/// **streamed cell records** between polls in the read phase (blank records
+/// count, and a sheet's values pass and formula pass share one counter), and of
+/// **coordinates compared** between polls in the compare phase.
 ///
-/// Derived from a stated target latency, not chosen arbitrarily: unit 01
-/// measured ~1.9 microseconds/cell for a full sheet-pair pass (300,000
+/// Provenance, not a guarantee. It was derived from a stated target latency:
+/// unit 01 measured ~1.9 microseconds/cell for a full sheet-pair pass (300,000
 /// cells in ~567 ms — `docs/src/maintainers/performance.md`, Q4). Targeting
-/// 100 ms worst-case latency between a cancellation request and the next
-/// checkpoint (the threshold at which a UI action reads as instantaneous)
-/// gives 100,000 / 1.9 ≈ 52,631 cells; rounded down to a plain number
-/// comfortably under that budget — 50,000 cells is ≈ 95 ms worst case at
-/// the measured per-cell rate.
+/// 100 ms between a cancellation request and the next checkpoint (the threshold
+/// at which a UI action reads as instantaneous) gives 100,000 / 1.9 ≈ 52,631;
+/// rounded down to a plain number, 50,000 is ≈ 95 ms at that rate.
+///
+/// **That rate was measured on the dense read that the streaming read replaced,
+/// and has not been re-measured since**, so neither the ≈ 95 ms nor the 100 ms
+/// is a figure for the current reader.
 const CANCEL_POLL_INTERVAL: u64 = 50_000;
 
 // ---------------------------------------------------------------------------

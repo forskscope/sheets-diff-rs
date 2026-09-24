@@ -41,6 +41,38 @@
   inverse of the pattern the document credits `max_alignment_product` with — that
   the defect was present in 2.0.0–2.5.0, and what streaming does and does not
   bound. It also adds two rows to the verification map.
+- **The API guide no longer says `compare_bytes` roughly doubles peak memory.**
+  That sentence shipped in 2.4.1 and was retracted in 2.5.0's release notes and in
+  the threat model, but the guide — the page users are pointed at — kept it. It now
+  states the measured figure (2.6–4.8% above `compare_paths` at 10,000 cells and up)
+  and carries an explicit correction for anyone who chose an entry point on the
+  strength of the old claim. The reader-input section's "peak memory is one copy of
+  the file's bytes" is corrected the same way.
+- **The non-goals page is current as of 2.5.x.** It still said "current as of
+  2.4.x" and listed cancellation granularity as an open gap in RFC-024 after 2.5.0
+  had closed it. The RFC-024 row now names the gaps that RFC still has.
+- **Two more stale threat-model statements are corrected.** Source-path privacy is
+  described as what `tests/source_path_privacy.rs` actually asserts (and what it
+  does not), rather than "not verified by a dedicated test"; and
+  `cell_map_to_align`, deleted in 2.5.0, is no longer named as a current memory
+  cost.
+- A comment in `tests/streaming_read.rs` that overstated the pre-fix allocation
+  ("over a gigabyte", "a hundred times the threshold") now gives the measured
+  figures. No test logic changed.
+- **Three descriptions that the streaming read itself falsified are corrected.**
+  Unlike the corrections above, these were true until this release's own patch made
+  them false. (1) `DiffMetrics::cells_read` was documented as every cell "physically
+  visited", empty ones included. It is the **area of the bounding box of each
+  sheet's populated cells**, worked out from the box's corners; no empty position is
+  visited. The value is unchanged and the contrast (5,200 against 2 on the
+  `sparse_range` fixture) is kept. (2) The `Cancellation` docs and the poll-interval
+  constant said the poll happens "every 50,000 cells" and bounds latency to "roughly
+  100 ms". The read poll now counts streamed cell records, blank or not, and that
+  figure was derived on the dense read and has **not been re-measured**; it is now
+  stated as provenance, not a guarantee, and `performance.md`'s matching "≈ 95 ms"
+  says the same. (3) The API guide's "No streaming" now says the *input bytes* are
+  not streamed. One further description of the dense read, in `performance.md`, was
+  found while doing this and is annotated. Nothing about behaviour changed.
 
 ## [2.5.0] - 2026-08-17
 

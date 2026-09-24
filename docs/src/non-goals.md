@@ -1,8 +1,9 @@
 # Non-goals and limitations
 
 What this engine deliberately does not attempt, and where it is limited
-despite trying. Both lists are current as of 2.4.x, checked against the
-code rather than against what an earlier document said about it — several
+despite trying. Both lists are current as of 2.5.x (re-checked against the
+code on 2026-09-24), checked against the code rather than against what an
+earlier document said about it — several
 items below were previously recorded elsewhere as either more complete or
 more current than they actually are; see [Corrections found writing this
 page](#corrections-found-writing-this-page).
@@ -142,7 +143,7 @@ inventory:
 | [020](../../rfcs/done/020-display-formatting-and-number-format-capture.md) | `CellNumberFormat` always `None` (above) |
 | [021](../../rfcs/done/021-workbook-metadata-and-defined-name-diffs.md) | `WorkbookChange` reserved (above); defined-name/visibility diffing untested |
 | [023](../../rfcs/done/023-non-cell-workbook-objects-and-unsupported-features.md) | `WorkbookObjectChange` always empty (above, with the upstream/deferred split) |
-| [024](../../rfcs/done/024-large-workbook-memory-strategy.md) | Cancellation is polled once per sheet pair, not between row chunks or cell batches as the RFC's own acceptance criterion specifies |
+| [024](../../rfcs/done/024-large-workbook-memory-strategy.md) | §7's `Sparse`/`Dense` density choice is **declined**, not deferred (measured +12.4% per populated cell, which does not justify two code paths); and both sides' cell maps stay resident for a sheet pair. Cancellation, listed here until 2.4.x, is polled inside each sheet's read and compare phases as of 2.5.0 |
 
 ---
 
@@ -190,3 +191,9 @@ declined; see above). Three revisions in two milestones is the point rather than
 an embarrassment: the table above is authoritative for the list, each RFC's own
 `Status` field is authoritative for its gap, and any count quoted anywhere else
 is a snapshot.
+
+The RFC-024 row changed content without changing the count. It was re-derived
+from that RFC's Status on 2026-09-24 (f123 handoff 02): the gap it named,
+cancellation granularity, was closed by M7 unit 03 in 2.5.0, yet this page still
+said "current as of 2.4.x" and listed that gap after 2.5.0 had shipped. The gaps
+RFC-024 still names are the two now in the row.

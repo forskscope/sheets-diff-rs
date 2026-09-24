@@ -9,11 +9,18 @@
 //!
 //! **What is measured is memory, not time.** A test that asserts "under N
 //! seconds" is a property of the machine it ran on. Peak live heap bytes, taken
-//! from a counting global allocator, are the same on every machine, and the
-//! dense read's figure is more than a hundred times over the threshold. The
-//! threshold (64 MiB) sits far above the streamed read (a few MiB) and far below
-//! the dense one (over a gigabyte for these workbooks), so neither a noisy
-//! allocator nor a different platform moves a test across it.
+//! from a counting global allocator, are the same on every machine (to within a
+//! few bytes: the zip embeds a timestamp). The threshold (64 MiB = 67,108,864
+//! bytes) sits above the streamed read and below the dense one, by these
+//! measurements (2026-09-24; the dense figures are the pre-fix code, `7dc12f7^`):
+//!
+//! | fixture | dense (pre-fix) | x threshold | streamed |
+//! |---|---|---|---|
+//! | stray cell, stray formula, `max_cells_read` | ~646 MB | ~9.6 | ~0.13 MB |
+//! | 60,000 cells + far stray cell (cancellation) | ~1.29 GB | ~19.3 | ~12.5 MB |
+//!
+//! So the threshold is a wide margin on both sides, not an extreme one: neither a
+//! noisy allocator nor a different platform moves a test across it.
 //!
 //! The tests share one allocator and one peak counter, so they run one at a time
 //! under `SERIAL`.
@@ -81,9 +88,9 @@ fn peak_growth<T>(f: impl FnOnce() -> T) -> (T, usize) {
 const BUDGET: usize = 64 * 1024 * 1024;
 
 /// Far row and column of the stray cell. The bounding box it makes with A1 is
-/// 200,001 x 101 = 20,200,101 positions per side: a dense read of that is over a
-/// gigabyte on this crate's own types, and a workbook that produces it is a few
-/// kilobytes.
+/// 200,001 x 101 = 20,200,101 positions per side: a dense read of that is about
+/// 646 MB on this crate's own types (32 bytes a position), and a workbook that
+/// produces it is about 5 KB.
 const FAR_ROW: u32 = 200_000;
 const FAR_COL: u16 = 100;
 const FAR_AREA: u64 = (FAR_ROW as u64 + 1) * (FAR_COL as u64 + 1);
