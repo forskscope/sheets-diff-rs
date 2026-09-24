@@ -21,12 +21,22 @@ implementer during unit 01 and folded into unit 04 on 2026-09-24.
 | 01 ✅ | [A reorder reports no difference](./01-moved-and-renamed-sheets.md) | A1 | **CLI exit contract** |
 | 02 ✅ | [Two inert options, which are not the same option](./02-two-inert-options.md) | A2, A3, O3 | Behaviour where there was none |
 | 03 ✅ | [`--format json`](./03-format-json.md) | A5 | New CLI surface |
-| 04 | [Public values that describe what the engine does not do](./04-values-that-describe-what-the-engine-does-not-do.md) | A4, **O1** | Documentation |
+| ~~04~~ | ~~Public values that describe what the engine does not do~~ — **withdrawn to [RFC-037](../../proposed/037-v3-scope.md)** | A4, O1 | — |
 | 06 | [The CLI you can actually install](./06-the-cli-you-can-install.md) | F-1 + `cargo install` | **Feature set of the shipped binary** |
 | 07 | [The builder omits two options](./07-the-builder-omits-two-options.md) | O-D | Additive API |
-| 05 | What `cells_read` counts | A6 | **Public metric; every golden moves** |
+| ~~05~~ | ~~What `cells_read` counts~~ — **withdrawn to [RFC-037](../../proposed/037-v3-scope.md)** | A6 | — |
 
-**Order: 00, then 01, then the rest in any order; 05 is always last.**
+**Order: 00, then 01, then 06 and 07 in either order. M8 closes at 07.**
+
+**Units 04 and 05 were withdrawn on 2026-09-25** to
+[RFC-037 (v3 scope)](../../proposed/037-v3-scope.md). Both are fixed by removing
+or renaming public items, and cargo hands `^2` users a new minor automatically,
+so a deleted name is a build failure they did not ask for. The owner's decision
+was to stop paying for that with documentation workarounds and take the major
+while it is still cheap.
+
+The handoff files for 04 and 05 stay in place as source material for the v3
+handoffs; **do not work them as written.**
 
 **00 is numbered 00 rather than appended at the end so the order needs no
 explanation** — M7 lost a round trip to an order line that said "03 ahead of
@@ -53,9 +63,6 @@ finding from someone looking at something adjacent.
 it, the release publishes a JSON format whose documented `iso` field is null for
 everyone who installs the tool the documented way — and there is no documented
 way, because `cargo install sheets-diff` produces no binary at all.
-
-**Unit 04 needs one decision from the owner before it is worked** — whether O1 is
-documented now and renamed at v3 (recommended) or given honest variants in 2.6.0.
 
 **Unit 04 covers two shapes of the same defect.** A4 is four `DiagnosticKind`
 variants nothing constructs. O1 is the mirror: `SheetMatchReason::IndexAndContent`
