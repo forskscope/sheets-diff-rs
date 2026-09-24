@@ -5,8 +5,6 @@
 use std::collections::BTreeMap;
 use std::io::{Read, Seek};
 
-use calamine::Reader;
-
 use crate::address::{CellAddress, ComparedRange};
 use crate::align::compute_row_mapping;
 use crate::compare::{compare_formulas, compare_values};
@@ -591,6 +589,22 @@ fn build_sheet_diff(
 /// - Empty cells are omitted; the map is sparse.
 /// - Formulas are read best-effort; a diagnostic is attached when formula text
 ///   is unavailable for a cell that has a cached formula-like value.
+///
+/// The sheet is **streamed** (`Xlsx::worksheet_cells_reader`), not read through
+/// `worksheet_range`. `worksheet_range` returns a *dense* `Range` whose
+/// allocation is rows × columns of the bounding box of the populated cells, so
+/// one stray cell far from the data made a few-kilobyte workbook allocate
+/// gigabytes — before `max_cells_read` or the cancellation poll could run,
+/// because both lived in a loop over the finished range. Streaming makes memory
+/// proportional to the populated cells and puts both checks inside the loop that
+/// spends the resource.
+///
+/// `cells_read` and `max_cells_read` keep their meaning: a sheet contributes the
+/// **area of the bounding box of its populated cells**, empty positions included,
+/// cumulatively across sheets and sides. What changes is that the area is now a
+/// running figure — the bound fires as soon as a cell makes the box too large,
+/// before anything proportional to it exists — and that memory no longer tracks it.
+/// The cancellation poll counts every cell record streamed, blank or not.
 fn read_sheet_cells(
     wb: &mut OpenedWorkbook,
     sheet: &SheetRef,
@@ -599,38 +613,51 @@ fn read_sheet_cells(
     total_cells_read: &mut u64,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<SheetReadResult, SheetsDiffError> {
-    let range = wb
-        .reader
-        .worksheet_range(&sheet.name)
-        .map_err(|e| SheetsDiffError::read_sheet(side, sheet.clone(), e))?;
-
-    // Formula range is best-effort; worksheet_formula returns an error for sheets
-    // with no formulas, which is fine — we just won't emit formula changes for them.
-    let formula_range = wb.reader.worksheet_formula(&sheet.name).ok();
-    let has_formulas = formula_range.is_some();
-
+    let is_1904 = wb.is_1904;
     let mut cells: CellMap = BTreeMap::new();
     let mut range_start: Option<(u32, u32)> = None;
     let mut range_end: Option<(u32, u32)> = None;
 
-    // calamine's Range::rows() gives relative (0-based) iteration; the absolute
-    // top-left corner of the used range is range.start().
-    let origin = range.start().unwrap_or((0, 0));
-
     // Local to this call (this side of this sheet), not the cumulative
-    // `total_cells_read` accumulator below — a mid-sheet cancellation
-    // checkpoint every `CANCEL_POLL_INTERVAL` cells (M7 Handoff 03).
-    let mut read_poll_count: u64 = 0;
+    // `total_cells_read` accumulator — a mid-sheet cancellation checkpoint
+    // every `CANCEL_POLL_INTERVAL` cell records (M7 Handoff 03).
+    let mut poll_count: u64 = 0;
 
-    for (row_idx, row) in range.rows().enumerate() {
-        for (col_idx, cell) in row.iter().enumerate() {
-            read_poll_count += 1;
-            if read_poll_count.is_multiple_of(CANCEL_POLL_INTERVAL) {
+    // Bounding box (0-based, inclusive) of the non-empty cells streamed so far:
+    // (min row, min col, max row, max col). Its area is what `Range` allocated.
+    let read_before = *total_cells_read;
+    let mut bbox: Option<(u32, u32, u32, u32)> = None;
+
+    // Pass 1: values. A chart sheet is not a worksheet; `worksheet_range` gave it
+    // an empty range, so it has no cells here either.
+    {
+        let mut reader = match wb.reader.worksheet_cells_reader(&sheet.name) {
+            Ok(r) => r,
+            Err(calamine::XlsxError::NotAWorksheet(_)) => return Ok((cells, None, None)),
+            Err(e) => return Err(SheetsDiffError::read_sheet(side, sheet.clone(), e)),
+        };
+        while let Some(cell) = reader
+            .next_cell()
+            .map_err(|e| SheetsDiffError::read_sheet(side, sheet.clone(), e))?
+        {
+            poll_count += 1;
+            if poll_count.is_multiple_of(CANCEL_POLL_INTERVAL) {
                 check_cancel(opts)?;
             }
+            if matches!(cell.get_value(), calamine::DataRef::Empty) {
+                continue;
+            }
 
-            // max_cells_read limit
-            *total_cells_read += 1;
+            // max_cells_read limit, on the running bounding box: checked before
+            // the cell is retained, so the bound fires before anything is spent.
+            let (r, c) = cell.get_position();
+            let b = match bbox {
+                None => (r, c, r, c),
+                Some((r0, c0, r1, c1)) => (r0.min(r), c0.min(c), r1.max(r), c1.max(c)),
+            };
+            bbox = Some(b);
+            let area = (b.2 - b.0 + 1) as u64 * (b.3 - b.1 + 1) as u64;
+            *total_cells_read = read_before + area;
             if let Some(max) = opts.limits.max_cells_read
                 && *total_cells_read > max
             {
@@ -640,46 +667,78 @@ fn read_sheet_cells(
                 });
             }
 
-            let value = normalize_cell_value(cell, wb.is_1904);
+            let data: calamine::Data = cell.get_value().clone().into();
+            let value = normalize_cell_value(&data, is_1904);
             if matches!(value, crate::model::CellValue::Empty) {
                 continue;
             }
 
-            // Convert to 1-based absolute coordinates.
-            let row1 = origin.0 + row_idx as u32 + 1;
-            let col1 = origin.1 + col_idx as u32 + 1;
-
-            // Look up formula text via absolute coordinates. `row_idx`/
-            // `col_idx` are relative to the VALUE range's origin, which need
-            // not coincide with the FORMULA range's own origin (D-04):
-            // `worksheet_formula`'s range is built only from cells that
-            // actually carry formula text, so its top-left corner is the
-            // first *formula* cell, not the first populated cell — applying
-            // value-range-relative indices to it directly (as `Range::get`
-            // does) silently offsets or drops formula text whenever the two
-            // origins differ. `Range::get_value` translates through the
-            // formula range's own `start()`, so this is correct whether or
-            // not the origins coincide.
-            let formula = formula_range
-                .as_ref()
-                .and_then(|fr| fr.get_value((origin.0 + row_idx as u32, origin.1 + col_idx as u32)))
-                .filter(|s| !s.is_empty())
-                .cloned();
-
-            // Diagnostic: formula text unavailable for a cell that looks like it
-            // might have a formula (numeric cached value, formula range present but
-            // no text at this position).
-            if has_formulas
-                && formula.is_none()
-                && opts.comparison.include_formula_cached_values
-                && matches!(
+            // Convert the absolute 0-based position to 1-based coordinates.
+            let (row0, col0) = cell.get_position();
+            let (row1, col1) = (row0 + 1, col0 + 1);
+            update_bounds(&mut range_start, &mut range_end, row1, col1);
+            cells.insert(
+                (row1, col1),
+                NormalizedCell {
                     value,
+                    formula: None,
+                },
+            );
+        }
+    }
+
+    // Pass 2: formula text, attached to cells that have a value. Best-effort as
+    // before: a read error (other than cancellation) drops every formula for the
+    // sheet rather than failing the read, and `has_formulas` records that. The
+    // formulas are collected first and attached only on success, so a failure
+    // part-way never leaves a sheet with some of its formulas.
+    let mut formulas: Vec<((u32, u32), String)> = Vec::new();
+    let has_formulas = match wb.reader.worksheet_cells_reader(&sheet.name) {
+        Ok(mut reader) => loop {
+            match reader.next_formula() {
+                Ok(Some(cell)) => {
+                    poll_count += 1;
+                    if poll_count.is_multiple_of(CANCEL_POLL_INTERVAL) {
+                        check_cancel(opts)?;
+                    }
+                    if !cell.get_value().is_empty() {
+                        let (row0, col0) = cell.get_position();
+                        let key = (row0 + 1, col0 + 1);
+                        if cells.contains_key(&key) {
+                            formulas.push((key, cell.get_value().clone()));
+                        }
+                    }
+                }
+                Ok(None) => break true,
+                Err(_) => {
+                    formulas.clear();
+                    break false;
+                }
+            }
+        },
+        Err(_) => false,
+    };
+    // Applied in stream order, so a duplicate address keeps its last formula as
+    // `Range::from_sparse` did.
+    for (key, text) in formulas {
+        if let Some(cell) = cells.get_mut(&key) {
+            cell.formula = Some(text);
+        }
+    }
+
+    // Diagnostic: formula text unavailable for a cell that looks like it
+    // might have a formula (numeric cached value, formula pass ran but no text
+    // at this position). Not every numeric cell is a formula; this is expected
+    // and not worth more than Info — don't spam warnings on plain data sheets.
+    // `cells` is ordered by (row, col), the order the dense loop visited them.
+    if has_formulas && opts.comparison.include_formula_cached_values {
+        for (&(row1, col1), cell) in &cells {
+            if cell.formula.is_none()
+                && matches!(
+                    cell.value,
                     crate::model::CellValue::Integer(_) | crate::model::CellValue::Number(_)
                 )
             {
-                // Not every numeric cell is a formula; this is expected and not
-                // worth a diagnostic unless the sheet does have formulas.
-                // Emit Info-level only — don't spam warnings on plain data sheets.
                 diagnostics.push(Diagnostic {
                     severity: Severity::Info,
                     kind: DiagnosticKind::FormulaUnavailable,
@@ -696,9 +755,6 @@ fn read_sheet_cells(
                     ),
                 });
             }
-
-            update_bounds(&mut range_start, &mut range_end, row1, col1);
-            cells.insert((row1, col1), NormalizedCell { value, formula });
         }
     }
 
