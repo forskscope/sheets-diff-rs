@@ -1,5 +1,47 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **A workbook with a populated cell far from the rest of its data could abort
+  the calling process; sheets are now read by streaming, so memory follows the
+  populated cells.** Every published 2.x release, 2.0.0 through 2.5.0, read each
+  sheet through calamine's `worksheet_range` and `worksheet_formula`. Both return
+  a *dense* range: rows × columns of the bounding box of the populated cells,
+  32 bytes per position, whatever the sheet actually contains. ForskScope reported
+  that a 5.4 KB workbook with two populated cells aborted the calling process. This
+  crate's fixture of that shape requested about 646 MB on the pre-fix code, and a
+  stray cell at Excel's maximum position would ask for roughly 550 GB. Neither
+  `max_cells_read` nor the cancellation poll could help: both lived in a loop over
+  the finished range, so they ran only after the allocation they exist to prevent,
+  and no `Limits` setting could mitigate it. The read now streams into the sparse
+  map (`Xlsx::worksheet_cells_reader`), in one pass for values and one for formula
+  text, and both checks sit inside the loop that spends the resource. Two
+  observable changes come with it:
+  - **`LimitExceeded { limit: CellsRead, observed }` reports a different number.**
+    `observed` is now the running bounding-box area of the populated cells at the
+    cell that broke the bound; it used to be `max + 1`, because the old count was
+    incremented one position at a time. The limit keeps its meaning — the area of
+    the bounding box of a sheet's populated cells, summed across sheets and sides —
+    and now fires before anything proportional to that area exists. Code that
+    matched `observed == max + 1` no longer matches.
+  - **The cancellation poll counts streamed cell records, not positions of a dense
+    range.** Every record read counts toward the 50,000-record interval, blank or
+    not. A sheet with a huge bounding box and few cells no longer reaches the
+    interval — and no longer takes any time to iterate either.
+
+  The fixture corpus is unchanged. The threat model now records this surface and
+  the affected range (see Documentation).
+
+### Documentation
+
+- **The threat model lists the sheet-reading surface it had omitted.** It names
+  the dense-range allocation, that `max_cells_read` fired *after* the spend — the
+  inverse of the pattern the document credits `max_alignment_product` with — that
+  the defect was present in 2.0.0–2.5.0, and what streaming does and does not
+  bound. It also adds two rows to the verification map.
+
 ## [2.5.0] - 2026-08-17
 
 **Measurement release.** Four questions this project had reasoned about for four

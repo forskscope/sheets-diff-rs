@@ -555,45 +555,132 @@ fn wb_dense_block(row_offset: u32, rows: u32, cols: u16, prefix: &str) -> Vec<u8
     wb.save_to_buffer().unwrap()
 }
 
-/// Cancelled from the *second* poll onward, never the first.
+/// Cancelled from the `from`th poll onward, never before.
 ///
-/// A naive `|| true` cancels on poll #1 — which, for any workbook, is the
-/// pre-existing per-sheet-pair `check_cancel` call that already ran before
-/// this unit's fix. A test built on that policy would pass identically
-/// whether or not the new mid-sheet checkpoints exist, "passing for the
-/// wrong reason" (the handoff's own Known Risks warning). Reporting
-/// not-cancelled on the first poll and cancelled on every poll after it
-/// guarantees the *first* internal checkpoint reached — not the outer,
-/// already-existing one — is what this test actually exercises.
-struct CancelFromSecondPoll(std::sync::atomic::AtomicUsize);
+/// Poll 1 is always the per-sheet-pair `check_cancel` that ran before any
+/// mid-sheet checkpoint existed, so a test that cancelled on it would pass
+/// identically whether or not the mid-sheet checkpoints exist -- "passing for
+/// the wrong reason". Counting polls and cancelling on a chosen later one makes
+/// the checkpoint that is *reached at that count* what the test exercises.
+struct CancelFromPoll {
+    from: usize,
+    seen: std::sync::atomic::AtomicUsize,
+}
 
-impl CancelFromSecondPoll {
-    fn new() -> Self {
-        Self(std::sync::atomic::AtomicUsize::new(0))
+impl CancelFromPoll {
+    fn new(from: usize) -> Self {
+        Self {
+            from,
+            seen: std::sync::atomic::AtomicUsize::new(0),
+        }
     }
 }
 
-impl Cancellation for CancelFromSecondPoll {
+impl Cancellation for CancelFromPoll {
     fn is_cancelled(&self) -> bool {
-        // fetch_add returns the pre-increment value: poll #1 sees 0 (not
-        // cancelled), poll #2 sees 1, poll #3 sees 2, ... (cancelled).
-        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst) >= 1
+        self.seen.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1 >= self.from
     }
 }
+
+/// Counts every poll and never cancels.
+struct PollCounter(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+
+impl Cancellation for PollCounter {
+    fn is_cancelled(&self) -> bool {
+        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        false
+    }
+}
+
+/// How many times `Cancellation::is_cancelled` is polled comparing `old` with
+/// `new`, cancellation never firing.
+///
+/// With `skip_compare`, `max_cells_compared(0)` makes `build_sheet_diff` refuse
+/// the sheet *after* both reads and *before* its coordinate loop, so the count
+/// is the sheet-pair poll plus every read poll and **no compare poll**. That is
+/// the only way to tell the two phases' polls apart from outside.
+fn polls_made(old: &[u8], new: &[u8], skip_compare: bool) -> usize {
+    let seen = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let mut builder = DiffOptions::builder().cancellation(PollCounter(seen.clone()));
+    if skip_compare {
+        builder = builder.max_cells_compared(0);
+    }
+    let result = compare_bytes_with_options(old, new, builder.build().unwrap());
+    if skip_compare {
+        assert!(
+            matches!(
+                result,
+                Err(SheetsDiffError::LimitExceeded {
+                    limit: sheets_diff::LimitKind::CellsCompared,
+                    ..
+                })
+            ),
+            "the compare loop was meant to be skipped after both reads, got {result:?}"
+        );
+    } else {
+        result.unwrap();
+    }
+    seen.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+/// A single sheet of `rows` x `cols` *styled blank* cells, with A1 then
+/// overwritten by one populated string.
+///
+/// A styled blank is a `<c>` record the streaming reader must read and count
+/// toward the poll interval, but not a populated cell -- so it never becomes a
+/// coordinate in the comparison. That asymmetry is what lets a test give the
+/// read loops thousands of poll opportunities and the compare loop almost none.
+fn wb_styled_blanks(rows: u32, cols: u16) -> Vec<u8> {
+    let bold = rust_xlsxwriter::Format::new().set_bold();
+    let mut wb = Workbook::new();
+    let ws = wb.add_worksheet();
+    for r in 0..rows {
+        for c in 0..cols {
+            ws.write_blank(r, c, &bold).unwrap();
+        }
+    }
+    ws.write_string(0, 0, "one populated cell").unwrap();
+    wb.save_to_buffer().unwrap()
+}
+
+/// Polls expected for the read-phase workbook below: one before the sheet pair,
+/// one in the value stream (record 50,000 of 60,000) and one in the formula
+/// stream (the two streams share one counter, so record 100,000 of 120,000).
+const READ_PHASE_POLLS: usize = 3;
 
 #[test]
 fn cancellation_observed_during_read_phase() {
-    // 300 x 200 = 60,000 cells, one dense sheet — comfortably more than
-    // CANCEL_POLL_INTERVAL (50,000), so reading this single sheet alone
-    // crosses an interval boundary. The "new" side shares the sheet's
-    // default name but is trivial, so old-side reading runs first and
-    // alone is what the fix must catch: `read_sheet_cells` for "new", and
-    // `build_sheet_diff`, are never reached if this is observed correctly.
-    let old = wb_dense_block(0, 300, 200, "old");
+    // 300 x 200 = 60,000 styled blank records and one populated cell, against a
+    // one-cell sheet. The read loops stream 60,000 records each pass; the
+    // comparison has a single coordinate, so its own poll (every 50,000
+    // coordinates) can never be what cancels this.
+    //
+    // History: this test used 60,000 *populated* cells, which give the compare
+    // loop 60,000 coordinates too. Removing only the value-stream poll left it
+    // green -- the compare-phase poll cancelled instead -- so it passed for the
+    // wrong reason (f123 handoff F-T). The two preconditions below make that
+    // failure mode loud instead of silent.
+    let old = wb_styled_blanks(300, 200);
     let new = wb_strings(&[(0, 0, "x")]);
 
+    let reads_only = polls_made(&old, &new, true);
+    let full = polls_made(&old, &new, false);
+    assert_eq!(
+        full, reads_only,
+        "the compare phase must contribute no poll on this workbook, or it can \
+         cancel in place of the read loops"
+    );
+    assert_eq!(
+        reads_only, READ_PHASE_POLLS,
+        "expected the sheet-pair poll plus one poll in each read stream; a \
+         different count means a read poll was added or removed"
+    );
+
+    // Cancelled from the last of those polls, so cancelling needs *every* read
+    // poll to exist. Removing the value-stream poll leaves two polls in total
+    // and the comparison completes.
     let opts = DiffOptions::builder()
-        .cancellation(CancelFromSecondPoll::new())
+        .cancellation(CancelFromPoll::new(READ_PHASE_POLLS))
         .build()
         .unwrap();
     assert!(
@@ -601,27 +688,37 @@ fn cancellation_observed_during_read_phase() {
             compare_bytes_with_options(&old, &new, opts),
             Err(SheetsDiffError::Cancelled)
         ),
-        "a 60,000-cell single sheet must be cancellable mid-read, not just \
-         at the sheet-pair boundary before it starts"
+        "a 60,000-record single sheet must be cancellable mid-read, not just at \
+         the sheet-pair boundary before it starts"
     );
 }
 
 #[test]
 fn cancellation_observed_during_compare_phase() {
-    // Two dense blocks of 200 x 200 = 40,000 cells each — individually
-    // under CANCEL_POLL_INTERVAL (50,000), so neither side's own read
-    // crosses an interval boundary on its own. Placed at disjoint row
-    // ranges (0..200 vs 300..500) so Positional alignment's union of both
-    // sides' populated coordinates does not collapse them: the coordinate
-    // set compared is 40,000 + 40,000 = 80,000 entries, which *does* cross
-    // an interval boundary — but only in `build_sheet_diff`'s compare loop,
-    // after both reads have already completed cleanly. If only the read
-    // checkpoint existed, this test would time out, not fail fast.
+    // Two dense blocks of 200 x 200 = 40,000 cells each, at disjoint row ranges
+    // (0..200 vs 300..500) so Positional alignment's union of both sides'
+    // populated coordinates does not collapse them: 80,000 coordinates, which
+    // crosses the 50,000 polling interval in `build_sheet_diff`'s loop.
+    //
+    // The reads poll too (each side's two streams share a counter that crosses
+    // 50,000), so "cancel from the second poll" cancels in a *read* and never
+    // reaches the compare loop -- the previous form of this test stayed green
+    // with the compare-phase poll removed (f123 handoff item 2). Instead: count
+    // the polls the reads and the sheet pair make on their own, and cancel at
+    // the very next one. Nothing but the compare loop can make it.
     let old = wb_dense_block(0, 200, 200, "old");
     let new = wb_dense_block(300, 200, 200, "new");
 
+    let before_compare = polls_made(&old, &new, true);
+    let full = polls_made(&old, &new, false);
+    assert!(
+        full > before_compare,
+        "the compare loop must poll at least once on an 80,000-coordinate sheet \
+         ({before_compare} polls without it, {full} with it)"
+    );
+
     let opts = DiffOptions::builder()
-        .cancellation(CancelFromSecondPoll::new())
+        .cancellation(CancelFromPoll::new(before_compare + 1))
         .build()
         .unwrap();
     assert!(
@@ -629,9 +726,8 @@ fn cancellation_observed_during_compare_phase() {
             compare_bytes_with_options(&old, &new, opts),
             Err(SheetsDiffError::Cancelled)
         ),
-        "an 80,000-coordinate comparison, built from two reads that each \
-         individually stay under one polling interval, must still be \
-         cancellable mid-compare"
+        "an 80,000-coordinate comparison must be cancellable mid-compare, at the \
+         first poll after every read has finished"
     );
 }
 
