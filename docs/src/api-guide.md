@@ -29,7 +29,7 @@ the [migration guide](migration/v1-to-v2.md) for the full non-panicking
 contract).
 
 **Cost:** reads the whole file into memory once (`std::fs::read`), then
-holds it for the duration of the comparison. No streaming — a workbook
+holds it for the duration of the comparison. The input bytes are not streamed — a workbook
 larger than available memory cannot be compared this way, or any other way
 this crate currently offers.
 
