@@ -797,6 +797,205 @@ fn render_unified_shows_added_sheet_marker() {
     assert!(u.contains("[sheet added]"), "got: {u}");
 }
 
+// --- M8 unit 01: a sheet whose only change is structural must still render -----
+//
+// Three workbook pairs whose *cells are identical on both sides*, so the only
+// difference the engine can report is structural: the sheets were reordered,
+// renamed, or both. Built in-test from `support::wb_sheets`, not from the corpus.
+
+const CELL_A: &[(u32, u16, &str)] = &[(0, 0, "a")];
+const CELL_B: &[(u32, u16, &str)] = &[(0, 0, "b")];
+
+/// Alpha and Beta swap tab positions; no cell changes.
+fn reordered_pair() -> (Vec<u8>, Vec<u8>) {
+    (
+        wb_sheets(&[("Alpha", CELL_A), ("Beta", CELL_B)]),
+        wb_sheets(&[("Beta", CELL_B), ("Alpha", CELL_A)]),
+    )
+}
+
+/// One sheet renamed in place; no cell changes.
+fn renamed_pair() -> (Vec<u8>, Vec<u8>) {
+    (
+        wb_sheets(&[("Before", CELL_A)]),
+        wb_sheets(&[("After", CELL_A)]),
+    )
+}
+
+/// `A` moves from tab 1 to tab 2, and `B` (tab 2) is replaced at tab 1 by `C`:
+/// one `Moved` and one `RenamedAndMoved`; no cell changes.
+fn renamed_and_moved_pair() -> (Vec<u8>, Vec<u8>) {
+    (
+        wb_sheets(&[("A", CELL_A), ("B", CELL_B)]),
+        wb_sheets(&[("C", CELL_B), ("A", CELL_A)]),
+    )
+}
+
+#[test]
+fn render_unified_renders_a_reordered_sheet_with_no_cell_changes() {
+    let (old, new) = reordered_pair();
+    let d = compare_bytes(&old, &new).unwrap();
+    // Precondition: this really is a pure reorder.
+    assert_eq!(d.summary.cells_changed, 0);
+    assert!(d.sheets.iter().all(|s| s.change == SheetChange::Moved));
+
+    let u = render_unified(&d);
+    assert!(u.contains("@@ sheet: Alpha @@"), "got: {u}");
+    assert!(u.contains(" [moved: position 1 → 2]"), "got: {u}");
+    assert!(u.contains("@@ sheet: Beta @@"), "got: {u}");
+    assert!(u.contains(" [moved: position 2 → 1]"), "got: {u}");
+}
+
+#[test]
+fn render_unified_renders_a_renamed_sheet_with_no_cell_changes() {
+    let (old, new) = renamed_pair();
+    let d = compare_bytes(&old, &new).unwrap();
+    assert_eq!(d.summary.cells_changed, 0);
+    assert!(matches!(d.sheets[0].change, SheetChange::Renamed { .. }));
+
+    let u = render_unified(&d);
+    assert!(u.contains("@@ sheet: After @@"), "got: {u}");
+    assert!(u.contains(" [renamed: 'Before' → 'After']"), "got: {u}");
+}
+
+#[test]
+fn render_unified_renders_a_renamed_and_moved_sheet_with_no_cell_changes() {
+    let (old, new) = renamed_and_moved_pair();
+    let d = compare_bytes(&old, &new).unwrap();
+    assert_eq!(d.summary.cells_changed, 0);
+    assert!(
+        d.sheets
+            .iter()
+            .any(|s| matches!(s.change, SheetChange::RenamedAndMoved { .. }))
+    );
+
+    let u = render_unified(&d);
+    // Both facts are stated, not just the rename.
+    assert!(
+        u.contains(" [renamed: 'B' → 'C'; moved: position 2 → 1]"),
+        "got: {u}"
+    );
+    assert!(u.contains(" [moved: position 1 → 2]"), "got: {u}");
+}
+
+#[test]
+fn render_unified_renders_the_move_marker_and_the_cells_of_a_moved_sheet_that_also_changed() {
+    // Alpha moves tab 1 → 2 *and* one of its cells changes. Before the fix the
+    // cell lines rendered but the move did not; both must appear, marker first.
+    let old = wb_sheets(&[("Alpha", CELL_A), ("Beta", CELL_B)]);
+    let new = wb_sheets(&[("Beta", CELL_B), ("Alpha", &[(0, 0, "changed")])]);
+    let d = compare_bytes(&old, &new).unwrap();
+    let alpha = d
+        .sheets
+        .iter()
+        .find(|s| s.old_sheet.as_ref().unwrap().name == "Alpha")
+        .unwrap();
+    assert_eq!(alpha.change, SheetChange::Moved, "precondition");
+    assert_eq!(alpha.cell_diffs.len(), 1, "precondition");
+
+    let u = render_unified(&d);
+    let hunk = u
+        .split("@@ sheet: Alpha @@")
+        .nth(1)
+        .unwrap_or_else(|| panic!("no Alpha hunk: {u}"));
+    let marker = hunk
+        .find("[moved: position 1 → 2]")
+        .unwrap_or_else(|| panic!("no move marker: {u}"));
+    let cells = hunk
+        .find("-A1")
+        .unwrap_or_else(|| panic!("no cell lines: {u}"));
+    assert!(marker < cells, "marker must precede the cell lines: {u}");
+}
+
+#[test]
+fn render_unified_renders_nothing_for_an_identical_pair() {
+    // The guard against "fixing" the above by rendering every sheet: a pair with
+    // no difference at all must produce no hunk, only the two header lines.
+    let bytes = wb_sheets(&[("Alpha", CELL_A), ("Beta", CELL_B)]);
+    let d = compare_bytes(&bytes, &bytes).unwrap();
+    assert_eq!(render_unified(&d), "--- old\n+++ new\n");
+}
+
+#[test]
+fn render_unified_gives_an_unchanged_sheet_no_hunk() {
+    // Only `Changing` differs. `Steady` is unchanged and must not appear, even
+    // though it sits in the same workbook as a rendered sheet.
+    let old = wb_sheets(&[("Steady", CELL_A), ("Changing", CELL_A)]);
+    let new = wb_sheets(&[("Steady", CELL_A), ("Changing", CELL_B)]);
+    let d = compare_bytes(&old, &new).unwrap();
+    let u = render_unified(&d);
+    assert!(u.contains("@@ sheet: Changing @@"), "got: {u}");
+    assert!(
+        !u.contains("Steady"),
+        "an unchanged sheet was rendered: {u}"
+    );
+}
+
+/// `(renamed, moved)` from the headline line of a `render_summary` string.
+fn headline_counts(summary: &str) -> (usize, usize) {
+    let line = summary
+        .lines()
+        .find(|l| l.trim_start().starts_with("sheets :"))
+        .unwrap_or_else(|| panic!("no headline in: {summary}"));
+    let count = |word: &str| -> usize {
+        let before = line
+            .split(word)
+            .next()
+            .filter(|_| line.contains(word))
+            .unwrap_or_else(|| panic!("headline lacks {word:?}: {line}"));
+        before
+            .trim_end_matches([' ', ','])
+            .rsplit([' ', ','])
+            .next()
+            .unwrap()
+            .parse()
+            .unwrap_or_else(|_| panic!("no count before {word:?}: {line}"))
+    };
+    (count(" renamed"), count(" moved"))
+}
+
+#[test]
+fn render_summary_headline_agrees_with_the_sheet_lines_beneath_it() {
+    // The headline used to say "0 changed" directly above two `[moved]` lines.
+    // For every structural case, the counts in the headline must equal what the
+    // per-sheet lines below it show.
+    for (name, (old, new)) in [
+        ("reordered", reordered_pair()),
+        ("renamed", renamed_pair()),
+        ("renamed+moved", renamed_and_moved_pair()),
+    ] {
+        let d = compare_bytes(&old, &new).unwrap();
+        let s = render_summary(&d);
+        let (renamed, moved) = headline_counts(&s);
+        let body_renamed = s
+            .lines()
+            .filter(|l| l.contains("sheet '") && l.contains("renamed"))
+            .count();
+        let body_moved = s
+            .lines()
+            .filter(|l| l.contains("sheet '") && l.contains("moved"))
+            .count();
+        assert_eq!(renamed, body_renamed, "{name}: renamed count. got: {s}");
+        assert_eq!(moved, body_moved, "{name}: moved count. got: {s}");
+    }
+    // And the reorder case must actually report the two moves, not merely agree
+    // on zero.
+    let (old, new) = reordered_pair();
+    let s = render_summary(&compare_bytes(&old, &new).unwrap());
+    assert_eq!(headline_counts(&s), (0, 2), "got: {s}");
+}
+
+#[test]
+fn render_summary_for_an_identical_pair_has_a_zero_headline_and_no_sheet_lines() {
+    let bytes = wb_sheets(&[("Alpha", CELL_A), ("Beta", CELL_B)]);
+    let s = render_summary(&compare_bytes(&bytes, &bytes).unwrap());
+    assert_eq!(headline_counts(&s), (0, 0), "got: {s}");
+    assert!(
+        !s.contains("sheet '"),
+        "an identical pair listed a sheet: {s}"
+    );
+}
+
 // ============================================================================
 // serde / JSON  (M6, only with feature)
 // ============================================================================

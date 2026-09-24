@@ -5,7 +5,9 @@
 
 use std::fmt::Write as FmtWrite;
 
-use crate::model::{CellDiff, Diagnostic, Severity, SheetChange, SheetDiff, WorkbookDiff};
+use crate::model::{
+    CellDiff, Diagnostic, Severity, SheetChange, SheetDiff, SheetRef, WorkbookDiff,
+};
 
 // ---------------------------------------------------------------------------
 // Summary report
@@ -21,8 +23,8 @@ pub fn render_summary(diff: &WorkbookDiff) -> String {
     writeln!(out, "sheets-diff: {old_name}  →  {new_name}").unwrap();
     writeln!(
         out,
-        "  sheets : {} added, {} removed, {} renamed, {} changed",
-        s.sheets_added, s.sheets_removed, s.sheets_renamed, s.sheets_changed
+        "  sheets : {} added, {} removed, {} renamed, {} moved, {} changed",
+        s.sheets_added, s.sheets_removed, s.sheets_renamed, s.sheets_moved, s.sheets_changed
     )
     .unwrap();
     writeln!(
@@ -79,15 +81,29 @@ pub fn render_unified(diff: &WorkbookDiff) -> String {
     writeln!(out, "+++ {new_name}").unwrap();
 
     for sd in &diff.sheets {
-        let has_cell_changes = !sd.cell_diffs.is_empty();
-        let is_structural = matches!(sd.change, SheetChange::Added | SheetChange::Removed);
-
-        if !has_cell_changes && !is_structural {
+        // A sheet is left out only when nothing about it differs. `Unchanged` is
+        // the one variant that means that; every other variant — `Added`,
+        // `Removed`, `Moved`, `Renamed`, `RenamedAndMoved`, and any added later —
+        // is a difference and is rendered, whether or not a cell changed. (This
+        // guard used to admit only `Added` and `Removed`, which dropped a sheet
+        // that was merely reordered or renamed and left the renamed-sheet branch
+        // below reachable only when a cell had also changed.)
+        if matches!(sd.change, SheetChange::Unchanged) && sd.cell_diffs.is_empty() {
             continue;
         }
 
         let label = sheet_label(sd);
         writeln!(out, "@@ sheet: {label} @@").unwrap();
+
+        let old_name = sd.old_sheet.as_ref().map_or("?", |s| s.name.as_str());
+        let new_name = sd.new_sheet.as_ref().map_or("?", |s| s.name.as_str());
+        // Positions are 1-based tab positions, as a user counts them; the model's
+        // `SheetRef::index` is 0-based.
+        let position = |s: &Option<SheetRef>| {
+            s.as_ref()
+                .map_or("?".to_string(), |r| (r.index + 1).to_string())
+        };
+        let (old_pos, new_pos) = (position(&sd.old_sheet), position(&sd.new_sheet));
 
         match &sd.change {
             SheetChange::Added => {
@@ -96,19 +112,21 @@ pub fn render_unified(diff: &WorkbookDiff) -> String {
             SheetChange::Removed => {
                 writeln!(out, "-[sheet removed]").unwrap();
             }
-            SheetChange::Renamed { .. } | SheetChange::RenamedAndMoved { .. } => {
-                let old_n = sd
-                    .old_sheet
-                    .as_ref()
-                    .map(|s| s.name.as_str())
-                    .unwrap_or("?");
-                let new_n = sd
-                    .new_sheet
-                    .as_ref()
-                    .map(|s| s.name.as_str())
-                    .unwrap_or("?");
-                writeln!(out, " [renamed: '{old_n}' → '{new_n}']").unwrap();
+            SheetChange::Renamed { .. } => {
+                writeln!(out, " [renamed: '{old_name}' → '{new_name}']").unwrap();
             }
+            SheetChange::RenamedAndMoved { .. } => {
+                writeln!(
+                    out,
+                    " [renamed: '{old_name}' → '{new_name}'; moved: position {old_pos} → {new_pos}]"
+                )
+                .unwrap();
+            }
+            SheetChange::Moved => {
+                writeln!(out, " [moved: position {old_pos} → {new_pos}]").unwrap();
+            }
+            // `Modified`, or an `Unchanged` sheet that has cell diffs: the cell
+            // lines below are the whole story.
             _ => {}
         }
 

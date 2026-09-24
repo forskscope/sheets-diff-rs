@@ -11,7 +11,7 @@ use std::process;
 use clap::{Parser, ValueEnum};
 
 use sheets_diff::{
-    DiffOptions, OpenErrorKind, ReadErrorKind, SheetsDiffError,
+    DiffOptions, OpenErrorKind, ReadErrorKind, SheetChange, SheetsDiffError, WorkbookDiff,
     output::text::{render_summary, render_unified},
 };
 
@@ -25,7 +25,8 @@ use sheets_diff::{
     about = "Structured diff engine for Excel .xlsx workbooks",
     after_help = "EXIT CODES:\n  \
                   0  no differences found\n  \
-                  1  differences found\n  \
+                  1  differences found (a cell changed, or a sheet was added, \
+                  removed, renamed or reordered)\n  \
                   2  operational error (invalid options, a resource limit was \
                   hit, an environment issue such as a missing or unreadable \
                   file, or an internal bug)\n  \
@@ -116,6 +117,31 @@ fn exit_code_for(err: &SheetsDiffError) -> i32 {
 }
 
 // ---------------------------------------------------------------------------
+// "Do the workbooks differ?" (RFC-013, ROADMAP §6)
+// ---------------------------------------------------------------------------
+
+/// Whether the two workbooks differ in any way the engine records.
+///
+/// Derived from the *changes themselves*, not from a hand-picked list of
+/// `DiffSummary` counters: a sheet counts unless its classification is
+/// `Unchanged` and it carries no cell diff, so a sheet that was merely reordered
+/// or renamed is a difference, and so is any `SheetChange` variant added later.
+/// (The old condition listed `cells_changed`, `sheets_added`, `sheets_removed`
+/// and `sheets_renamed` and forgot `sheets_moved`, so a reorder exited 0 —
+/// "no differences" — while the summary printed `[moved]` lines.)
+///
+/// **Diagnostics are deliberately not consulted.** A defined-name or
+/// sheet-visibility change is reported as an `Info` diagnostic, and whether that
+/// is a "difference" is an open question this function does not answer.
+fn workbooks_differ(diff: &WorkbookDiff) -> bool {
+    diff.sheets
+        .iter()
+        .any(|sheet| sheet.change != SheetChange::Unchanged || !sheet.cell_diffs.is_empty())
+        || !diff.workbook_changes.is_empty()
+        || !diff.object_changes.is_empty()
+}
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
@@ -143,11 +169,7 @@ fn main() {
             print!("{output}");
 
             // Exit code: 0 = no differences, 1 = differences found
-            if diff.summary.cells_changed > 0
-                || diff.summary.sheets_added > 0
-                || diff.summary.sheets_removed > 0
-                || diff.summary.sheets_renamed > 0
-            {
+            if workbooks_differ(&diff) {
                 process::exit(1);
             }
         }

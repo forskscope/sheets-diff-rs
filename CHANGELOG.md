@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **The CLI now exits 1 when two workbooks' sheets were reordered.** A pure reorder
+  used to exit 0 — "no differences found" — while the summary printed `[moved]` lines
+  directly beneath a headline saying `0 changed`. The engine was right throughout
+  (`SheetChange::Moved` and `DiffSummary::sheets_moved` exist); the exit condition
+  listed `cells_changed`, `sheets_added`, `sheets_removed` and `sheets_renamed` and left
+  out the moved count. **This is a change to the exit contract, not only a fix:** a
+  script that treated exit 0 as "identical" will now see 1 for a workbook whose sheets
+  were only reordered. That is the correct answer. The condition is now derived from the
+  changes themselves — any sheet that is not `Unchanged`, or that carries a cell diff —
+  rather than from a hand-picked list of counters, so a new kind of sheet change cannot
+  silently exit 0 again. Differences that exist only as diagnostics (a defined name, a
+  sheet's visibility) still exit 0; that is unchanged and is an open question. The
+  defect was present from 2.0.0 through 2.5.1. The `--help` exit-code text and the
+  migration guide's table now say what makes a `1`.
+- **`--format unified` (and `render_unified`) renders a sheet whose only change is
+  structural, and the summary headline counts moved sheets.** A sheet that was only
+  reordered or renamed was dropped from the unified output: a pure rename exited 1 and
+  printed nothing beyond the two header lines, so the exit code and the renderer
+  contradicted each other in one invocation. Such sheets now render `[moved: position 1
+  → 2]`, `[renamed: 'Before' → 'After']`, or, for both, `[renamed: 'B' → 'C'; moved:
+  position 2 → 1]` (positions are 1-based tab positions). A sheet with no difference at
+  all still produces no hunk. **The summary headline gained a field:** it reads
+  `sheets : 0 added, 0 removed, 0 renamed, 2 moved, 0 changed`, so anything that parses
+  that line sees one more count. Both output changes affect the public
+  `output::text::{render_summary, render_unified}` as well as the CLI, and were present
+  from 2.0.0 through 2.5.1.
+
 ### Documentation
 
 - **`Limits::hardened()` is no longer documented as a guarantee it does not give.**

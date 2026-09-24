@@ -10,7 +10,8 @@ this crate advertises — a name, a flag or a value someone would get wrong is a
 defect here, not a documentation gap.
 
 Source: dev-team task 001's readiness review (findings A1–A6), plus the
-`cells_read` question ForskScope left to us.
+`cells_read` question ForskScope left to us, plus **O1**, found by the
+implementer during unit 01 and folded into unit 04 on 2026-09-24.
 
 ## Queue
 
@@ -20,7 +21,7 @@ Source: dev-team task 001's readiness review (findings A1–A6), plus the
 | 01 | [A reorder reports no difference](./01-moved-and-renamed-sheets.md) | A1 | **CLI exit contract** |
 | 02 | Two inert options | A2, A3 | Behaviour where there was none |
 | 03 | `--format json` | A5 | New CLI surface |
-| 04 | Four diagnostic codes nothing produces | A4 | Documentation |
+| 04 | Public values that describe what the engine does not do | A4, **O1** | Documentation |
 | 05 | What `cells_read` counts | A6 | **Public metric; every golden moves** |
 
 **Order: 00, then 01, then the rest; 05 last.**
@@ -35,10 +36,16 @@ invites a reader to hear "fixed" as "guaranteed".
 so every other unit's corpus check is cleaner before it runs — the same
 reasoning that ordered M7's units 03 before 02.
 
-**Units 00 and 01 are written.** Units 02–05 will be written when 01 lands, against
-the tree as it stands then, rather than now against a tree that 2.5.1 and unit
-01 are both about to change. Their scope is known and recorded in `ROADMAP.md`;
-what is not yet known is what the code looks like when they start.
+**Units 00 and 01 are done** — 01 approved 2026-09-24. Units 02–05 are written against
+the tree as unit 01 left it, rather than against the tree that 2.5.1 and unit 01
+were both about to change. Their scope is recorded in `ROADMAP.md`.
+
+**Unit 04 covers two shapes of the same defect.** A4 is four `DiagnosticKind`
+variants nothing constructs. O1 is the mirror: `SheetMatchReason::IndexAndContent`
+*is* constructed — at three sites in `src/matcher.rs` — and names a content check
+the matcher never performs, while `ContentSimilarity` is constructed nowhere. A
+value that is never produced and a value that is produced with a false name are
+the same failure for the reader.
 
 ## Why these are one milestone
 
@@ -49,7 +56,9 @@ They share a reader. Someone reads `--help` and believes `--no-warnings` does
 something. Someone reads `DiagnosticOptions::min_severity` and believes they can
 set it. Someone reads `cells_read` and believes it counts cells that were read.
 Someone reads a stable diagnostic-code table and believes `limit_truncated_cells`
-can occur. Someone runs the CLI on reordered sheets and believes exit `0`.
+can occur. Someone reads `SheetMatchReason::IndexAndContent` on a reported rename
+and believes the content was compared. Someone runs the CLI on reordered sheets
+and believes exit `0`.
 
 Every one of them is wrong, and none of them was careless — each is a surface
 that was built honestly and then drifted, or that promised ahead of the engine.

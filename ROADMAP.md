@@ -438,11 +438,11 @@ shipped as 2.4.0 rather than 2.3.1) and A6 changes a public metric.
 
 | Unit | Item | Why it is not a patch |
 |---|---|---|
-| 00 | **R1 — `Limits::hardened()` promises "a guarantee that no workbook — hostile or merely huge — can demand unbounded time or memory."** The threat model names two exceptions: a zip bomb within the size bound is capped only by `zip`'s own decompression, and styled blank records cost time and are not counted by `max_cells_read`. True about the struct — all six fields are set — and false about the world. **The second time this function has overpromised in this exact way**; M4's F-E was the same move one clause in. Found by the 2.5.1 release sweep. | Documentation |
-| 01 | **A1 — a reorder reports no difference, and a rename renders none.** Reorder: exit `0`, `--format unified` emits only its two header lines. **Pure rename: exit `1` but unified renders nothing either** — the exit code and the renderer contradict each other in one invocation. Found while scoping; `render_unified`'s guard drops any sheet without cell changes unless it is `Added`/`Removed`, so its own `[renamed: …]` branch can only run when the sheet *also* has cell changes. Both reproduced. | Exit-code contract |
+| 00 ✅ | **R1 — `Limits::hardened()` promises "a guarantee that no workbook — hostile or merely huge — can demand unbounded time or memory."** The threat model names two exceptions: a zip bomb within the size bound is capped only by `zip`'s own decompression, and styled blank records cost time and are not counted by `max_cells_read`. True about the struct — all six fields are set — and false about the world. **The second time this function has overpromised in this exact way**; M4's F-E was the same move one clause in. Found by the 2.5.1 release sweep. | Documentation |
+| 01 ✅ | **A1 — a reorder reports no difference, and a rename renders none.** Reorder: exit `0`, `--format unified` emits only its two header lines. **Pure rename: exit `1` but unified renders nothing either** — the exit code and the renderer contradict each other in one invocation. Found while scoping; `render_unified`'s guard drops any sheet without cell changes unless it is `Added`/`Removed`, so its own `[renamed: …]` branch can only run when the sheet *also* has cell changes. Both reproduced. | Exit-code contract |
 | 02 | **A2 + A3 — two inert options.** `--no-warnings` is in `--help` and never read; `DiagnosticOptions::min_severity` is public, documented, and never read. | Behaviour appears where there was none |
 | 03 | **A5 — no `--format json`**, though RFC-013 specifies it and `src/output/json.rs` already provides `to_json`/`to_json_pretty`. RFC-013's Status says `Implemented` and records only the exit-code deferral. | New CLI surface |
-| 04 | **A4 — four `DiagnosticKind` variants nothing constructs**, each live in the stable `code()` table. `LimitTruncatedCells` ("a configured cell limit truncated the comparison") cannot occur: limits return `Err`. | Documentation only |
+| 04 | **A4 — four `DiagnosticKind` variants nothing constructs**, each live in the stable `code()` table. `LimitTruncatedCells` ("a configured cell limit truncated the comparison") cannot occur: limits return `Err`. **Plus O1 — `SheetMatchReason::IndexAndContent`, constructed at three sites in `src/matcher.rs`, names a content check the matcher never performs; `ContentSimilarity` is constructed nowhere.** Found by the implementer during unit 01, folded here 2026-09-24. | Documentation only |
 | 05 | **A6 — `cells_read` means bounding-box area**, reporting 5,200 against 2 compared cells on `sparse_range`. | Public metric moves; every golden moves |
 
 **Dispositions I am proposing, not questions:**
@@ -455,9 +455,14 @@ shipped as 2.4.0 rather than 2.3.1) and A6 changes a public metric.
 - **A2 and A3 together, one mechanism.** Implement `min_severity` in the engine
   and make `--no-warnings` its CLI face, rather than implementing one and
   deleting the other. Two half-things is what produced the finding.
-- **A4: document, do not remove.** `DiagnosticKind` is `#[non_exhaustive]`, but
-  removing a variant still breaks a matcher, so removal is a v3 question. M4
-  unit 01 established the wording for unreachable variants; reuse it.
+- **A4 and O1: document, do not remove.** `DiagnosticKind` is
+  `#[non_exhaustive]`, but removing a variant still breaks a matcher, so removal
+  is a v3 question. M4 unit 01 established the wording for unreachable variants;
+  reuse it. **O1 is the same defect inverted** — A4 is a value never produced,
+  O1 a value produced under a false name — and the reader cannot tell the two
+  apart, so they belong in one unit. Renaming `IndexAndContent` is a v3 question
+  for the same reason; the 2.x answer is a doc comment that says what the
+  matcher actually does, and RFC-032's record corrected to match.
 - **A5: build it.** The library half exists; this is wiring plus a record
   correction to RFC-013.
 - **A6: decide, then build.** Counting populated cells is what the name promises.

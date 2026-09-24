@@ -235,9 +235,19 @@ let unified = render_unified(&diff);   // unified-style per-cell diff
 | Condition | v1 | v2 |
 |---|---|---|
 | No differences | 0 | 0 |
-| Differences found | — (always 0) | 1 |
+| Differences found — a cell changed, or a sheet was added, removed, renamed or reordered | — (always 0) | 1 |
 | Operational error — invalid CLI options, a resource limit, an environment issue (missing/unreadable file, permissions, a lock held elsewhere), or an internal bug | panic / unhandled | 2 |
 | Invalid or corrupt input — the file at the given path is not a readable `.xlsx` workbook: wrong format, corrupt internals, or encrypted (M4, 2.4.0) | panic / unhandled | 3 |
+
+**What makes a `1`.** Any difference the engine records in the sheets: a changed
+cell, or a sheet that was added, removed, renamed or reordered. Through 2.5.1 a
+workbook whose sheets were only *reordered* exited `0` — "no differences" — while
+the summary printed `[moved]` lines, and `--format unified` printed nothing for a
+sheet that was only reordered or renamed (a pure rename exited `1` with an empty
+diff). Both are fixed. A script that treated `0` as "identical" will now see `1` for
+a reordered workbook; that is the correct answer, and it is a change to what the CLI
+reports. Differences that exist only as diagnostics — a defined name, or a sheet's
+visibility — still exit `0`.
 
 **2 vs. 3, and why the line falls where it does.** 3 covers cases where
 something about the *bytes at the path* make them unusable as a workbook.
