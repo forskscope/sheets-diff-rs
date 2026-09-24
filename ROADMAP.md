@@ -480,8 +480,19 @@ where its worst defect was — the same shape as the golden corpus nothing read.
 | **2.6.0** (minor) | M8 | After 2.5.1 |
 | — | M9 | No release; may run in parallel |
 
-The security advisory follows 2.5.1 to crates.io rather than preceding it, per
-convention. Draft and the three open questions in it:
+**2.5.1 is published** (2026-09-24, crates.io, MSRV 1.88.0).
+
+**The security advisory was decided against**, 2026-09-24, on download evidence
+rather than on the defect's severity: v2 has **365 downloads across 12
+releases** — this project's CI and ForskScope's testing — and v1's 10,975 sits
+on a uniform ~585-per-release floor that is mirroring, not adoption. An advisory
+protects users who can act on it; there are effectively none, any v1 user's only
+remedy is a major-version migration, and the CHANGELOG and threat model already
+state the affected range publicly and permanently.
+
+**Revisit when ForskScope ships**, or if v2 downloads move materially, a second
+consumer appears, or anyone reports being affected. Their adoption is scheduled,
+so the first is foreseeable. Text, evidence and trigger:
 `.git-exclude/security/advisory-draft-bounding-box-allocation.md`.
 
 ### Settled by the consumer, 2026-08-17
