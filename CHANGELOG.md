@@ -1,6 +1,28 @@
 # Changelog
 
-## [Unreleased]
+## [2.5.1] - 2026-09-24
+
+**Patch release: a sheet is now read in memory proportional to its populated
+cells, and the limit that should have bounded that is checked before the
+allocation rather than after it.** ForskScope reported that a workbook of a few
+kilobytes, with two populated cells, aborted the calling process. We did not
+observe an abort ourselves; we reproduced the mechanism with a same-shaped fixture
+of about 5.3 KB, which asked for about 646 MB on the previous code. Every published
+2.x release, 2.0.0 through 2.5.0, read each sheet through a dense range covering the
+bounding box of its populated cells, so one populated cell far from the rest of the
+data set the size of the allocation — and `max_cells_read` and the cancellation
+poll both ran only after it, so no `Limits` setting could mitigate it. Both are
+fixed.
+
+No public API changed, and **no comparison that previously succeeded now
+fails**: `cells_read` keeps its meaning, so a workbook refused by
+`max_cells_read` before is refused now and one accepted before is accepted now —
+what changes is that the refusal arrives before the allocation instead of after
+it. The two observable changes are listed under Fixed. The rest
+of the release is the record: two cancellation tests that still passed with the
+poll they name removed are rebuilt so that each fails on it, and documentation that
+contradicted this release's own measurements or patch is corrected — including two
+public doc comments the streaming patch itself made false.
 
 ### Fixed
 

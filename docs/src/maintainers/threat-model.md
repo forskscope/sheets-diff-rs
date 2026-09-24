@@ -161,9 +161,10 @@ with, and it means `Limits` could not mitigate the defect: setting
 `max_cells_read` changed nothing about the allocation that had already happened.
 This surface was not listed in this document at all.
 
-**Fixed** on `main` by the streaming read (PR #28, `7dc12f7`), for the release
-after 2.5.0 (planned as 2.5.1). **At the time of writing that release has not
-been cut, so every published version, 2.0.0 through 2.5.0, is still affected.**
+**Fixed in 2.5.1** by the streaming read (PR #28, `7dc12f7`). Every version
+published before it — 2.0.0 through 2.5.0, and the 1.x line, which reads the same
+way and has no resource limits at all — is affected and unpatched; the remedy
+there is to move to 2.5.1.
 
 **Residual risk:** streaming bounds *memory* by the populated cells and *time* by
 the cell records streamed. Neither is capped by default — `max_cells_read` is
