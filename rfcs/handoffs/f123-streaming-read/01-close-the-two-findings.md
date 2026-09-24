@@ -65,7 +65,9 @@ nowhere in the document.
 
 ## Change scope
 
-`tests/integration.rs`, `docs/src/maintainers/threat-model.md`, `CHANGELOG.md`.
+`tests/integration.rs`, `docs/src/maintainers/threat-model.md`,
+`docs/src/api-guide.md`, `docs/src/non-goals.md`, `CHANGELOG.md`.
+*(The two `docs/` pages were added by the 2026-09-24 amendment at the end.)*
 
 ## Non-change scope
 
@@ -152,3 +154,61 @@ close it.
 
 It changes a public metric and moves every golden, so it cannot ride a patch
 release fixing a denial of service. It is recorded for decision after 2.5.1.
+
+---
+
+## Amendment — 2026-09-24 (after the readiness review)
+
+**Added: a record sweep, so 2.5.1 does not ship documentation that contradicts
+it.** Dev-team task 001 found four places where a user-facing or maintainer
+document still describes behaviour that 2.5.0 or this release changes. This unit
+already opens the threat model, so they belong here rather than trailing behind.
+
+### C1 — the API guide still claims the doubling we retracted
+
+`docs/src/api-guide.md:82` tells readers **"peak memory is roughly double"** for
+`compare_bytes`, and calls it "a real, current cost".
+
+M7 unit 01 measured it at **2.6–4.8%**. The threat model was corrected, the
+CHANGELOG was corrected, and **we wrote to ForskScope that we had overstated it
+and should not have said it without measuring.** The page we point users at
+still says it.
+
+Correct it to the measured figure and link `performance.md`. **Do not simply
+delete the sentence** — a reader who chose `compare_paths` on the strength of
+the old claim is owed the correction, not silence. This is the same failure
+mode as M6's four stale RFC statuses: the document nobody re-read after the
+thing it described changed.
+
+### C2 — the non-goals page predates two releases
+
+`docs/src/non-goals.md`'s header says "current as of 2.4.x", and its RFC-024 row
+(around line 145) says cancellation is "polled once per sheet pair" — which
+M7 unit 03 fixed in 2.5.0. Update both.
+
+### C3 — two stale claims in the threat model
+
+Beside F-U's new surface entry, while you are in the file:
+
+- **(a)** Around lines 189–192 it says source-path privacy is not "verified by a
+  dedicated test". `tests/source_path_privacy.rs` has existed since M5 unit 02.
+  **Verify this against the test file itself, not against RFC-016's Status
+  line** — the readiness review flagged that its own claim rested on the Status
+  rather than on reading the test, and that is exactly the chain this project
+  keeps finding broken.
+- **(b)** Around line 250 it names `cell_map_to_align` as the dominant memory
+  cost. That function was deleted in 2.5.0 (M7 unit 04).
+
+### Additional acceptance criteria
+
+9. `api-guide.md` states the measured figure for `compare_bytes`, with the old
+   claim corrected rather than removed.
+10. `non-goals.md`'s version header and its cancellation row are current.
+11. The threat model's path-privacy and `cell_map_to_align` claims are corrected,
+    with (a) checked against `tests/source_path_privacy.rs` directly.
+12. **Report anything else in `docs/` that 2.5.0 or 2.5.1 falsifies.** Four were
+    found by someone reading for a different purpose; treat that as evidence
+    there may be more rather than as a complete list.
+
+*(Criteria 1–8 above are unchanged and still apply. The CHANGELOG entry in
+criterion 5 now also covers these corrections.)*
