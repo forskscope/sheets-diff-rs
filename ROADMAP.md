@@ -424,6 +424,64 @@ benchmarks, which is measurement, not writing. These share the
 property that **their scope cannot honestly be written until something is
 measured**, so they are grouped to keep that discipline in one place.
 
+### M8 — "The surface promises what the engine does not" — 📋 **SCHEDULED 2026-09-24** *(2.6.0)*
+
+From dev-team task 001's readiness review, plus the `cells_read` question
+ForskScope left open. **One theme:** every item is a public surface a competent
+reader predicts wrongly — the owner's second design principle, applied to the
+things this crate advertises.
+
+Needs a **minor** release: A1 changes a CLI exit contract (the same reason M4
+shipped as 2.4.0 rather than 2.3.1) and A6 changes a public metric.
+
+| Unit | Item | Why it is not a patch |
+|---|---|---|
+| 01 | **A1 — a pure sheet reorder reports no difference.** Exit `0`, and `--format unified` emits only its two header lines. `sheets_moved` is absent from `src/main.rs:146-150`; the renderer omits moved sheets. Reproduced. | Exit-code contract |
+| 02 | **A2 + A3 — two inert options.** `--no-warnings` is in `--help` and never read; `DiagnosticOptions::min_severity` is public, documented, and never read. | Behaviour appears where there was none |
+| 03 | **A5 — no `--format json`**, though RFC-013 specifies it and `src/output/json.rs` already provides `to_json`/`to_json_pretty`. RFC-013's Status says `Implemented` and records only the exit-code deferral. | New CLI surface |
+| 04 | **A4 — four `DiagnosticKind` variants nothing constructs**, each live in the stable `code()` table. `LimitTruncatedCells` ("a configured cell limit truncated the comparison") cannot occur: limits return `Err`. | Documentation only |
+| 05 | **A6 — `cells_read` means bounding-box area**, reporting 5,200 against 2 compared cells on `sparse_range`. | Public metric moves; every golden moves |
+
+**Dispositions I am proposing, not questions:**
+
+- **A1 is a defect, not a rule to write down.** The library already models a
+  reorder — `SheetChange::Moved`, `DiffSummary::sheets_moved`, `[moved]` in the
+  summary, `sheet_reordered` in the corpus. The engine says the workbooks differ
+  and the CLI says "no differences found". ROADMAP §6 puts a missed difference at
+  the same severity as a crash.
+- **A2 and A3 together, one mechanism.** Implement `min_severity` in the engine
+  and make `--no-warnings` its CLI face, rather than implementing one and
+  deleting the other. Two half-things is what produced the finding.
+- **A4: document, do not remove.** `DiagnosticKind` is `#[non_exhaustive]`, but
+  removing a variant still breaks a matcher, so removal is a v3 question. M4
+  unit 01 established the wording for unreachable variants; reuse it.
+- **A5: build it.** The library half exists; this is wiring plus a record
+  correction to RFC-013.
+- **A6: decide, then build.** Counting populated cells is what the name promises.
+
+### M9 — "Reaching the code, and a record that agrees with itself" — 📋 **SCHEDULED 2026-09-24** *(no release)*
+
+| Unit | Item |
+|---|---|
+| 01 | **D1 — the fuzz corpus cannot reach the sheet reader.** `fuzz_open_xlsx_bytes` is seeded with an empty file, random bytes and a truncated ZIP header; coverage-guided fuzzing must synthesise a valid archive *and* valid workbook XML before a line of read, normalise or compare code runs. **The f123 denial of service lived past that point.** No target sets `Limits` or an alignment mode. |
+| 02 | **B1–B4 — deviations from `project-instructions-rust.md`**: inline `#[cfg(test)] mod tests` in five modules, `src/output/mod.rs` against the prescribed 2018 style, eight `#[allow(…)]` against CI's "no silencing" comment. Plus **B3**, which cannot be evaluated: the rule says to split `tests/` by line count and defines no threshold. |
+| 03 | **C4, C6, C7, C8, C9 and E — the remaining record corrections.** `fuzz/README.md` says CI does not run the fuzz targets (it does); RFC-035 and RFC-036 are still in `accepted/` while the README calls 035 delivered; `performance.md`'s figures were measured on the dense read PR #28 replaced and nothing says whether they were re-measured; handoff directories are not `NNN-slug/`; `README.md` says calamine is "pinned" where `Cargo.toml` has a caret range. |
+
+**D1 is the substantive one.** This crate has fuzzing that cannot reach the code
+where its worst defect was — the same shape as the golden corpus nothing read.
+
+### Release plan
+
+| Release | Contents | State |
+|---|---|---|
+| **2.5.1** (patch) | The streaming read (merged, `8fe7c2c`) + f123 unit 01: the cancellation test that does not test, the threat-model surface, and the record sweep | **Dev team is on it.** Cut and publish on completion, then file the advisory |
+| **2.6.0** (minor) | M8 | After 2.5.1 |
+| — | M9 | No release; may run in parallel |
+
+The security advisory follows 2.5.1 to crates.io rather than preceding it, per
+convention. Draft and the three open questions in it:
+`.git-exclude/security/advisory-draft-bounding-box-allocation.md`.
+
 ### Settled by the consumer, 2026-08-17
 
 **`serde::Deserialize`: declined, not deferred.** ForskScope was asked directly
