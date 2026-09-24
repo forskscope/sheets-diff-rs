@@ -440,9 +440,9 @@ shipped as 2.4.0 rather than 2.3.1) and A6 changes a public metric.
 |---|---|---|
 | 00 ✅ | **R1 — `Limits::hardened()` promises "a guarantee that no workbook — hostile or merely huge — can demand unbounded time or memory."** The threat model names two exceptions: a zip bomb within the size bound is capped only by `zip`'s own decompression, and styled blank records cost time and are not counted by `max_cells_read`. True about the struct — all six fields are set — and false about the world. **The second time this function has overpromised in this exact way**; M4's F-E was the same move one clause in. Found by the 2.5.1 release sweep. | Documentation |
 | 01 ✅ | **A1 — a reorder reports no difference, and a rename renders none.** Reorder: exit `0`, `--format unified` emits only its two header lines. **Pure rename: exit `1` but unified renders nothing either** — the exit code and the renderer contradict each other in one invocation. Found while scoping; `render_unified`'s guard drops any sheet without cell changes unless it is `Added`/`Removed`, so its own `[renamed: …]` branch can only run when the sheet *also* has cell changes. Both reproduced. | Exit-code contract |
-| 02 | **A2 + A3 — two inert options.** `--no-warnings` is in `--help` and never read; `DiagnosticOptions::min_severity` is public, documented, and never read. | Behaviour appears where there was none |
+| 02 | **A2 + A3 — two inert options.** `--no-warnings` is in `--help` and never read; `DiagnosticOptions::min_severity` is public, documented, and never read. **Plus O3, found scoping the handoff 2026-09-24 and the most consequential of the three: sheet-level diagnostics reach no output at all.** `derive_summary` (`src/model.rs:864`) counts only the workbook-level vector, `render_unified` renders only that vector, and `metrics.diagnostics_emitted` (`src/diff.rs:302`) sums both — so the metric and the summary disagree. The casualties are `AlignmentBoundExceeded` (the sheet silently fell back to positional comparison) and `DuplicateAlignmentKey` (rows may have been paired wrongly), **both `Severity::Warning`, both invisible in every CLI output.** A warning whose job is to say the diff may be wrong, that nothing prints, is unit 01's failure in a second place. | Behaviour appears where there was none; **default diagnostic counts change** |
 | 03 | **A5 — no `--format json`**, though RFC-013 specifies it and `src/output/json.rs` already provides `to_json`/`to_json_pretty`. RFC-013's Status says `Implemented` and records only the exit-code deferral. | New CLI surface |
-| 04 | **A4 — four `DiagnosticKind` variants nothing constructs**, each live in the stable `code()` table. `LimitTruncatedCells` ("a configured cell limit truncated the comparison") cannot occur: limits return `Err`. **Plus O1 — `SheetMatchReason::IndexAndContent`, constructed at three sites in `src/matcher.rs`, names a content check the matcher never performs; `ContentSimilarity` is constructed nowhere.** Found by the implementer during unit 01, folded here 2026-09-24. | Documentation only |
+| 04 | **A4 — four `DiagnosticKind` variants nothing constructs** (`FormulaCachedValueUnverified`, `UnsupportedCellValue`, `DateTimeNotNormalized`, `LimitTruncatedCells`), each live in the stable `code()` table callers are told to match on. `LimitTruncatedCells` cannot occur: limits return `Err`. **Plus O1, and O1 is worse than reported: `SheetMatchReason` has three variants and only one is ever constructed.** `ExactName` is structurally impossible — the enum appears only inside `Renamed`/`RenamedAndMoved`. `ContentSimilarity` is never produced because the matcher never inspects content. `IndexAndContent` is produced for *every* rename and is inaccurate at all three sites, worst at `matcher.rs:151` where the pair is formed by elimination — neither index nor content. Found by the implementer during unit 01, folded here 2026-09-24. | Documentation only |
 | 05 | **A6 — `cells_read` means bounding-box area**, reporting 5,200 against 2 compared cells on `sparse_range`. | Public metric moves; every golden moves |
 
 **Dispositions I am proposing, not questions:**
@@ -452,9 +452,16 @@ shipped as 2.4.0 rather than 2.3.1) and A6 changes a public metric.
   summary, `sheet_reordered` in the corpus. The engine says the workbooks differ
   and the CLI says "no differences found". ROADMAP §6 puts a missed difference at
   the same severity as a crash.
-- **A2 and A3 together, one mechanism.** Implement `min_severity` in the engine
-  and make `--no-warnings` its CLI face, rather than implementing one and
-  deleting the other. Two half-things is what produced the finding.
+- **A2 and A3 are two mechanisms, not one. — corrected 2026-09-24.** The
+  disposition above originally read *"make `--no-warnings` its CLI face"*;
+  reading the code to write the handoff showed that wrong. `min_severity` is a
+  **collection** filter and `--no-warnings` is a **display** control. Wiring the
+  flag to the field would make `--no-warnings` change `DiffSummary`'s counters,
+  so `render_summary` would report zero warnings for a workbook that had them —
+  a flag that suppresses a display and thereby falsifies a count, which is a
+  worse instance of what M8 exists to fix. Implement both, separately.
+  A third severity control already has teeth and is not configurable:
+  `src/output/text.rs:164` hardcodes `>= Warning`.
 - **A4 and O1: document, do not remove.** `DiagnosticKind` is
   `#[non_exhaustive]`, but removing a variant still breaks a matcher, so removal
   is a v3 question. M4 unit 01 established the wording for unreachable variants;
@@ -464,7 +471,13 @@ shipped as 2.4.0 rather than 2.3.1) and A6 changes a public metric.
   for the same reason; the 2.x answer is a doc comment that says what the
   matcher actually does, and RFC-032's record corrected to match.
 - **A5: build it.** The library half exists; this is wiring plus a record
-  correction to RFC-013.
+  correction to RFC-013. **Watch the feature trap:** `cli = ["dep:clap"]` does
+  not enable `serde`, and `to_json_pretty` is `serde`-gated, so the naive
+  implementation gives a binary whose `--help` differs by build at the same
+  version — a fresh instance of M8's own theme. `cli` must imply `serde`.
+- **O3: fix it in unit 02**, not separately. Filtering `min_severity` without
+  noticing that half the diagnostics never reach a renderer would be a half-fix,
+  and the filter has to cover both vectors anyway.
 - **A6: decide, then build.** Counting populated cells is what the name promises.
 
 ### M9 — "Reaching the code, and a record that agrees with itself" — 🔄 **AUTHORIZED 2026-09-24** *(no release)*
@@ -474,9 +487,17 @@ shipped as 2.4.0 rather than 2.3.1) and A6 changes a public metric.
 | 01 | **D1 — the fuzz corpus cannot reach the sheet reader.** `fuzz_open_xlsx_bytes` is seeded with an empty file, random bytes and a truncated ZIP header; coverage-guided fuzzing must synthesise a valid archive *and* valid workbook XML before a line of read, normalise or compare code runs. **The f123 denial of service lived past that point.** No target sets `Limits` or an alignment mode. |
 | 02 | **B1–B4 — deviations from `project-instructions-rust.md`**: inline `#[cfg(test)] mod tests` in five modules, `src/output/mod.rs` against the prescribed 2018 style, eight `#[allow(…)]` against CI's "no silencing" comment. Plus **B3**, which cannot be evaluated: the rule says to split `tests/` by line count and defines no threshold. |
 | 03 | **C4, C6, C7, C8, C9 and E — the remaining record corrections.** `fuzz/README.md` says CI does not run the fuzz targets (it does); RFC-035 and RFC-036 are still in `accepted/` while the README calls 035 delivered; `performance.md`'s figures were measured on the dense read PR #28 replaced and nothing says whether they were re-measured; handoff directories are not `NNN-slug/`; `README.md` says calamine is "pinned" where `Cargo.toml` has a caret range. |
+| 04 | **O4 — `FormulaUnavailable` is pushed once per cell** (`src/diff.rs:747`), each carrying a cloned sheet-name `String` and a `CellAddress`, for every numeric cell with no formula. On a dense numeric sheet the diagnostics vector grows proportional to cells read, at a much larger per-item cost than a cell. Bounded by `max_cells_read`, so not a hole — but the constant factor is unmeasured and the threat model does not mention it. **Measure before deciding**; M7 established that this project does not act on a memory hypothesis it has not measured. Found 2026-09-24 while scoping M8 unit 02. |
 
 **D1 is the substantive one.** This crate has fuzzing that cannot reach the code
 where its worst defect was — the same shape as the golden corpus nothing read.
+
+**O5, for unit 03's E bucket:** `src/output/view.rs` is a `pub mod` that nothing
+inside the crate calls — the only in-crate mention is a doc comment in
+`model.rs:479`. It is public API rather than dead code, and it is the one place
+that reads `SheetDiff::diagnostics`, so it is *not* covered by M8's O3. Decide
+deliberately whether it is a supported projection or an accident, and say which
+in RFC-033. Found 2026-09-24 while scoping M8 unit 02.
 
 ### Release plan
 

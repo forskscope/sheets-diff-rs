@@ -19,9 +19,9 @@ implementer during unit 01 and folded into unit 04 on 2026-09-24.
 |---|---|---|---|
 | **00** | [`hardened()` promises a guarantee we do not give](./00-hardened-promises-a-guarantee.md) | R1 | Documentation |
 | 01 | [A reorder reports no difference](./01-moved-and-renamed-sheets.md) | A1 | **CLI exit contract** |
-| 02 | Two inert options | A2, A3 | Behaviour where there was none |
-| 03 | `--format json` | A5 | New CLI surface |
-| 04 | Public values that describe what the engine does not do | A4, **O1** | Documentation |
+| 02 | [Two inert options, which are not the same option](./02-two-inert-options.md) | A2, A3 | Behaviour where there was none |
+| 03 | [`--format json`](./03-format-json.md) | A5 | New CLI surface |
+| 04 | [Public values that describe what the engine does not do](./04-values-that-describe-what-the-engine-does-not-do.md) | A4, **O1** | Documentation |
 | 05 | What `cells_read` counts | A6 | **Public metric; every golden moves** |
 
 **Order: 00, then 01, then the rest; 05 last.**
@@ -36,9 +36,17 @@ invites a reader to hear "fixed" as "guaranteed".
 so every other unit's corpus check is cleaner before it runs — the same
 reasoning that ordered M7's units 03 before 02.
 
-**Units 00 and 01 are done** — 01 approved 2026-09-24. Units 02–05 are written against
-the tree as unit 01 left it, rather than against the tree that 2.5.1 and unit 01
-were both about to change. Their scope is recorded in `ROADMAP.md`.
+**Units 00 and 01 are done** — 01 approved 2026-09-24. **Units 02, 03 and 04 are
+written** and may be worked in any order or in parallel; unit 05 is written against
+the tree that 02–04 leave behind, since it moves every golden and a clean corpus
+check is worth more to the other three than to itself.
+
+**Units 02 and 03 meet at one flag.** `--no-warnings` is defined by 02 and must
+apply to JSON in 03, or the milestone ships a newly inert combination. Whichever
+lands second wires it; both handoffs say so.
+
+**Unit 04 needs one decision from the owner before it is worked** — whether O1 is
+documented now and renamed at v3 (recommended) or given honest variants in 2.6.0.
 
 **Unit 04 covers two shapes of the same defect.** A4 is four `DiagnosticKind`
 variants nothing constructs. O1 is the mirror: `SheetMatchReason::IndexAndContent`
