@@ -122,6 +122,61 @@ produced a wrong-but-plausible result (see [Assets](#assets) above) via
 manual audit, not systematic verification; there is no proof no fifth case
 remains.
 
+### Sheet reading (`src/diff.rs`, `read_sheet_cells`)
+
+Turning each worksheet's XML into this crate's sparse `CellMap`.
+**Mitigation:** the sheet is *streamed* (`Xlsx::worksheet_cells_reader`)
+straight into the sparse map, in two passes — values, then formula text — so
+memory follows the **populated cells** rather than the sheet's extent.
+`max_cells_read` and the cancellation poll both sit inside the loop that spends
+the resource: the bound is evaluated on the running bounding box of the
+populated cells *before* a cell is retained, so it fires before anything
+proportional to that box exists — the same check-before-the-spend pattern as
+`max_alignment_product` above — and the poll counts every streamed cell record,
+blank or not.
+
+**This surface was open in every published version from 2.0.0 through 2.5.0.**
+Those versions read each sheet through `Xlsx::worksheet_range` and
+`Xlsx::worksheet_formula`. Each returns a *dense* `Range`: rows × columns of the
+bounding box of the populated cells (of the formula cells, for the second),
+whatever the sheet actually contains. One populated cell far from the rest of the
+data sets that box, and every position in it costs one `calamine::Data`,
+**32 bytes** (`size_of`, measured 2026-09-24). ForskScope reported that a
+5.4 KB workbook with two populated cells **aborted the calling process**. The
+fixture in `tests/streaming_read.rs` has that shape — about 5.3 KB, a 200,001 × 101
+box of 20,200,101 positions — and on the pre-fix code its peak heap growth
+measured **646,536,925–646,536,927 bytes** over two runs (32 bytes a position; the
+last digits move with the zip's embedded timestamp). It fits in memory
+on a large machine; Excel's own maximum box (1,048,576 × 16,384 positions) would
+ask for roughly 550 GB by arithmetic, which was not run. An allocation that large
+is an out-of-memory abort, not an error a caller can handle — exactly the failure
+the *Availability of the host process* asset names — and the workbook needed
+nothing but a populated cell far from the data.
+
+**The bound fired after the spend.** `max_cells_read` was checked in a loop over
+the finished `Range`, so it ran only after the allocation it exists to prevent,
+and the cancellation poll lived in the same loop and could not run first either.
+That is the inverse of the pattern this document credits `max_alignment_product`
+with, and it means `Limits` could not mitigate the defect: setting
+`max_cells_read` changed nothing about the allocation that had already happened.
+This surface was not listed in this document at all.
+
+**Fixed** on `main` by the streaming read (PR #28, `7dc12f7`), for the release
+after 2.5.0 (planned as 2.5.1). **At the time of writing that release has not
+been cut, so every published version, 2.0.0 through 2.5.0, is still affected.**
+
+**Residual risk:** streaming bounds *memory* by the populated cells and *time* by
+the cell records streamed. Neither is capped by default — `max_cells_read` is
+one of the four linear bounds that default to `None` (see
+[The bounds themselves](#the-bounds-themselves-limits)) — so a workbook with a
+very large number of populated cells still costs proportional memory and time
+unless the caller sets `max_cells_read` or uses `Limits::hardened()`. Styled
+blank cell records are skipped before the bound is evaluated: they cost time, not
+memory, are not counted by `max_cells_read`, and are limited only by
+`max_input_bytes` and by cancellation latency. `DiffMetrics::cells_read` still
+reports the bounding-box area of the populated cells, not the number of cell
+records read.
+
 ### Alignment (`src/align.rs`, `src/diff.rs`)
 
 The optional row-alignment feature (`RowKey`/`RowSignature`/`HeaderColumn`
@@ -205,6 +260,8 @@ Said plainly, because the failure mode of a threat model is overclaiming:
 | MSRV floor is real, not merely declared | Yes | CI `msrv` job — builds at the pinned toolchain, asserts the resolved version matches |
 | Comparison output does not silently drift | Yes | The fixture corpus (`tests/fixtures/generated/*/expected.json`) — CI `tree` job additionally asserts the test suite itself never dirties the working tree |
 | Resource bounds actually bound (§5.1–5.4) | Partially | Unit tests assert degrade-not-error and the measured default (RFC-035 §9); there is no continuous benchmark asserting the *measured* costs stay within the stated envelope over time |
+| A sheet read allocates in proportion to its populated cells, and its bound and cancellation poll fire before the spend | Yes | `tests/streaming_read.rs` — peak heap from a counting allocator against a 64 MiB budget, on a fixture where the pre-fix dense read measured about 646.5 million bytes (roughly ten times the budget) |
+| Each cancellation poll (sheet pair, value read, formula read, compare loop) can actually cancel | Partially | `tests/integration.rs::cancellation_observed_during_{read,compare}_phase`, plus `tests/streaming_read.rs`. Each test was shown to fail when only its own poll is removed — demonstrated by hand on 2026-09-24, one poll at a time; no CI job repeats the removal, so a future test edit could lose that property unnoticed |
 | Normalisation/alignment/formula-attachment correctness | No dedicated ongoing check beyond the fixture corpus | The four Handoff 05 defects were found by manual audit, not by an automated property; a fifth of the same shape would only be caught if it happens to move a golden or fail a hand-written test |
 | Comparison never accesses the network (NF-015) | Indirectly | Enforced structurally (no networking dependency can enter the tree, per the `[bans]` row above) rather than by a runtime sandbox or a dedicated test that observes zero syscalls |
 
