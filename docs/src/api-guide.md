@@ -57,8 +57,9 @@ required alongside `Read` — a pure forward-only stream cannot be compared.
 
 **Cost:** the same as `compare_paths` once past the open step — the reader
 is fully drained into an owned buffer (`read_to_end`) before any parsing
-begins, so peak memory is one copy of the file's bytes, same as the path
-route.
+begins, so the file's bytes are held once, same as the path route. Those
+bytes are a small share of peak memory — about 2.4–2.6% at 10,000 cells and
+up; see [Performance](maintainers/performance.md).
 
 ---
 
@@ -79,16 +80,28 @@ let diff = compare_bytes(&old_bytes, &new_bytes)?;
 
 **Cost — the one worth knowing before choosing this over the other two:**
 `compare_bytes` copies its input (`to_vec()`) to get an owned buffer it can
-build a `Cursor`-based reader over, so **peak memory is roughly double**
-the input size while that copy exists — bytes you already hold, plus the
-copy this call makes. `compare_paths` and `compare_readers` pay the same
-one-copy cost as this call's *second* half, but never hold your original
-buffer alongside it, because they read the bytes themselves rather than
-receiving them already resident. Recorded as a residual risk in the
-[threat model](maintainers/threat-model.md#residual-risks-worth-naming) —
-this is a real, current cost, not a hypothetical one, and eliminating it
-would need a borrowing reader (`Xlsx<Cursor<&[u8]>>`) that does not exist
-today.
+build a `Cursor`-based reader over, so **the input's bytes are held twice**
+while the call runs — the buffer you already hold, plus the copy this call
+makes. That copy is small next to everything else a comparison holds: measured,
+`compare_bytes` peaks **2.6–4.8% above `compare_paths`** at 10,000 cells and up,
+because the raw bytes are only about 2.4–2.6% of peak. Most of peak is the
+parsed, normalised cells, which every entry point builds identically. Below that
+size the percentage is larger (+66% at 1,000 cells) but the absolute cost is a
+few hundred kilobytes. `compare_paths` and `compare_readers` never hold your
+original buffer alongside their own, because they read the bytes themselves
+rather than receiving them already resident. Recorded as a residual risk in the
+[threat model](maintainers/threat-model.md#residual-risks-worth-naming);
+removing the copy would need a borrowing reader (`Xlsx<Cursor<&[u8]>>`) that
+does not exist, and it was considered and declined because it would recover
+only that few percent (see [Performance](maintainers/performance.md), Q1).
+
+**Correction.** Earlier versions of this guide said this copy makes peak memory
+"roughly double". That was wrong: it was inferred from reading the code, not
+measured. If you chose `compare_paths` or `compare_readers` over `compare_bytes`,
+or changed how you load files, on the strength of that sentence, you do not need
+to — for realistic workbook sizes the difference is a few percent. The figures
+were measured during the work that became 2.5.0, before the streaming sheet read
+that followed it, and have not been re-measured since.
 
 ---
 

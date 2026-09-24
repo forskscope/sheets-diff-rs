@@ -241,10 +241,19 @@ Said plainly, because the failure mode of a threat model is overclaiming:
   (charts, images, comments, data validation, conditional formatting, cell
   styles/number formats) and "available upstream, not yet used by this
   crate" (hyperlinks, merged regions, tables, pivot tables).
-- **No path-leakage guarantee beyond best-effort** (NF-018, SHOULD not
-  MUST). Error variants carry a `display_name` derived from the path's file
-  name, not the full path, but this is a SHOULD-level requirement, not a
-  hard guarantee verified by a dedicated test.
+- **No path-leakage guarantee beyond what is tested** (NF-018 is SHOULD, not
+  MUST). Results and errors carry a `display_name` derived from the path's file
+  name, not the full path; byte and reader inputs carry none. That is checked by
+  `tests/source_path_privacy.rs` (five tests), and only for what those tests
+  assert: for path inputs, `display_name` is exactly the file name and the parent
+  directory appears nowhere in the `Debug` output of the `WorkbookDiff` or in
+  either text renderer; a non-UTF-8 file name yields `None` without a panic (Unix
+  only); the `Display` string of an open error on a nested missing path does not
+  contain the directory; byte and reader inputs have no `display_name`. **Not
+  asserted:** the `Debug` output of an error, and the `source()` chain the CLI
+  prints. Run by hand on one missing file in a nested directory, that chain read
+  `I/O error: No such file or directory (os error 2)`, with no path in it — an
+  observation, not a tested property.
 
 ## Verification map
 
@@ -305,10 +314,11 @@ All surfaced during M2; none currently fixed.
   wrong: measured, `compare_bytes` peaks **2.6–4.8% above `compare_paths`** at
   10,000 cells and up. The raw input bytes do roughly double, but they are only
   2.4–2.6% of peak — peak is dominated by the ~450 B/cell normalised
-  representation both entry points build identically. Peak is instead dominated,
-  among costs we control, by `cell_map_to_align`'s clone of every `CellValue`
-  (+33%, paid only by non-`Positional` alignment modes). Method and full
-  figures: [performance.md](./performance.md).
+  representation both entry points build identically. Among costs we control, the
+  largest was `cell_map_to_align`'s clone of every `CellValue` (+33% of peak, paid
+  only by non-`Positional` alignment modes). **That clone no longer exists:** M7
+  Handoff 04 (2.5.0) deleted it, and the re-measured delta is 0.0%. Method and
+  full figures: [performance.md](./performance.md).
 
 ## Advisory-response policy
 
