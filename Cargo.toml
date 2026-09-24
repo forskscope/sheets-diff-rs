@@ -26,12 +26,15 @@ lto = false
 # RFC-026: feature flags
 # - "serde": optional Serialize derives on public model types (Deserialize deferred)
 # - "chrono": optional ISO string synthesis for DateTime values from calamine serials
-# - "cli": pulls in clap for the binary; not needed by library consumers
+# - "cli": pulls in clap for the binary, and enables "serde": the binary's
+#   `--format json` needs it, and a CLI whose advertised formats depended on how it
+#   was compiled would be a surface a reader predicts wrongly. Not needed by
+#   library consumers.
 [features]
 default = []
 serde = ["dep:serde", "dep:serde_json"]
 chrono = ["dep:chrono", "calamine/chrono"]
-cli      = ["dep:clap"]
+cli      = ["dep:clap", "serde"]
 
 [[bin]]
 name = "sheets-diff"

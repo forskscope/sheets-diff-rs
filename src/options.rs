@@ -434,7 +434,34 @@ pub struct ExecutionOptions {
 
 #[derive(Clone, Debug, Default)]
 pub struct DiagnosticOptions {
-    /// Minimum severity to collect.  Defaults to `Info` (collect everything).
+    /// The lowest severity to **collect**.
+    ///
+    /// The field's default is `None`, which collects every diagnostic — `Info`
+    /// and above. `Some(min)` drops any diagnostic below `min` before it is kept:
+    /// it appears in neither [`WorkbookDiff::diagnostics`](crate::WorkbookDiff)
+    /// nor any [`SheetDiff::diagnostics`](crate::SheetDiff), and no renderer is
+    /// involved.
+    ///
+    /// **The counters follow the filter.** [`DiffSummary::diagnostics`](crate::DiffSummary)
+    /// and [`DiffMetrics::diagnostics_emitted`](crate::DiffMetrics) count what was
+    /// *kept*, not what the engine generated. That is the honest reading of a
+    /// collection filter — the caller asked not to collect them — and the opposite
+    /// reading ("count everything, hide some") is equally defensible, so it is
+    /// stated rather than left to be guessed. The filter changes which diagnostics
+    /// are kept; it does not change which the engine produces.
+    ///
+    /// This is a different thing from a *display* threshold. The text renderers
+    /// choose what to print (the unified renderer shows warnings and errors)
+    /// from whatever was collected; they cannot show what this dropped.
+    ///
+    /// There is no builder method for it; set the field:
+    ///
+    /// ```
+    /// use sheets_diff::{DiffOptions, Severity};
+    ///
+    /// let mut opts = DiffOptions::default();
+    /// opts.diagnostics.min_severity = Some(Severity::Warning);
+    /// ```
     pub min_severity: Option<crate::model::Severity>,
 }
 

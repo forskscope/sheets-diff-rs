@@ -135,7 +135,7 @@ pub fn render_unified(diff: &WorkbookDiff) -> String {
         }
     }
 
-    write_diagnostics_section(&mut out, &diff.diagnostics);
+    write_diagnostics_section(&mut out, diff);
     out
 }
 
@@ -158,22 +158,55 @@ fn write_cell_diff(out: &mut String, cd: &CellDiff) {
     }
 }
 
-fn write_diagnostics_section(out: &mut String, diagnostics: &[Diagnostic]) {
-    let shown: Vec<_> = diagnostics
-        .iter()
-        .filter(|d| d.severity >= Severity::Warning)
+/// The lowest severity the unified renderer *prints*.
+///
+/// A **display** threshold, and deliberately not `DiagnosticOptions::min_severity`,
+/// which is a **collection** filter applied by the engine. They answer different
+/// questions: this one decides what to show of what was collected (an `Info`
+/// diagnostic — `formula_unavailable` is pushed per numeric cell — would drown the
+/// diff), while `min_severity` decides what is kept at all and therefore what the
+/// summary counts and what a library caller sees. The renderer cannot show what
+/// `min_severity` dropped.
+const DISPLAY_THRESHOLD: Severity = Severity::Warning;
+
+fn write_diagnostics_section(out: &mut String, diff: &WorkbookDiff) {
+    // Workbook-level diagnostics first, then each sheet's own, in sheet order.
+    //
+    // A sheet's diagnostics were once not shown at all — this function received
+    // only `diff.diagnostics` — which hid `alignment_bound_exceeded` (the sheet was
+    // silently compared positionally) and `duplicate_alignment_key` (rows may have
+    // been paired wrongly). The sheet is named from the `SheetDiff` that *owns* the
+    // diagnostic, not from `DiagnosticLocation`: the alignment diagnostics are
+    // pushed with no sheet name in their location.
+    let workbook_level = diff.diagnostics.iter().map(|d| (None, d));
+    let sheet_level = diff.sheets.iter().flat_map(|sd| {
+        let label = sheet_label(sd);
+        sd.diagnostics.iter().map(move |d| (Some(label.clone()), d))
+    });
+    let shown: Vec<(Option<String>, &Diagnostic)> = workbook_level
+        .chain(sheet_level)
+        .filter(|(_, d)| d.severity >= DISPLAY_THRESHOLD)
         .collect();
     if shown.is_empty() {
         return;
     }
     writeln!(out, "\n# Diagnostics").unwrap();
-    for d in shown {
+    for (sheet, d) in shown {
         let prefix = match d.severity {
             Severity::Error => "ERROR",
             Severity::Warning => "WARN",
             Severity::Info => "INFO",
         };
-        writeln!(out, "  [{prefix}] {} — {}", d.kind.code(), d.message).unwrap();
+        match sheet {
+            None => writeln!(out, "  [{prefix}] {} — {}", d.kind.code(), d.message).unwrap(),
+            Some(name) => writeln!(
+                out,
+                "  [{prefix}] {} (sheet '{name}') — {}",
+                d.kind.code(),
+                d.message
+            )
+            .unwrap(),
+        }
     }
 }
 

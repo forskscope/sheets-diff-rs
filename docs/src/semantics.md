@@ -181,7 +181,7 @@ assert_eq!(diff.summary.cells_changed, 1);
 
 // ...while also reporting that a chart sheet's content was not compared.
 assert_eq!(diff.summary.diagnostics.warnings, 2);
-assert_eq!(diff.summary.diagnostics.info, 1);
+assert_eq!(diff.summary.diagnostics.info, 5);
 
 let warning = diff
     .diagnostics
@@ -197,12 +197,18 @@ assert!(warning.message.contains("chart sheet"));
 comparison found any cell differences — `Ok` says the comparison
 completed, not that everything was compared. Two `Warning`-severity
 diagnostics appear here (one emitted per side, since the chart sheet
-exists — unchanged — in both the old and new workbook) plus one `Info`
-diagnostic that is emitted on **every** comparison unconditionally: a
+exists — unchanged — in both the old and new workbook) plus five `Info`
+diagnostics. One is emitted on **every** comparison unconditionally: a
 blanket coverage note listing everything this engine never compares
 (charts, images, comments, data validation, conditional formatting;
 hyperlinks, merged regions, tables, and pivot tables — see
 [non-goals and limitations](non-goals.md) for which of those are upstream
-gaps and which are simply not implemented yet). `DiagnosticKind::code()`
+gaps and which are simply not implemented yet). The other four are
+`formula_unavailable`, attached to `Sheet1` rather than to the workbook: one per
+numeric cell whose formula text could not be read, which is expected for a plain
+number. `DiffSummary::diagnostics` counts both levels — the workbook's own and
+every sheet's — so it agrees with `DiffMetrics::diagnostics_emitted`. (It used to
+count only the workbook's, and so would have said `info == 1` here.)
+`DiagnosticKind::code()`
 is the stable, programmatic identifier — this crate's own GUI-embedding
 consumer matches on it rather than the human-readable `message`.

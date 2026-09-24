@@ -64,7 +64,7 @@ for sheet in &diff.sheets {
 | *(none)* | Core library — no extra deps |
 | `serde` | `Serialize` on all public model types; `output::json` helpers |
 | `chrono` | ISO-8601 string synthesis for `DateTime` values |
-| `cli` | Builds the `sheets-diff` binary (requires `clap`) |
+| `cli` | Builds the `sheets-diff` binary (requires `clap`; enables `serde`, for `--format json`) |
 
 ## Design Notes
 

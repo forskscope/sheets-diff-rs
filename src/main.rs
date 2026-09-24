@@ -50,7 +50,11 @@ struct Cli {
     #[arg(long)]
     no_formulas: bool,
 
-    /// Suppress warnings in output.
+    /// Do not list diagnostics in the output.
+    ///
+    /// A display control only: the diagnostics section of --format unified is
+    /// omitted and the `diagnostics` arrays of --format json are emptied, but every
+    /// count — the summary line, `summary.diagnostics`, the exit code — is unchanged.
     #[arg(long)]
     no_warnings: bool,
 }
@@ -61,6 +65,8 @@ enum OutputFormat {
     Summary,
     /// Unified diff.
     Unified,
+    /// The whole result as pretty-printed JSON (stable within 2.x).
+    Json,
 }
 
 // ---------------------------------------------------------------------------
@@ -141,6 +147,24 @@ fn workbooks_differ(diff: &WorkbookDiff) -> bool {
         || !diff.object_changes.is_empty()
 }
 
+/// Removes every diagnostic from the result, so no output format lists any.
+///
+/// This is what `--no-warnings` means: a **display** control, applied to the
+/// result before it is rendered, not a filter on what the engine collects. The
+/// counters (`summary.diagnostics`, `metrics.diagnostics_emitted`) are computed by
+/// the engine and are deliberately left alone, so the summary line still reports
+/// the warnings that exist. Implementing the flag as
+/// `DiagnosticOptions::min_severity` would have made it falsify those counts.
+fn suppress_diagnostics(diff: &mut WorkbookDiff) {
+    diff.diagnostics.clear();
+    for sheet in &mut diff.sheets {
+        sheet.diagnostics.clear();
+        for cell in &mut sheet.cell_diffs {
+            cell.diagnostics.clear();
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
@@ -161,15 +185,35 @@ fn main() {
     };
 
     match sheets_diff::compare_paths_with_options(&cli.old, &cli.new, opts) {
-        Ok(diff) => {
+        Ok(mut diff) => {
+            // The exit code is decided from the comparison, before and independent
+            // of how the result is displayed.
+            let differs = workbooks_differ(&diff);
+            if cli.no_warnings {
+                suppress_diagnostics(&mut diff);
+            }
             let output = match cli.format {
                 OutputFormat::Summary => render_summary(&diff),
                 OutputFormat::Unified => render_unified(&diff),
+                // JSON is the library's own serialisation of the result, not
+                // formatting done here. Nothing but the JSON reaches stdout, and a
+                // failure to serialise is an internal fault: report it on stderr and
+                // exit 2 with stdout empty. It never falls back to another format.
+                OutputFormat::Json => match sheets_diff::output::json::to_json_pretty(&diff) {
+                    Ok(mut json) => {
+                        json.push('\n');
+                        json
+                    }
+                    Err(e) => {
+                        eprintln!("sheets-diff: could not serialise the result as JSON: {e}");
+                        process::exit(2);
+                    }
+                },
             };
             print!("{output}");
 
             // Exit code: 0 = no differences, 1 = differences found
-            if workbooks_differ(&diff) {
+            if differs {
                 process::exit(1);
             }
         }

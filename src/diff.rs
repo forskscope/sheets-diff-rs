@@ -297,6 +297,25 @@ fn run_pipeline(
             .unwrap_or_else(|| (1, sd.new_sheet.as_ref().map(|s| s.index).unwrap_or(0)))
     });
 
+    // Diagnostic collection filter (`DiagnosticOptions::min_severity`). Applied
+    // **once, here**: after every diagnostic vector is assembled — the workbook's
+    // and each sheet's — and *before* anything counts them, so
+    // `metrics.diagnostics_emitted` and `DiffSummary::diagnostics` (derived below)
+    // follow what was kept and cannot disagree with the vectors. It is a
+    // collection filter, not a display control: a caller who never renders
+    // anything observes it. The eleven push sites are deliberately untouched, so
+    // there is one place to read and one place to be wrong.
+    if let Some(min) = opts.diagnostics.min_severity {
+        let keep = |d: &Diagnostic| d.severity >= min;
+        workbook_diagnostics.retain(keep);
+        for sheet in &mut sheet_diffs {
+            sheet.diagnostics.retain(keep);
+            for cell in &mut sheet.cell_diffs {
+                cell.diagnostics.retain(keep);
+            }
+        }
+    }
+
     metrics.cells_read = total_cells_read;
     metrics.cells_compared = total_cells_compared;
     metrics.diagnostics_emitted = workbook_diagnostics.len() as u64

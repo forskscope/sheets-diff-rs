@@ -2,8 +2,48 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`DiagnosticOptions::min_severity` now works, and `--no-warnings` now does
+  something.** Both were public and documented and read by nothing, from 2.0.0
+  through 2.5.1; a caller who set either observed no change. They are two options
+  with two meanings, and the difference is the point:
+  - **`min_severity` is a *collection* filter.** A diagnostic below it is not kept:
+    it is absent from `WorkbookDiff::diagnostics` and every `SheetDiff::diagnostics`,
+    with no renderer involved, and **the counters follow what was kept** —
+    `DiffSummary::diagnostics` and `DiffMetrics::diagnostics_emitted` count what
+    survived, not what the engine generated. Its default is `None` (collect
+    everything). It is applied once, in `src/diff.rs`, after every vector is
+    assembled. A caller who had set it and seen nothing will now see the filter — that
+    is the fix, not new behaviour to opt into. Serialised output (`serde`) for such a
+    caller changes accordingly. There is still no builder method; set the field.
+  - **`--no-warnings` is a *display* control.** It omits the diagnostics section of
+    the output and changes nothing else: the summary line's
+    `diagnostics: N error(s), M warning(s)`, `summary.diagnostics`, and the exit code
+    are all unchanged. It is deliberately **not** `min_severity = Error`, which would
+    have made the flag report zero warnings for a workbook that has them.
+
+- **`sheets-diff --format json`.** RFC-013 specified it and the library half
+  (`output::json::to_json_pretty`) existed; the CLI offered only `summary` and
+  `unified`, and the RFC's Status did not say so. The output is the library's own
+  pretty-printed serialisation of the whole result — nothing else reaches stdout, an
+  error leaves stdout empty with the message on stderr (a serialisation failure exits 2,
+  and never falls back to another format), and the exit code is exactly what the same
+  comparison gives under any other format. `--no-warnings` applies to it: the
+  `diagnostics` arrays are emptied and the counts in `summary` stay. **The JSON shape is
+  stable within 2.x**: minors may add fields or variants (the types are
+  `#[non_exhaustive]`), and no existing field or variant name is renamed or removed
+  within a major version. The values follow the model — `CellDateTime.iso` is `null`
+  unless the crate was built with `chrono`, which the binary is not by default.
+
 ### Changed
 
+- **The `cli` feature now enables `serde`.** The binary's `--format json` needs it, and a
+  CLI whose advertised formats depended on how it was compiled would list `json` in one
+  build's `--help` and not in another's, at the same version. It is additive for a library
+  consumer (more trait impls, never fewer), but it changes what `--features cli` pulls in —
+  `serde` and `serde_json` — so it is named here for anyone auditing a dependency tree.
+  `serde` is still off by default; only `cli` gained it.
 - **The CLI now exits 1 when two workbooks' sheets were reordered.** A pure reorder
   used to exit 0 — "no differences found" — while the summary printed `[moved]` lines
   directly beneath a headline saying `0 changed`. The engine was right throughout
@@ -30,6 +70,31 @@
   that line sees one more count. Both output changes affect the public
   `output::text::{render_summary, render_unified}` as well as the CLI, and were present
   from 2.0.0 through 2.5.1.
+
+### Fixed
+
+- **Diagnostics attached to a sheet reached no output.** `DiffSummary::diagnostics`
+  counted only the workbook-level vector, and neither text renderer looked at
+  `SheetDiff::diagnostics`. That hid the two warnings whose whole job is to say the
+  diff you are reading may be wrong: `alignment_bound_exceeded` (the sheet fell back
+  to positional comparison) and `duplicate_alignment_key` (rows may have been paired
+  wrongly) — both sheet-level, both `Warning`. It also made the summary disagree with
+  `DiffMetrics::diagnostics_emitted`, which has always summed both levels. Present
+  from 2.0.0 through 2.5.1. **This changes default output for library callers:**
+  - `DiffSummary::diagnostics` now counts sheet-level diagnostics, so its numbers rise
+    on any workbook that has them. On the corpus, `chart_sheet` goes from `info: 1` to
+    `info: 5` and `typed_values` from `info: 1` to `info: 2`; nothing else moves, and
+    the total now equals `diagnostics_emitted` (it did not before). A workbook of 40
+    plain numeric cells per side goes from `info: 1` to `info: 81`, because
+    `formula_unavailable` is pushed per numeric cell.
+  - `render_unified` shows sheet-level warnings and errors in its diagnostics section,
+    naming the sheet (`[WARN] duplicate_alignment_key (sheet 'Data') — …`), where it
+    previously had no section for them. `render_summary`'s `diagnostics:` line counts
+    them.
+  - **The CLI's default output does not change.** It has no alignment option, so it can
+    never produce a sheet-level warning, and the only sheet-level diagnostic it can
+    produce is `Info`, which neither renderer prints. Checked across all 19 corpus
+    scenarios in both formats: byte-identical.
 
 ### Documentation
 

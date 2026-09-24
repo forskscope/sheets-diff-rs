@@ -1,6 +1,13 @@
 # RFC-013: Output Formatters, CLI, and Exit Codes
 
 **Status.** Implemented (2.0.0–2.4.x) — verified 2026-08-16; the deferral closed 2026-08-17 (M4 Handoff 03). Exit code 3 is emitted for invalid/corrupt input: `exit_code_for` in `src/main.rs` maps `OpenWorkbook{NotXlsx|Corrupt}`, `ReadSheet{SheetNotFound|MalformedSheet}`, `UnsupportedFormat` and `EncryptedWorkbook` to 3, narrowing 2 to environment, caller, limit and internal errors. Covered by six subprocess tests in `tests/cli.rs`.
+**Corrected M8 unit 03 (unreleased):** this Status was incomplete. §5 specifies
+`sheets-diff --format json`, and it was never wired — the CLI offered `summary` and
+`unified` only. The verification pass read this RFC and did not notice a specified
+CLI format that did not exist. It now does (`OutputFormat::Json`, dispatching to
+`to_json_pretty`), and the `cli` feature enables `serde` so that the binary's
+advertised formats do not depend on how it was compiled. §5's names and signature and
+§11's open question are corrected in place below, each annotated with what it said.
 **Target:** v2.0.0  
 **Created:** 2026-06-11  
 **Category:** Output/CLI  
@@ -35,10 +42,20 @@ Proposed output module:
 pub mod output {
     pub fn render_summary(diff: &WorkbookDiff) -> String;
     pub fn render_unified(diff: &WorkbookDiff, options: UnifiedOutputOptions) -> String;
-    #[cfg(feature = "json")]
-    pub fn render_json(diff: &WorkbookDiff) -> Result<String, serde_json::Error>;
+    #[cfg(feature = "serde")]
+    pub fn to_json(diff: &WorkbookDiff) -> Result<String, String>;
+    #[cfg(feature = "serde")]
+    pub fn to_json_pretty(diff: &WorkbookDiff) -> Result<String, String>;
 }
 ```
+
+> **Corrected M8 unit 03.** This block specified `#[cfg(feature = "json")]` and a
+> function `render_json` returning `Result<String, serde_json::Error>`. There is no
+> `json` feature — it is `serde` — and the functions are `output::json::to_json` and
+> `to_json_pretty`, returning `Result<String, String>`. The spec and the code had
+> drifted in name and in signature. The RFC now matches the code, not the reverse; the
+> error type is not changed here. (`render_unified` also differs from this sketch: it
+> takes no `UnifiedOutputOptions`.)
 
 CLI examples:
 
@@ -48,6 +65,7 @@ sheets-diff --format summary old.xlsx new.xlsx
 sheets-diff --format unified old.xlsx new.xlsx
 sheets-diff --format json old.xlsx new.xlsx
 sheets-diff --no-formulas old.xlsx new.xlsx
+sheets-diff --no-warnings --format json old.xlsx new.xlsx
 ```
 
 Exit codes:
@@ -89,7 +107,9 @@ Acceptance criteria:
 - Exit code 1 is used for successful comparisons with differences.
 - Invalid/corrupt inputs produce exit code 3.
 - Existing unified-style output has a compatibility test where practical.
-- JSON output is behind a feature if serde is optional.
+- JSON output is behind a feature if serde is optional. *(As built: `output::json` is
+  behind `serde`; the CLI binary's `--format json` is always present because the `cli`
+  feature enables `serde`.)*
 
 ## 10. Migration and compatibility
 
@@ -99,3 +119,10 @@ v1 CLI users should receive similar basic behavior, but output wording may chang
 
 - Should CLI be in the same crate or split into `sheets-diff-cli`?
 - Should JSON output be stabilized in v2.0 or marked experimental?
+  **Answered (M8 unit 03, deliberately — shipping `--format json` had answered it by
+  default):** the JSON shape is **stable within 2.x**. The model types are public and
+  `#[non_exhaustive]`, so a minor release may **add** fields or enum variants, and a
+  consumer must ignore what it does not know; no existing field or variant name is
+  renamed or removed within a major version. The *values* are the model's:
+  `CellDateTime.iso`, for instance, is populated only in a build with the `chrono`
+  feature, and is `null` otherwise.

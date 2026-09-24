@@ -218,6 +218,19 @@ reconstruction). `to_json`/`to_json_pretty` return `Result<String, String>`
 well-formed result, but the `Result` is real and worth matching on rather
 than `unwrap()`ing in production code.
 
+**From the command line,** `sheets-diff --format json old.xlsx new.xlsx` prints the
+same pretty-printed JSON. The `cli` feature enables `serde`, so the binary always has
+this format, whichever way it was built. Exit codes are those of any format, and on an
+error stdout is empty and the message is on stderr. `--no-warnings` empties the
+`diagnostics` arrays; the counts in `summary` stay.
+
+**Stability.** The JSON shape is stable within 2.x. The model types are public and
+`#[non_exhaustive]`, so a minor release may add fields or enum variants — ignore what
+you do not recognise — and no existing field or variant name is renamed or removed
+within a major version. Values follow the model: `CellDateTime.iso`, for example, is
+`null` unless the crate was built with the `chrono` feature, which the command-line
+binary is not by default.
+
 ---
 
 ## Error handling

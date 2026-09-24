@@ -893,7 +893,14 @@ impl WorkbookDiff {
             s.values_changed += sd.summary.values_changed;
             s.formulas_changed += sd.summary.formulas_changed;
         }
-        for d in diagnostics {
+        // Every diagnostic in the result: the workbook's own, and each sheet's. This
+        // loop used to read only the first, so a diagnostic attached to a sheet —
+        // including `AlignmentBoundExceeded` and `DuplicateAlignmentKey`, the
+        // warnings that say the comparison may be wrong — never reached the
+        // summary, and disagreed with `DiffMetrics::diagnostics_emitted`, which
+        // has always summed both.
+        let sheet_level = sheets.iter().flat_map(|sd| sd.diagnostics.iter());
+        for d in diagnostics.iter().chain(sheet_level) {
             match d.severity {
                 Severity::Error => s.diagnostics.errors += 1,
                 Severity::Warning => s.diagnostics.warnings += 1,

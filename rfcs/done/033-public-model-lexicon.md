@@ -376,7 +376,14 @@ divergence.
 removed (RFC-025) and the type kept only so a future re-introduction needs
 no API break.
 
-`DiagnosticOptions { min_severity: Option<Severity> }`.
+`DiagnosticOptions { min_severity: Option<Severity> }`. **Note (M8 unit 02,
+unreleased):** until then nothing read this field; a caller who set it observed no
+change. It is a *collection* filter — a diagnostic below it is not kept, in the
+workbook's vector or any sheet's — applied once in `src/diff.rs`, and
+`DiffSummary::diagnostics` and `DiffMetrics::diagnostics_emitted` count what was
+kept. Its default is `None` (collect everything). It is distinct from a display
+threshold: the CLI's `--no-warnings` and the unified renderer's `>= Warning`
+threshold are display controls that leave the counters alone.
 
 `OutputOptions { objects: ObjectCompareMode }` (RFC-023) — default
 `WarnIfPresent`.

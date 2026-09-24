@@ -1,6 +1,18 @@
 # RFC-005: Error, Diagnostics, and Warning Model
 
 **Status.** Implemented (2.0.0–2.2.3) — verified 2026-08-16 against the implementation.
+**Two gaps that verification missed, corrected by M8 unit 02 (unreleased):** (1) a
+diagnostic attached to a *sheet* reached no output — `DiffSummary::diagnostics`
+counted only the workbook-level vector (so it disagreed with
+`DiffMetrics::diagnostics_emitted`, which always summed both), and neither text
+renderer looked at `SheetDiff::diagnostics`, which hid `AlignmentBoundExceeded`
+and `DuplicateAlignmentKey`, the warnings that say a comparison may be wrong. That
+held from 2.0.0. The acceptance line below — "Recoverable sheet warnings appear in
+`WorkbookDiff`/`SheetDiff` diagnostics" — was true of the model and false of every
+output. (2) `DiagnosticOptions::min_severity` was public, documented, and read by
+nothing. It is now a *collection* filter, applied once in the engine, and the
+summary counters follow what was kept; `--no-warnings` is a separate, *display*
+control. See `rfcs/handoffs/m8-the-surface/02-two-inert-options.md`.
 **Target:** v2.0.0  
 **Created:** 2026-06-11  
 **Category:** Error handling  
