@@ -331,12 +331,23 @@ impl<F: FnMut(DiffEvent) + Send> ProgressSink for F {
 /// # Cancellation latency
 ///
 /// `is_cancelled()` is polled once before each sheet pair, **and** at an
-/// interval inside a sheet's own processing — every 50,000 cells, in both
-/// the read phase and the compare phase. On the largest single sheet this
-/// crate's own benchmark ladder covers (300,000 cells), that bounds
-/// worst-case latency to roughly 100 ms; see `docs/src/maintainers/performance.md`
-/// for the measured overhead of this polling, with and without a
-/// `Cancellation` configured.
+/// interval inside a sheet's own processing, in both phases:
+///
+/// - **read phase:** every 50,000 streamed **cell records** — each record the
+///   sheet reader yields counts, populated or blank, and a sheet's values pass
+///   and formula pass share one counter;
+/// - **compare phase:** every 50,000 **coordinates compared**.
+///
+/// **No latency figure is claimed.** The interval was chosen against a 100 ms
+/// target, using a rate of about 1.9 µs per cell for a full sheet-pair pass
+/// (300,000 cells in about 567 ms). That rate was measured on the *dense* read
+/// that the streaming read has since replaced, and the read phase now counts
+/// records rather than positions of a dense range. It has **not been
+/// re-measured** on the streamed reader, so 100 ms is the target the interval was
+/// derived from, not a guarantee about this code. See
+/// `docs/src/maintainers/performance.md` for the original measurement and for the
+/// measured overhead of this polling, with and without a `Cancellation`
+/// configured.
 ///
 /// **This changed in M7 Handoff 03.** Before it, `is_cancelled()` was polled
 /// **only** once before each sheet pair — on a workbook with many sheets,
