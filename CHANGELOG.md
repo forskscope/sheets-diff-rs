@@ -1,5 +1,24 @@
 # Changelog
 
+## [Unreleased]
+
+### Documentation
+
+- **`Limits::hardened()` is no longer documented as a guarantee it does not give.**
+  Its rustdoc said that opting in bought "a guarantee that no workbook — hostile or
+  merely huge — can demand unbounded time or memory", and the API guide recommended
+  it for untrusted input without saying what remains uncovered. Neither is true: two
+  known paths sit outside every bound `Limits` defines. One is decompression within
+  `max_input_bytes`, which limits the *compressed* input — how far a small archive
+  expands is decided by the `zip` crate, and this crate does not cap it. The other is
+  styled blank cell records, which `max_cells_read` does not count and which cost time
+  rather than memory. **The rustdoc sentence was wrong from 2.3.0, when `hardened()`
+  was introduced, and the API guide's echo of it from 2.4.1 — through 2.5.1 in both
+  cases.** `hardened()` itself is unchanged: it sets the same six bounds to the same
+  values, each checked before the resource it limits is spent. Both places now say
+  what is and is not bounded, and point at the threat model's two residual-risk
+  entries (*The zip container* and *Sheet reading*) instead of restating them.
+
 ## [2.5.1] - 2026-09-24
 
 **Patch release: a sheet is now read in memory proportional to its populated

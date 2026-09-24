@@ -128,10 +128,35 @@ let diff = compare_paths_with_options("old.xlsx", "new.xlsx", opts)?;
 — unset, because their cost scales predictably with input the caller chose
 to open, and bounding them by default would surprise code that has always
 worked. That default is not a recommendation for untrusted input.
-`Limits::hardened()`, set above, bounds every dimension — linear and
-superlinear alike — for exactly that case: a workbook that arrived from
-somewhere you don't control. Full reasoning and the specific numbers: the
+`Limits::hardened()`, set above, is the preset for exactly that case: a workbook
+that arrived from somewhere you don't control. It sets **every** bound `Limits`
+defines — linear and superlinear alike — and each is checked before the resource
+it limits is spent. Full reasoning and the specific numbers: the
 [threat model](maintainers/threat-model.md#the-bounds-themselves-limits).
+
+**It is not a guarantee that no workbook can demand unbounded time or memory.**
+Two known paths sit outside every bound `Limits` defines:
+
+- **Decompression within the size bound.** `max_input_bytes` limits the
+  *compressed* input; how far a small archive expands is decided by the `zip`
+  crate, and this crate does not cap it. See
+  [The zip container](maintainers/threat-model.md#the-zip-container).
+- **Cell records that carry no value.** Styled blank cells are skipped before
+  `max_cells_read` counts them, so they cost time (not memory) and are limited
+  only by `max_input_bytes` and by cancellation, if you supply a `Cancellation`.
+  See [Sheet reading](maintainers/threat-model.md#sheet-reading-srcdiffrs-read_sheet_cells).
+
+If either matters for the input you accept, `hardened()` alone does not cover it.
+The threat model also records what this crate inherits from `calamine`'s XML
+parser, which no `Limits` field bounds either: see
+[XML parsing](maintainers/threat-model.md#xml-parsing).
+
+**Correction.** Earlier versions of this guide (2.4.1 through 2.5.1) recommended
+`hardened()` for untrusted input without saying what it does not cover, and the
+`hardened()` documentation (2.3.0 through 2.5.1) called it a guarantee that no
+workbook could demand unbounded time or memory. That was wrong for the two paths
+above. If you built a threat model or an operating posture on it, re-check it
+against them; the values `hardened()` sets have not changed.
 
 Every other builder method configures comparison *behaviour*, not
 resource bounds — `.formula_compare`, `.format_compare`, `.number_compare`,

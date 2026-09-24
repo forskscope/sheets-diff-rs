@@ -238,21 +238,56 @@ impl Default for Limits {
 }
 
 impl Limits {
-    /// A conservative bound on every dimension, for comparing a workbook
+    /// A bound on every dimension [`Limits`] defines, for comparing a workbook
     /// from a source you do not trust (RFC-035 §5.3).
     ///
     /// `Limits::default()` deliberately does **not** provide this — its
     /// four linear fields stay unbounded so ordinary large-but-legitimate
     /// workbooks are never surprised. `hardened()` trades that off: a
     /// caller who opts into it accepts that a very large but legitimate
-    /// workbook may hit a limit, in exchange for a guarantee that no
-    /// workbook — hostile or merely huge — can demand unbounded time or
-    /// memory. Values are chosen to comfortably accommodate an ordinary
-    /// office workbook while capping the worst case; they are not
-    /// individually re-measured beyond the alignment bound already
-    /// justified above; if a specific dimension proves too tight in
-    /// practice, that is a finding to report, not a default to silently
-    /// loosen.
+    /// workbook may hit a limit.
+    ///
+    /// # What it bounds
+    ///
+    /// All six fields are set, and each is evaluated before the resource it
+    /// limits is spent: input size before any byte is read; sheet count before
+    /// any sheet is read; the bounding box of a sheet's populated cells before
+    /// a cell is retained; coordinates compared before a sheet's comparison
+    /// loop runs; the row-alignment table before it is allocated; and diffs
+    /// returned before the diff is recorded.
+    ///
+    /// # What it does not bound
+    ///
+    /// **This is not a guarantee that no workbook can demand unbounded time or
+    /// memory.** Two known paths lie outside every dimension `Limits` defines:
+    ///
+    /// - **Decompression within the size bound.** `max_input_bytes` limits the
+    ///   *compressed* input. How far a small archive can expand is decided by
+    ///   the `zip` crate, and this crate does not cap it.
+    /// - **Cell records that carry no value.** Styled blank cells are skipped
+    ///   before `max_cells_read` is evaluated, so it does not count them. They
+    ///   cost time, not memory, and are limited only by `max_input_bytes` and by
+    ///   cancellation, if you supply a [`Cancellation`].
+    ///
+    /// The threat model (`docs/src/maintainers/threat-model.md`, the sections
+    /// *The zip container* and *Sheet reading*) is the authority on both. Its
+    /// *XML parsing* section records a third thing no `Limits` field bounds: the
+    /// behaviour this crate inherits from `calamine`'s XML parser.
+    ///
+    /// # Correction
+    ///
+    /// Versions 2.3.0 through 2.5.1 of this documentation described `hardened()`
+    /// as a guarantee that no workbook could demand unbounded time or memory.
+    /// That was wrong for the two paths above. The values it sets have not
+    /// changed.
+    ///
+    /// # Values
+    ///
+    /// Chosen to comfortably accommodate an ordinary office workbook while
+    /// bounding each dimension above; they are not individually re-measured
+    /// beyond the alignment bound already justified above. If a specific
+    /// dimension proves too tight in practice, that is a finding to report, not
+    /// a default to silently loosen.
     pub fn hardened() -> Self {
         Self {
             max_sheets: Some(256),
