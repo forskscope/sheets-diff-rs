@@ -1,7 +1,8 @@
 # Handoffs — M8: the surface promises what the engine does not
 
-**Authorized 2026-09-24. Opens when 2.5.1 ships**, because unit 01 changes a CLI
-exit contract and 2.5.1 is a patch fixing a denial of service.
+**OPEN 2026-09-24.** 2.5.1 is published, so the constraint that held this back —
+unit 01 changes a CLI exit contract, and 2.5.1 was a patch fixing a denial of
+service — is discharged.
 
 Five units, one theme: **every item is a public surface a competent reader
 predicts wrongly.** That is the owner's second design principle applied to what
@@ -15,17 +16,26 @@ Source: dev-team task 001's readiness review (findings A1–A6), plus the
 
 | | Unit | Item | Release impact |
 |---|---|---|---|
+| **00** | [`hardened()` promises a guarantee we do not give](./00-hardened-promises-a-guarantee.md) | R1 | Documentation |
 | 01 | [A reorder reports no difference](./01-moved-and-renamed-sheets.md) | A1 | **CLI exit contract** |
 | 02 | Two inert options | A2, A3 | Behaviour where there was none |
 | 03 | `--format json` | A5 | New CLI surface |
 | 04 | Four diagnostic codes nothing produces | A4 | Documentation |
 | 05 | What `cells_read` counts | A6 | **Public metric; every golden moves** |
 
-**Order: 01 first, 05 last.** 01 is the integrity defect. 05 moves every
-golden, so every other unit's corpus check is cleaner before it runs — the same
+**Order: 00, then 01, then the rest; 05 last.**
+
+**00 is numbered 00 rather than 06 so the order needs no explanation** — M7 lost
+a round trip to an order line that said "03 ahead of 04+" and was silent about
+02. It comes first because it is small, doc-only, and most misleading right now:
+2.5.1's notes say the sheet-read hole is fixed, and the sentence it corrects
+invites a reader to hear "fixed" as "guaranteed".
+
+01 is the integrity defect and is the substantive work. 05 moves every golden,
+so every other unit's corpus check is cleaner before it runs — the same
 reasoning that ordered M7's units 03 before 02.
 
-**Only unit 01 is written.** Units 02–05 will be written when 01 lands, against
+**Units 00 and 01 are written.** Units 02–05 will be written when 01 lands, against
 the tree as it stands then, rather than now against a tree that 2.5.1 and unit
 01 are both about to change. Their scope is known and recorded in `ROADMAP.md`;
 what is not yet known is what the code looks like when they start.

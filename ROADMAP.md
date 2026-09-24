@@ -424,9 +424,9 @@ benchmarks, which is measurement, not writing. These share the
 property that **their scope cannot honestly be written until something is
 measured**, so they are grouped to keep that discipline in one place.
 
-### M8 — "The surface promises what the engine does not" — 🔄 **AUTHORIZED 2026-09-24** *(2.6.0)*
+### M8 — "The surface promises what the engine does not" — 🔄 **OPEN 2026-09-24** *(2.6.0)*
 
-Opens when 2.5.1 ships. Handoffs: [`rfcs/handoffs/m8-the-surface/`](rfcs/handoffs/m8-the-surface/README.md).
+2.5.1 is published, so this is open. Handoffs: [`rfcs/handoffs/m8-the-surface/`](rfcs/handoffs/m8-the-surface/README.md).
 
 From dev-team task 001's readiness review, plus the `cells_read` question
 ForskScope left open. **One theme:** every item is a public surface a competent
@@ -438,6 +438,7 @@ shipped as 2.4.0 rather than 2.3.1) and A6 changes a public metric.
 
 | Unit | Item | Why it is not a patch |
 |---|---|---|
+| 00 | **R1 — `Limits::hardened()` promises "a guarantee that no workbook — hostile or merely huge — can demand unbounded time or memory."** The threat model names two exceptions: a zip bomb within the size bound is capped only by `zip`'s own decompression, and styled blank records cost time and are not counted by `max_cells_read`. True about the struct — all six fields are set — and false about the world. **The second time this function has overpromised in this exact way**; M4's F-E was the same move one clause in. Found by the 2.5.1 release sweep. | Documentation |
 | 01 | **A1 — a reorder reports no difference, and a rename renders none.** Reorder: exit `0`, `--format unified` emits only its two header lines. **Pure rename: exit `1` but unified renders nothing either** — the exit code and the renderer contradict each other in one invocation. Found while scoping; `render_unified`'s guard drops any sheet without cell changes unless it is `Added`/`Removed`, so its own `[renamed: …]` branch can only run when the sheet *also* has cell changes. Both reproduced. | Exit-code contract |
 | 02 | **A2 + A3 — two inert options.** `--no-warnings` is in `--help` and never read; `DiagnosticOptions::min_severity` is public, documented, and never read. | Behaviour appears where there was none |
 | 03 | **A5 — no `--format json`**, though RFC-013 specifies it and `src/output/json.rs` already provides `to_json`/`to_json_pretty`. RFC-013's Status says `Implemented` and records only the exit-code deferral. | New CLI surface |
