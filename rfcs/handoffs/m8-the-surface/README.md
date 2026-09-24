@@ -17,18 +17,21 @@ implementer during unit 01 and folded into unit 04 on 2026-09-24.
 
 | | Unit | Item | Release impact |
 |---|---|---|---|
-| **00** | [`hardened()` promises a guarantee we do not give](./00-hardened-promises-a-guarantee.md) | R1 | Documentation |
-| 01 | [A reorder reports no difference](./01-moved-and-renamed-sheets.md) | A1 | **CLI exit contract** |
-| 02 | [Two inert options, which are not the same option](./02-two-inert-options.md) | A2, A3 | Behaviour where there was none |
-| 03 | [`--format json`](./03-format-json.md) | A5 | New CLI surface |
+| **00** ✅ | [`hardened()` promises a guarantee we do not give](./00-hardened-promises-a-guarantee.md) | R1 | Documentation |
+| 01 ✅ | [A reorder reports no difference](./01-moved-and-renamed-sheets.md) | A1 | **CLI exit contract** |
+| 02 ✅ | [Two inert options, which are not the same option](./02-two-inert-options.md) | A2, A3, O3 | Behaviour where there was none |
+| 03 ✅ | [`--format json`](./03-format-json.md) | A5 | New CLI surface |
 | 04 | [Public values that describe what the engine does not do](./04-values-that-describe-what-the-engine-does-not-do.md) | A4, **O1** | Documentation |
+| 06 | [The CLI you can actually install](./06-the-cli-you-can-install.md) | F-1 + `cargo install` | **Feature set of the shipped binary** |
+| 07 | [The builder omits two options](./07-the-builder-omits-two-options.md) | O-D | Additive API |
 | 05 | What `cells_read` counts | A6 | **Public metric; every golden moves** |
 
-**Order: 00, then 01, then the rest; 05 last.**
+**Order: 00, then 01, then the rest in any order; 05 is always last.**
 
-**00 is numbered 00 rather than 06 so the order needs no explanation** — M7 lost
-a round trip to an order line that said "03 ahead of 04+" and was silent about
-02. It comes first because it is small, doc-only, and most misleading right now:
+**00 is numbered 00 rather than appended at the end so the order needs no
+explanation** — M7 lost a round trip to an order line that said "03 ahead of
+04+" and was silent about 02. Units added later (06, 07) are appended and carry
+no ordering claim beyond the one rule: **05 is always last.** It comes first because it is small, doc-only, and most misleading right now:
 2.5.1's notes say the sheet-read hole is fixed, and the sentence it corrects
 invites a reader to hear "fixed" as "guaranteed".
 
@@ -36,14 +39,20 @@ invites a reader to hear "fixed" as "guaranteed".
 so every other unit's corpus check is cleaner before it runs — the same
 reasoning that ordered M7's units 03 before 02.
 
-**Units 00 and 01 are done** — 01 approved 2026-09-24. **Units 02, 03 and 04 are
-written** and may be worked in any order or in parallel; unit 05 is written against
+**Units 00, 01, 02 and 03 are done** — 02 and 03 approved 2026-09-25.
+**Units 04, 06 and 07 are written** and may be worked in any order or in
+parallel; unit 05 is written against
 the tree that 02–04 leave behind, since it moves every golden and a clean corpus
 check is worth more to the other three than to itself.
 
-**Units 02 and 03 meet at one flag.** `--no-warnings` is defined by 02 and must
-apply to JSON in 03, or the milestone ships a newly inert combination. Whichever
-lands second wires it; both handoffs say so.
+**Units 06 and 07 came out of reviewing 02 and 03**, which is now the pattern
+rather than the exception: every unit of this milestone has produced at least one
+finding from someone looking at something adjacent.
+
+**Unit 06 must ship in 2.6.0**, in the same release as `--format json`. Without
+it, the release publishes a JSON format whose documented `iso` field is null for
+everyone who installs the tool the documented way — and there is no documented
+way, because `cargo install sheets-diff` produces no binary at all.
 
 **Unit 04 needs one decision from the owner before it is worked** — whether O1 is
 documented now and renamed at v3 (recommended) or given honest variants in 2.6.0.
