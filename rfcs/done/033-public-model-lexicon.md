@@ -397,7 +397,7 @@ no API break.
 `DiagnosticOptions { min_severity: Option<Severity> }`, set by
 `DiffOptionsBuilder::min_severity(Option<Severity>)` (M8 unit 07) or by assigning the field.
 **Note (M8 unit 02,
-unreleased):** until then nothing read this field; a caller who set it observed no
+2.6.0):** until then nothing read this field; a caller who set it observed no
 change. It is a *collection* filter — a diagnostic below it is not kept, in the
 workbook's vector or any sheet's — applied once in `src/diff.rs`, and
 `DiffSummary::diagnostics` and `DiffMetrics::diagnostics_emitted` count what was

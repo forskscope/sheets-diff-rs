@@ -1,6 +1,8 @@
 # Handoffs — M8: the surface promises what the engine does not
 
-**OPEN 2026-09-24.** 2.5.1 is published, so the constraint that held this back —
+**COMPLETE 2026-09-25.** All six units merged; 2.6.0 is prepared and awaiting the cut.
+
+**Opened 2026-09-24.** 2.5.1 is published, so the constraint that held this back —
 unit 01 changes a CLI exit contract, and 2.5.1 was a patch fixing a denial of
 service — is discharged.
 

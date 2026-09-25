@@ -1,7 +1,7 @@
 # RFC-013: Output Formatters, CLI, and Exit Codes
 
 **Status.** Implemented (2.0.0–2.4.x) — verified 2026-08-16; the deferral closed 2026-08-17 (M4 Handoff 03). Exit code 3 is emitted for invalid/corrupt input: `exit_code_for` in `src/main.rs` maps `OpenWorkbook{NotXlsx|Corrupt}`, `ReadSheet{SheetNotFound|MalformedSheet}`, `UnsupportedFormat` and `EncryptedWorkbook` to 3, narrowing 2 to environment, caller, limit and internal errors. Covered by six subprocess tests in `tests/cli.rs`.
-**Corrected M8 unit 03 (unreleased):** this Status was incomplete. §5 specifies
+**Corrected M8 unit 03 (2.6.0):** this Status was incomplete. §5 specifies
 `sheets-diff --format json`, and it was never wired — the CLI offered `summary` and
 `unified` only. The verification pass read this RFC and did not notice a specified
 CLI format that did not exist. It now does (`OutputFormat::Json`, dispatching to

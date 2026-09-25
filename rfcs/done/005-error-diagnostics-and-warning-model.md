@@ -1,7 +1,7 @@
 # RFC-005: Error, Diagnostics, and Warning Model
 
 **Status.** Implemented (2.0.0–2.2.3) — verified 2026-08-16 against the implementation.
-**Two gaps that verification missed, corrected by M8 unit 02 (unreleased):** (1) a
+**Two gaps that verification missed, corrected by M8 unit 02 (2.6.0):** (1) a
 diagnostic attached to a *sheet* reached no output — `DiffSummary::diagnostics`
 counted only the workbook-level vector (so it disagreed with
 `DiffMetrics::diagnostics_emitted`, which always summed both), and neither text

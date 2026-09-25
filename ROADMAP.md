@@ -424,7 +424,7 @@ benchmarks, which is measurement, not writing. These share the
 property that **their scope cannot honestly be written until something is
 measured**, so they are grouped to keep that discipline in one place.
 
-### M8 — "The surface promises what the engine does not" — 🔄 **OPEN 2026-09-24** *(2.6.0)*
+### M8 — "The surface promises what the engine does not" — ✅ **COMPLETE 2026-09-25** *(2.6.0)*
 
 2.5.1 is published, so this is open. Handoffs: [`rfcs/handoffs/m8-the-surface/`](rfcs/handoffs/m8-the-surface/README.md).
 
@@ -524,7 +524,7 @@ in RFC-033. Found 2026-09-24 while scoping M8 unit 02.
 | Release | Contents | State |
 |---|---|---|
 | **2.5.1** (patch) | The streaming read (merged, `8fe7c2c`) + f123 unit 01: the cancellation test that does not test, the threat-model surface, and the record sweep | **Dev team is on it.** Cut and publish on completion, then file the advisory |
-| **2.6.0** (minor) | M8 — units 00 ✅, 01 ✅, 02 ✅, 03 ✅, plus 06 and 07. Units 04 and 05 withdrawn to v3. **Unit 06 is release-blocking**: without it 2.6.0 publishes a JSON format whose `iso` is null for everyone who installs the tool. **This is the release ForskScope adopts**; it must not wait for v3. | In progress |
+| **2.6.0** (minor) | M8 — all six units (00, 01, 02, 03, 06, 07) merged. Units 04 and 05 withdrawn to v3. **This is the release ForskScope adopts.** | **Prepared, awaiting the cut** — version stamped, `publish --dry-run` clean without `--allow-dirty`, CI green at `ab298df` |
 | **2.7.0** (minor) | M9's observable half — O-A/F-4 changes `location.sheet_name` in serialised output | After 2.6.0 |
 | **3.0.0** (major) | [RFC-037](rfcs/proposed/037-v3-scope.md) — a **closed list** of removals and renames: `SheetMatchReason`, four unreachable `DiagnosticKind` variants, four always-failing options, `cells_read`'s meaning, `AlignmentMode::HeaderColumn`. **No new features.** Requires a `v2-to-v3` migration guide. | **RFC proposed 2026-09-25**, awaiting acceptance |
 | — | M9's rest (fuzzing, rule deviations, record corrections) | No release; may run in parallel |
