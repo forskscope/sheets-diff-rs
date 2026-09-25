@@ -22,9 +22,14 @@ theme one release on: **a public value should describe what the engine does.**
 | 06 ✅ | [Options a caller cannot usefully set](./06-options-a-caller-cannot-set.md) | §3.3, §3.6 | Removes settings, a field, a mode |
 | 07 ✅ | [Values that never arrive](./07-values-that-never-arrive.md) | §3.8 | **Removes a field from serialised output** |
 | 08 ✅ | [The options tree becomes extensible](./08-options-become-extensible.md) | §3.9 | **`#[non_exhaustive]`; every later option is additive** |
+| 09 | [One error type, and two more structs](./09-one-error-type-and-two-more-structs.md) | §3.10, §3.11 | **Signature change; two more structs** |
 | L | The v2→v3 migration guide | §5.6 | **Last. Every removal needs a row.** |
 
-**All eight code units landed 2026-09-25. Only the migration guide remains.**
+**Units 01–08 landed 2026-09-25. Unit 09 was added the same day** by an API
+audit (`.git-exclude/decisions/002-v3-api-audit.md`), which found that
+`to_json`/`to_json_pretty` return a `Result` that cannot be `Err` — the only
+`String` error in the crate — and that two more public structs are extensible
+only by a break.
 
 **Order was: 01–05, then 06 and 07 in either order, then 08, then the migration
 guide.** 08 is last of the code units because it must see the final set of

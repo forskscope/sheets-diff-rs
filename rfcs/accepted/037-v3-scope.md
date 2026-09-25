@@ -1,9 +1,8 @@
 # RFC-037: v3 Scope — the breaks, and the closed list
 
-**Status.** **Accepted** by the owner 2026-09-25. **§3 reopened and closed again
-the same day** at the owner's direction, adding §3.8, §3.9 and the decisions for
+**Status.** **Accepted** by the owner 2026-09-25. **§3 reopened twice on 2026-09-25**, first at the owner's direction, adding §3.8, §3.9 and the decisions for
 §3.3 and §3.6 — once, rather than three amendments to a list whose value is
-being closed. It is closed again now. Scope was widened the same day
+being closed. and again after the API audit, for §3.10 and §3.11. It is closed again now. Scope was widened the same day
 (§3.7, §5) before acceptance, after 2.6.0 shipped and a planned 2.7.0 was
 dropped. **§3 is now closed** — nothing joins it without the owner reopening it.
 The three questions in §7 remain open and block the handoffs that depend on them,
@@ -330,6 +329,48 @@ Two consequences, both to be stated:
   structural test this milestone produced. **Move it into `src/` as a unit
   test**, where `#[non_exhaustive]` does not apply. The guard survives and gets
   stronger for sitting beside what it guards.
+
+### 3.10 `to_json` returns a `Result` that cannot be `Err` (added 2026-09-25)
+
+From the API audit, `.git-exclude/decisions/002-v3-api-audit.md`.
+
+```rust
+pub fn to_json(diff: &WorkbookDiff) -> Result<String, String>
+pub fn to_json_pretty(diff: &WorkbookDiff) -> Result<String, String>
+```
+
+**These are the only two public functions in the crate that do not return
+`SheetsDiffError`**, and their `Err` arm is unreachable. Verified: no maps or
+sets exist anywhere in the serialised shape, so serde_json's non-string-key
+failure cannot arise; every `Serialize` is derived; writing to a `Vec<u8>` does
+not fail; and non-finite floats are **measured** to serialise as `null` rather
+than erroring (`[null,null,null,1.5]`), which is the case `CellValue::Number`
+would have reached.
+
+The cost is visible downstream: `src/main.rs` carries a serialisation-error arm
+that exits 2, and M8 unit 03 could only test it by **fault injection in a
+scratch copy** because no input reaches it.
+
+**Both return `String`.** The dead CLI arm goes with them, and the crate has one
+error type. Returning `SheetsDiffError` instead would need a variant to
+construct — and §3.8 removed `Internal`, the natural candidate. A function that
+cannot fail should not pretend to.
+
+### 3.11 `CellAddress` and `ComparedRange` are extensible only by a break (added 2026-09-25)
+
+§3.9 fixed the options tree and its justification said *"the results got it
+right"*. The complete scan says otherwise: **`address::CellAddress` and
+`address::ComparedRange` are public, have public fields, and are not
+`#[non_exhaustive]`** — and `ComparedRange` is reachable as
+`SheetDiff::compared_range`, a result field.
+
+**Mark both**, for §3.9's reasons: a field added to either is otherwise a break
+forever, and it can only be fixed at a major.
+
+**The six public structs in `output::view` have the same shape and are
+deliberately excluded.** They wait on M9's O5 — whether `view` is supported API
+at all. It has references outside its own file, so it is not dead; marking it
+before deciding what the module *is* would answer that question by accident.
 
 ## 4. Explicitly **not** in scope
 
