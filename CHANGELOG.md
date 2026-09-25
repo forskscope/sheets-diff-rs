@@ -1,6 +1,35 @@
 # Changelog
 
-## [Unreleased]
+## [2.6.0] - 2026-09-25
+
+**Minor release: the command-line tool no longer misses a difference it used to miss,
+`DiffSummary::diagnostics` now agrees with the metrics, and the `cli` feature pulls in more.**
+
+**The important one.** A workbook whose only difference from another was the *order* of its
+sheets made `sheets-diff` exit `0` and print "no differences found", while its summary printed
+`[moved]` lines beneath a headline saying `0 changed`. A pure sheet *rename* exited `1` and
+rendered nothing beyond the two header lines. Both were present from 2.0.0 through 2.5.1. The engine reported both correctly
+throughout; the exit condition and the unified renderer did not look. We found this ourselves,
+in a readiness review; no user reported it. A script that treated exit `0` as "identical" will
+now see `1` for a workbook whose sheets were only reordered, which is the correct answer, so
+this release is a minor and not a patch.
+
+**Two other behaviours change, and each is a reason for the minor on its own.**
+`DiffSummary::diagnostics` used to count only workbook-level diagnostics; it now counts
+sheet-level ones too, so its numbers rise on any workbook that has them, and it no longer
+disagrees with `DiffMetrics::diagnostics_emitted`. The unified renderer now shows the warnings
+among them, including the two whose job is to say the diff may be wrong, and the summary counts
+them. And the `cli` feature now enables
+`serde` and `chrono`, so that the installed binary's formats and values do not depend on how it
+was compiled; it changes what `--features cli` pulls in and nothing about `default`.
+
+**And the features.** `sheets-diff --format json`. `DiagnosticOptions::min_severity` and
+`--no-warnings` now do something; both were public, documented and read by nothing from 2.0.0
+through 2.5.1. Two new `DiffOptionsBuilder` methods, `min_severity` and `alignment`. The
+command-line tool is now documented as installable: `cargo install sheets-diff` installs
+nothing and exits `0`, and `cargo install sheets-diff --features cli` is the command that works.
+The Documentation entry corrects a claim of ours: `Limits::hardened()` was documented as a
+guarantee it does not give.
 
 ### Added
 
@@ -14,10 +43,9 @@
   assignment still works. **The builder still does not cover every option**, and its
   documentation now says which: `comparison.value.date` (`DateComparePolicy`) has no
   builder method at all, so assign the field, and `limits.max_cells_read` is set only through
-  `limits(Limits { .. })`. Earlier notes counted two options the builder could not reach;
-  the audit found one of them (`alignment`) was already settable through
-  `build_with_matching`, which replaces the whole `MatchingOptions` and so discards a
-  `sheet_matching` set earlier, and missed `date`.
+  `limits(Limits { .. })`. `alignment` was already settable through `build_with_matching`,
+  which replaces the whole `MatchingOptions` and so discards a `sheet_matching` set
+  earlier; the new `alignment` method does not.
 
 - **`DiagnosticOptions::min_severity` now works, and `--no-warnings` now does
   something.** Both were public and documented and read by nothing, from 2.0.0
@@ -32,7 +60,7 @@
     assembled. A caller who had set it and seen nothing will now see the filter — that
     is the fix, not new behaviour to opt into. Serialised output (`serde`) for such a
     caller changes accordingly. It can be set with `DiffOptionsBuilder::min_severity`
-    (below) or by assigning the field.
+    (above) or by assigning the field.
   - **`--no-warnings` is a *display* control.** It omits the diagnostics section of
     the output and changes nothing else: the summary line's
     `diagnostics: N error(s), M warning(s)`, `summary.diagnostics`, and the exit code
@@ -63,21 +91,46 @@
 
 ### Changed
 
-- **The `cli` feature now also enables `chrono` — fixed before release.** `--format json`
-  (new in this release) would otherwise have printed `"iso": null` for every date and time
-  in the build that `cargo install sheets-diff --features cli` produces, because
-  `CellDateTime.iso` is populated only under `chrono`. `cli` therefore enables both `serde`
-  and `chrono`, so `--features cli` alone is the whole, correct binary and there is exactly
-  one binary configuration. **No released behaviour changes:** `--format json` has not been
-  published, so nobody can have depended on a `null`. This is "fixed before release", not
-  "fixed". It adds `chrono` (and `calamine/chrono`) to what `--features cli` pulls in; it
-  does not change `default`, which stays empty, and `Cargo.lock` is unchanged.
 - **The `cli` feature now enables `serde`.** The binary's `--format json` needs it, and a
   CLI whose advertised formats depended on how it was compiled would list `json` in one
   build's `--help` and not in another's, at the same version. It is additive for a library
   consumer (more trait impls, never fewer), but it changes what `--features cli` pulls in —
   `serde` and `serde_json` — so it is named here for anyone auditing a dependency tree.
   `serde` is still off by default; only `cli` gained it.
+- **The `cli` feature now also enables `chrono`, and a `--features cli` build now prints
+  date cells as timestamps.** `--format json` (new in this release) would otherwise have
+  printed `"iso": null` for every date and time in the build that
+  `cargo install sheets-diff --features cli` produces, because `CellDateTime.iso` is
+  populated only under `chrono`. `cli` therefore enables both `serde` and `chrono`, so
+  `--features cli` alone is the whole, correct binary and there is exactly one binary
+  configuration. It adds `chrono` (and `calamine/chrono`) to what `--features cli` pulls
+  in; it does not change `default`, which stays empty, and the resolved dependency set in
+  `Cargo.lock` does not change.
+  - **For `--format json`, no released behaviour changes:** it has not been published, so
+    nobody can have depended on a `null`. That is "fixed before release", not "fixed".
+  - **For the text formats, released behaviour does change.** A cell's displayed value is
+    its timestamp when `iso` is populated and its Excel serial number when it is not, so
+    a `--features cli` build of 2.5.1 or earlier printed a date cell as a serial number
+    and this release prints the timestamp. On the `date_column` corpus scenario,
+    `sheets-diff old.xlsx new.xlsx --format unified` printed, from a 2.5.1
+    `--features cli` build:
+
+    ```
+    -A2	45458
+    +A2	45823
+    ```
+
+    and prints now:
+
+    ```
+    -A2	2024-06-15T00:00:00
+    +A2	2025-06-15T00:00:00
+    ```
+
+    This affects anyone who built the command-line tool from source with `--features cli`
+    alone, at 2.5.1 or earlier, and reads or parses `--format unified`. A 2.5.1 build that
+    also enabled `chrono` already printed the timestamp, and a library caller's values are
+    unchanged: nothing about the library's features changed.
 - **The CLI now exits 1 when two workbooks' sheets were reordered.** A pure reorder
   used to exit 0 — "no differences found" — while the summary printed `[moved]` lines
   directly beneath a headline saying `0 changed`. The engine was right throughout
@@ -125,10 +178,12 @@
     naming the sheet (`[WARN] duplicate_alignment_key (sheet 'Data') — …`), where it
     previously had no section for them. `render_summary`'s `diagnostics:` line counts
     them.
-  - **The CLI's default output does not change.** It has no alignment option, so it can
-    never produce a sheet-level warning, and the only sheet-level diagnostic it can
-    produce is `Info`, which neither renderer prints. Checked across all 19 corpus
-    scenarios in both formats: byte-identical.
+  - **This fix, by itself, does not change the CLI's output.** It has no alignment option,
+    so it can never produce a sheet-level warning, and the only sheet-level diagnostic it
+    can produce is `Info`, which neither renderer prints. Checked across all 19 corpus
+    scenarios in both formats, against the tree immediately before this fix:
+    byte-identical. That is a statement about this fix alone; the CLI's output does change
+    in this release for the reasons listed under Changed.
 
 ### Documentation
 

@@ -752,7 +752,7 @@ dependencies = [
 
 [[package]]
 name = "sheets-diff"
-version = "2.5.1"
+version = "2.6.0"
 dependencies = [
  "calamine",
  "chrono",
