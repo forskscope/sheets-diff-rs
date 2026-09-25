@@ -491,7 +491,17 @@ production use, and this is the cheapest it will ever be.
   and the filter has to cover both vectors anyway.
 - **A6: decide, then build.** Counting populated cells is what the name promises.
 
-### M9 — "Reaching the code, and a record that agrees with itself" — 🔄 **AUTHORIZED 2026-09-24** *(release impact revised 2026-09-25)*
+### M9 — "Reaching the code, and a record that agrees with itself" — 🔄 **OPEN 2026-09-26** *(no release)*
+
+Handoffs: [`rfcs/handoffs/m9-reaching-the-code/`](rfcs/handoffs/m9-reaching-the-code/README.md).
+Authorized 2026-09-24; opened once 3.0.0 shipped and M10 closed.
+
+**Unit 00 was added 2026-09-26** from the project-health audit
+(`.git-exclude/decisions/004-where-verification-should-run.md`): `cargo doc`,
+nightly doctests, `publish --dry-run`, `cargo public-api` and the install check
+are **not in CI at all**, two matrix legs are the same build since `cli` began
+implying `serde` and `chrono`, and nothing builds a minimal library at MSRV. It
+runs first because it makes every later unit cheaper to verify.
 
 **No longer release-free.** M9 was scoped as fuzzing, rule deviations and record
 corrections — none observable. Unit 06 (O-A) changes that: populating
