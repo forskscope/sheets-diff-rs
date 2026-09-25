@@ -122,7 +122,7 @@ every row below it depends entirely on `AlignmentMode`, which defaults to
 
 ```rust
 use sheets_diff::{DiffOptions, compare_bytes, compare_bytes_with_options};
-use sheets_diff::options::{AlignmentMode, MatchingOptions, SheetMatchingMode};
+use sheets_diff::options::AlignmentMode;
 
 let old = std::fs::read("tests/fixtures/generated/alignment_row_signature/old.xlsx").unwrap();
 let new = std::fs::read("tests/fixtures/generated/alignment_row_signature/new.xlsx").unwrap();
@@ -140,10 +140,8 @@ assert_eq!(positional.summary.cells_changed, 12);
 // is still recognised as "the same row, unmoved" -- only the genuinely
 // new row reports as a change.
 let opts = DiffOptions::builder()
-    .build_with_matching(MatchingOptions {
-        sheet_matching: SheetMatchingMode::default(),
-        alignment: AlignmentMode::RowSignature { sample_columns: None },
-    })
+    .alignment(AlignmentMode::RowSignature { sample_columns: None })
+    .build()
     .unwrap();
 let aligned = compare_bytes_with_options(&old, &new, opts).unwrap();
 assert_eq!(aligned.summary.cells_changed, 2);

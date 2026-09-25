@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use crate::diff::CellMap;
 use crate::model::{
-    Diagnostic, DiagnosticKind, DiagnosticLocation, DiffStage, MatchConfidence, Severity,
+    Diagnostic, DiagnosticKind, DiagnosticLocation, DiffStage, MatchConfidence, Severity, SheetRef,
 };
 use crate::options::AlignmentMode;
 
@@ -57,11 +57,16 @@ pub struct RowMapping {
 /// maps; the sequences a mode actually builds are always a subset of those
 /// rows, so this is a conservative (never-too-low) estimate of the LCS
 /// matrix a mode would allocate.
+/// `sheet` is the sheet being aligned, and is what every diagnostic raised here names in its
+/// location: the new workbook's side of the pair, or the old one's when the sheet exists only
+/// there — the label the renderer uses. Alignment warnings are about *the sheet*, and this is the
+/// only place that knows which one.
 pub fn compute_row_mapping(
     old_cells: &CellMap,
     new_cells: &CellMap,
     mode: &AlignmentMode,
     max_alignment_product: Option<u64>,
+    sheet: &SheetRef,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<RowMapping> {
     if matches!(mode, AlignmentMode::Positional) {
@@ -79,12 +84,7 @@ pub fn compute_row_mapping(
                     limit,
                     observed: product,
                 },
-                location: DiagnosticLocation {
-                    stage: DiffStage::Compare,
-                    sheet_order: None,
-                    sheet_name: None,
-                    address: None,
-                },
+                location: sheet_location(sheet),
                 message: format!(
                     "alignment row product ({old_rows} old x {new_rows} new = {product}) \
                      exceeds max_alignment_product ({limit}); sheet compared positionally instead"
@@ -101,6 +101,7 @@ pub fn compute_row_mapping(
             old_cells,
             new_cells,
             columns,
+            sheet,
             diagnostics,
         )),
 
@@ -111,9 +112,23 @@ pub fn compute_row_mapping(
             diagnostics,
         )),
 
-        AlignmentMode::HeaderColumn => {
-            Some(header_column_alignment(old_cells, new_cells, diagnostics))
-        }
+        AlignmentMode::HeaderColumn => Some(header_column_alignment(
+            old_cells,
+            new_cells,
+            sheet,
+            diagnostics,
+        )),
+    }
+}
+
+/// The location of a diagnostic about `sheet` itself: both `sheet_order` and `sheet_name`, never
+/// one without the other, and no cell address (the warning is about the sheet, not a cell).
+fn sheet_location(sheet: &SheetRef) -> DiagnosticLocation {
+    DiagnosticLocation {
+        stage: DiffStage::Compare,
+        sheet_order: Some(sheet.index),
+        sheet_name: Some(sheet.name.clone()),
+        address: None,
     }
 }
 
@@ -130,6 +145,7 @@ fn row_key_alignment(
     old_cells: &CellMap,
     new_cells: &CellMap,
     key_cols: &[u32],
+    sheet: &SheetRef,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> RowMapping {
     let old_keys = extract_row_keys(old_cells, key_cols);
@@ -147,12 +163,7 @@ fn row_key_alignment(
                 old_count: old_dups.len(),
                 new_count: new_dups.len(),
             },
-            location: DiagnosticLocation {
-                stage: DiffStage::Compare,
-                sheet_order: None,
-                sheet_name: None,
-                address: None,
-            },
+            location: sheet_location(sheet),
             message: format!(
                 "duplicate alignment keys detected ({} distinct key(s) repeated in old, \
                  {} in new); LCS matching may pair rows ambiguously among duplicates",
@@ -187,12 +198,13 @@ fn row_signature_alignment(
 fn header_column_alignment(
     old_cells: &CellMap,
     new_cells: &CellMap,
+    sheet: &SheetRef,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> RowMapping {
     // Treat row 1 as the header; use the header values as column identity.
     // Fall back to RowSignature for data rows.
     let key_col: Vec<u32> = vec![1]; // row-1 = header row; match data by that col
-    row_key_alignment(old_cells, new_cells, &key_col, diagnostics)
+    row_key_alignment(old_cells, new_cells, &key_col, sheet, diagnostics)
 }
 
 // ---------------------------------------------------------------------------
@@ -342,12 +354,25 @@ mod tests {
             .collect()
     }
 
+    fn sheet() -> SheetRef {
+        SheetRef {
+            name: "Sheet1".into(),
+            index: 0,
+        }
+    }
+
     #[test]
     fn positional_mode_returns_none() {
         let cells = make_cells(&[(1, 1, "a")]);
         let mut diag = vec![];
-        let result =
-            compute_row_mapping(&cells, &cells, &AlignmentMode::Positional, None, &mut diag);
+        let result = compute_row_mapping(
+            &cells,
+            &cells,
+            &AlignmentMode::Positional,
+            None,
+            &sheet(),
+            &mut diag,
+        );
         assert!(result.is_none());
     }
 
@@ -361,6 +386,7 @@ mod tests {
             &new,
             &AlignmentMode::RowKey { columns: vec![1] },
             None,
+            &sheet(),
             &mut diag,
         )
         .unwrap();
@@ -385,6 +411,7 @@ mod tests {
             &new,
             &AlignmentMode::RowKey { columns: vec![1] },
             None,
+            &sheet(),
             &mut diag,
         )
         .unwrap();
@@ -404,6 +431,7 @@ mod tests {
             &new,
             &AlignmentMode::RowKey { columns: vec![1] },
             None,
+            &sheet(),
             &mut diag,
         )
         .unwrap();
@@ -422,6 +450,7 @@ mod tests {
             &new,
             &AlignmentMode::RowKey { columns: vec![1] },
             None,
+            &sheet(),
             &mut diag,
         );
         assert!(!diag.is_empty(), "expected diagnostic for duplicate keys");
@@ -443,6 +472,7 @@ mod tests {
             &new,
             &AlignmentMode::RowKey { columns: vec![1] },
             Some(5),
+            &sheet(),
             &mut diag,
         );
         // Degrades to None (caller's true-positional path) — never an error.
@@ -469,6 +499,7 @@ mod tests {
             &new,
             &AlignmentMode::RowKey { columns: vec![1] },
             Some(9), // product is exactly 9 — must not exceed
+            &sheet(),
             &mut diag,
         );
         assert!(result.is_some());

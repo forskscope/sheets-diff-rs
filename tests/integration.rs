@@ -1064,7 +1064,7 @@ fn large_workbook_limit_exceeded_cleanly() {
 
 #[test]
 fn row_key_alignment_reduces_cascade() {
-    use sheets_diff::options::{AlignmentMode, MatchingOptions};
+    use sheets_diff::options::AlignmentMode;
 
     // old: id1/val_a, id2/val_b, id3/val_c
     // new: id1/val_a, id_new/val_x, id2/val_b, id3/val_c  (row inserted at position 2)
@@ -1104,10 +1104,8 @@ fn row_key_alignment_reduces_cascade() {
 
     // RowKey on column A (col index 1, 1-based): only id_new is truly new
     let opts = DiffOptions::builder()
-        .build_with_matching(MatchingOptions {
-            sheet_matching: SheetMatchingMode::default(),
-            alignment: AlignmentMode::RowKey { columns: vec![1] },
-        })
+        .alignment(AlignmentMode::RowKey { columns: vec![1] })
+        .build()
         .unwrap();
     let aligned_diff = compare_bytes_with_options(&old, &new, opts).unwrap();
     // With key alignment, val_a/val_b/val_c rows should NOT appear as changed.
@@ -1219,7 +1217,7 @@ fn cells_compared_limit_does_not_fire_below_bound() {
 
 #[test]
 fn alignment_bound_exceeded_degrades_not_errors() {
-    use sheets_diff::options::{AlignmentMode, MatchingOptions};
+    use sheets_diff::options::AlignmentMode;
 
     let old = wb_strings(&[(0, 0, "id1"), (1, 0, "id2"), (2, 0, "id3")]);
     let new = wb_strings(&[(0, 0, "id1"), (1, 0, "id2"), (2, 0, "id9")]);
@@ -1229,10 +1227,8 @@ fn alignment_bound_exceeded_degrades_not_errors() {
     // 3 distinct old rows x 3 distinct new rows = product 9; bound it below that.
     let opts = DiffOptions::builder()
         .max_alignment_product(Some(5))
-        .build_with_matching(MatchingOptions {
-            sheet_matching: SheetMatchingMode::default(),
-            alignment: AlignmentMode::RowKey { columns: vec![1] },
-        })
+        .alignment(AlignmentMode::RowKey { columns: vec![1] })
+        .build()
         .unwrap();
     let degraded = compare_bytes_with_options(&old, &new, opts).unwrap();
 
@@ -1253,15 +1249,13 @@ fn alignment_bound_exceeded_degrades_not_errors() {
 
 #[test]
 fn duplicate_alignment_key_diagnostic_uses_new_code() {
-    use sheets_diff::options::{AlignmentMode, MatchingOptions};
+    use sheets_diff::options::AlignmentMode;
 
     let old = wb_strings(&[(0, 0, "dup"), (1, 0, "dup"), (2, 0, "unique")]);
     let new = wb_strings(&[(0, 0, "dup"), (1, 0, "unique")]);
     let opts = DiffOptions::builder()
-        .build_with_matching(MatchingOptions {
-            sheet_matching: SheetMatchingMode::default(),
-            alignment: AlignmentMode::RowKey { columns: vec![1] },
-        })
+        .alignment(AlignmentMode::RowKey { columns: vec![1] })
+        .build()
         .unwrap();
     let d = compare_bytes_with_options(&old, &new, opts).unwrap();
     assert!(
@@ -1979,7 +1973,7 @@ fn d02_normalize_equivalent_datetimes_reconciles_1900_and_1904_end_to_end() {
 
 #[test]
 fn d03_inserted_row_number_colliding_with_matched_old_row_compares_both_correctly() {
-    use sheets_diff::options::{AlignmentMode, MatchingOptions};
+    use sheets_diff::options::AlignmentMode;
 
     // old: row1=id1/a,  row2=id2/b, row3=id3/c
     // new: row1=id_new/z (inserted — numerically collides with OLD row 1),
@@ -2013,10 +2007,8 @@ fn d03_inserted_row_number_colliding_with_matched_old_row_compares_both_correctl
     ]);
 
     let opts = DiffOptions::builder()
-        .build_with_matching(MatchingOptions {
-            sheet_matching: SheetMatchingMode::default(),
-            alignment: AlignmentMode::RowKey { columns: vec![1] },
-        })
+        .alignment(AlignmentMode::RowKey { columns: vec![1] })
+        .build()
         .unwrap();
     let diff = compare_bytes_with_options(&old, &new, opts).unwrap();
 
@@ -2150,7 +2142,7 @@ fn formula_at_first_cell_fixture_negative_control() {
 
 #[test]
 fn alignment_row_signature_fixture_reduces_cascade() {
-    use sheets_diff::options::{AlignmentMode, MatchingOptions};
+    use sheets_diff::options::AlignmentMode;
 
     let (old, new) = read_fixture_pair("alignment_row_signature");
 
@@ -2162,12 +2154,10 @@ fn alignment_row_signature_fixture_reduces_cascade() {
     // RowSignature — matched by whole-row content, not a key column — had
     // never been exercised by any test before this fixture.
     let opts = DiffOptions::builder()
-        .build_with_matching(MatchingOptions {
-            sheet_matching: SheetMatchingMode::default(),
-            alignment: AlignmentMode::RowSignature {
-                sample_columns: None,
-            },
+        .alignment(AlignmentMode::RowSignature {
+            sample_columns: None,
         })
+        .build()
         .unwrap();
     let aligned = compare_bytes_with_options(&old, &new, opts).unwrap();
     assert!(
@@ -2188,7 +2178,7 @@ fn alignment_row_signature_fixture_reduces_cascade() {
 
 #[test]
 fn alignment_header_column_fixture_reduces_cascade() {
-    use sheets_diff::options::{AlignmentMode, MatchingOptions};
+    use sheets_diff::options::AlignmentMode;
 
     let (old, new) = read_fixture_pair("alignment_header_column");
 
@@ -2197,10 +2187,8 @@ fn alignment_header_column_fixture_reduces_cascade() {
 
     // HeaderColumn had never been exercised by any test before this fixture.
     let opts = DiffOptions::builder()
-        .build_with_matching(MatchingOptions {
-            sheet_matching: SheetMatchingMode::default(),
-            alignment: AlignmentMode::HeaderColumn,
-        })
+        .alignment(AlignmentMode::HeaderColumn)
+        .build()
         .unwrap();
     let aligned = compare_bytes_with_options(&old, &new, opts).unwrap();
     assert!(

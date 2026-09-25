@@ -23,7 +23,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 use rust_xlsxwriter::Workbook;
-use sheets_diff::options::{AlignmentMode, MatchingOptions};
+use sheets_diff::options::AlignmentMode;
 use sheets_diff::{Cancellation, DiffOptions, compare_bytes, compare_bytes_with_options};
 
 // ---------------------------------------------------------------------------
@@ -379,10 +379,8 @@ fn q2_attribution() {
         });
 
         let opts = DiffOptions::builder()
-            .build_with_matching(MatchingOptions {
-                sheet_matching: Default::default(),
-                alignment: AlignmentMode::RowKey { columns: vec![0] }, // the stable "id_N" column, not the changing value column
-            })
+            .alignment(AlignmentMode::RowKey { columns: vec![0] }) // the stable "id_N" column, not the changing value column
+            .build()
             .unwrap();
         let (_, aligned_peak) = measure_peak(|| {
             let d = compare_bytes_with_options(black_box(&old), black_box(&new), opts).unwrap();

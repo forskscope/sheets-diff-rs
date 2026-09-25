@@ -159,14 +159,14 @@ above. If you built a threat model or an operating posture on it, re-check it
 against them; the values `hardened()` sets have not changed.
 
 Every other builder method configures comparison *behaviour*, not
-resource bounds — `.formula_compare`, `.format_compare`, `.number_compare`,
-`.sheet_matching`, `.alignment`, `.min_severity`, and others; see
-[`DiffOptionsBuilder`]'s own documentation for the full list. Two options have no
-method of their own: `comparison.value.date` (assign the field) and
-`limits.max_cells_read` (set it with `.limits(..)`). `.limits(Limits { .. })` also accepts a
+resource bounds — `.formula_compare`, `.format_compare`, `.number_compare_policy`,
+`.date_compare_policy`, `.sheet_matching`, `.alignment`, `.min_severity`, and others; see
+[`DiffOptionsBuilder`]'s own documentation for the full list. **Every option has a builder
+method of its own.** `.limits(Limits { .. })` also accepts a
 hand-built `Limits` value via struct-update syntax
-(`Limits { max_sheets: Some(50), ..Limits::default() }`) for bounding one
-dimension without adopting `hardened()`'s full preset.
+(`Limits { max_sheets: Some(50), ..Limits::default() }`) for bounding several
+dimensions at once without adopting `hardened()`'s full preset; a single dimension has its own
+method (`.max_sheets(50)`, `.max_cells_read(Some(..))`, …).
 
 [`DiffOptionsBuilder`]: https://docs.rs/sheets-diff/latest/sheets_diff/struct.DiffOptionsBuilder.html
 

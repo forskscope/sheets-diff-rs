@@ -176,8 +176,10 @@ fn write_diagnostics_section(out: &mut String, diff: &WorkbookDiff) {
     // only `diff.diagnostics` — which hid `alignment_bound_exceeded` (the sheet was
     // silently compared positionally) and `duplicate_alignment_key` (rows may have
     // been paired wrongly). The sheet is named from the `SheetDiff` that *owns* the
-    // diagnostic, not from `DiagnosticLocation`: the alignment diagnostics are
-    // pushed with no sheet name in their location.
+    // diagnostic, not from `DiagnosticLocation`, and that stays deliberate: a
+    // `SheetDiff` cannot be wrong about which sheet it is. (It was once also
+    // necessary — the alignment diagnostics carried no sheet in their location
+    // until M10 unit 04 — but is no longer.)
     let workbook_level = diff.diagnostics.iter().map(|d| (None, d));
     let sheet_level = diff.sheets.iter().flat_map(|sd| {
         let label = sheet_label(sd);

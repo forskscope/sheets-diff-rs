@@ -141,7 +141,6 @@ pub enum SheetMatchingMode {
 }
 
 /// Row/column alignment mode (RFC-011).
-#[allow(dead_code)]
 #[derive(Clone, Debug, Default)]
 pub enum AlignmentMode {
     /// Positional (row N on old vs row N on new).  Default.
@@ -155,7 +154,6 @@ pub enum AlignmentMode {
     /// `None` means all columns.
     RowSignature { sample_columns: Option<Vec<u32>> },
     /// Match rows using the first row as a column-header identity.
-    #[allow(dead_code)]
     HeaderColumn,
 }
 
@@ -493,19 +491,17 @@ impl Default for OutputOptions {
 /// Construct via `DiffOptions::default()` or `DiffOptions::builder()`. Every field
 /// is public, so an option can always be set by assigning it.
 ///
-/// **The builder does not have a method for every option.** Two are not settable
-/// through a method of their own:
+/// **The builder covers every option.** Each of the twenty leaf options in the tree below
+/// has a method of its own on [`DiffOptionsBuilder`], and none is reachable only by a
+/// whole-struct setter that would discard its siblings; `tests/builder_coverage.rs` sets
+/// each one through the builder, reads it back, and fails if an option is added without one.
+/// Direct field assignment also keeps working — every field is `pub`.
 ///
-/// * `comparison.value.date` ([`DateComparePolicy`]) has no builder method at all;
-///   assign the field.
-/// * `limits.max_cells_read` has no method of its own, but is set by
-///   [`DiffOptionsBuilder::limits`] with a whole [`Limits`] value.
-///
-/// Every other option has a builder method. (`matching.alignment` and
-/// `matching.sheet_matching` also have the whole-struct
-/// [`DiffOptionsBuilder::build_with_matching`], which replaces both at once and so
-/// discards either one set earlier; prefer [`DiffOptionsBuilder::alignment`] and
-/// [`DiffOptionsBuilder::sheet_matching`].)
+/// Setters are named for their option. The four options whose type is a `…Policy` are named
+/// for that type in snake_case: [`number_compare_policy`](DiffOptionsBuilder::number_compare_policy),
+/// [`numeric_type_policy`](DiffOptionsBuilder::numeric_type_policy),
+/// [`type_mismatch_policy`](DiffOptionsBuilder::type_mismatch_policy) and
+/// [`date_compare_policy`](DiffOptionsBuilder::date_compare_policy).
 #[derive(Default)]
 pub struct DiffOptions {
     pub comparison: ComparisonOptions,
@@ -595,11 +591,6 @@ impl DiffOptionsBuilder {
         self
     }
 
-    pub fn number_compare(mut self, policy: NumberComparePolicy) -> Self {
-        self.opts.comparison.value.number = policy;
-        self
-    }
-
     pub fn numeric_type_policy(mut self, policy: NumericTypePolicy) -> Self {
         self.opts.comparison.value.numeric_type = policy;
         self
@@ -615,6 +606,23 @@ impl DiffOptionsBuilder {
         self
     }
 
+    /// Set how date/time values are compared. The default is
+    /// [`DateComparePolicy::ExactRepresentation`]; see [`DateComparePolicy`].
+    ///
+    /// ```
+    /// use sheets_diff::{DateComparePolicy, DiffOptions};
+    ///
+    /// let opts = DiffOptions::builder()
+    ///     .date_compare_policy(DateComparePolicy::NormalizeEquivalentDateTimes)
+    ///     .build()?;
+    /// # let _ = opts;
+    /// # Ok::<(), sheets_diff::SheetsDiffError>(())
+    /// ```
+    pub fn date_compare_policy(mut self, policy: DateComparePolicy) -> Self {
+        self.opts.comparison.value.date = policy;
+        self
+    }
+
     // Matching
 
     pub fn sheet_matching(mut self, mode: SheetMatchingMode) -> Self {
@@ -627,8 +635,7 @@ impl DiffOptionsBuilder {
     /// The default is [`AlignmentMode::Positional`]. The other modes match rows by
     /// content and may raise sheet-level diagnostics; see [`AlignmentMode`].
     /// This sets only the alignment: it leaves [`sheet_matching`](Self::sheet_matching)
-    /// alone, in either call order, which
-    /// [`build_with_matching`](Self::build_with_matching) does not.
+    /// alone, in either call order.
     ///
     /// ```
     /// use sheets_diff::DiffOptions;
@@ -649,6 +656,23 @@ impl DiffOptionsBuilder {
 
     pub fn max_sheets(mut self, n: u32) -> Self {
         self.opts.limits.max_sheets = Some(n);
+        self
+    }
+
+    /// Bounds the figure reported as [`DiffMetrics::cells_read`](crate::DiffMetrics::cells_read);
+    /// `None`, the default, is unbounded. What that figure counts is defined there, once, and
+    /// not repeated here. Takes an `Option` so that `None` can be said, as
+    /// [`max_alignment_product`](Self::max_alignment_product) does.
+    ///
+    /// ```
+    /// use sheets_diff::DiffOptions;
+    ///
+    /// let opts = DiffOptions::builder().max_cells_read(Some(1_000_000)).build()?;
+    /// # let _ = opts;
+    /// # Ok::<(), sheets_diff::SheetsDiffError>(())
+    /// ```
+    pub fn max_cells_read(mut self, limit: Option<u64>) -> Self {
+        self.opts.limits.max_cells_read = limit;
         self
     }
 
@@ -719,16 +743,6 @@ impl DiffOptionsBuilder {
     pub fn cancellation<C: Cancellation + 'static>(mut self, token: C) -> Self {
         self.opts.execution.cancellation = Some(Box::new(token));
         self
-    }
-
-    /// Build with a fully specified `MatchingOptions` (convenience for alignment tests).
-    pub fn build_with_matching(
-        mut self,
-        matching: MatchingOptions,
-    ) -> Result<DiffOptions, SheetsDiffError> {
-        self.opts.matching = matching;
-        self.opts.validate()?;
-        Ok(self.opts)
     }
 
     /// Validate and return the built options.

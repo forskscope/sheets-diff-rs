@@ -37,15 +37,20 @@ impl fmt::Display for Side {
 // Source description
 // ---------------------------------------------------------------------------
 
-/// What kind of input source a workbook came from.
+/// What kind of input source a workbook came from: one value per way a workbook can be
+/// opened. A source that cannot be classified does not exist — the crate builds every
+/// [`SourceDescription`] itself, at one of the three entry points — and a future kind of
+/// source is added as its own variant (the enum is `#[non_exhaustive]`), not as a fallback.
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 #[non_exhaustive]
 pub enum SourceKind {
+    /// A file on disk, opened by `compare_paths` / `compare_paths_with_options`.
     Path,
+    /// Bytes the caller already holds, given to `compare_bytes` / `compare_bytes_with_options`.
     Bytes,
+    /// Any `Read + Seek`, given to `compare_readers` / `compare_readers_with_options`.
     Reader,
-    Unknown,
 }
 
 /// Caller-visible description of a workbook input source.
@@ -220,6 +225,11 @@ pub enum CellError {
     Ref,
     Value,
     GettingData,
+    /// Cannot occur: the conversion from calamine's `CellErrorType` is an exhaustive match
+    /// over its eight kinds, each of which has its own variant above, and nothing else in
+    /// this crate constructs it. A match arm on this variant is unreachable today; it is
+    /// retained as a forward-compatible catch-all for an Excel error string this crate does
+    /// not yet recognise, not as a live case.
     Other(String),
 }
 
@@ -315,11 +325,23 @@ impl CellValue {
 #[cfg_attr(feature = "serde", derive(Serialize))]
 #[non_exhaustive]
 pub enum DisplaySource {
-    /// Provided directly by the workbook reader.
+    /// Display text taken from the workbook reader.
+    ///
+    /// **This crate never produces this value** — it only ever sets [`SheetsDiffDefault`]
+    /// — but it is not unreachable: [`CellDisplay::new`] is public and its `source` is a
+    /// public field, so a caller who builds a `CellDisplay` from text a reader gave them
+    /// may use it. It is vocabulary for that caller.
+    ///
+    /// [`SheetsDiffDefault`]: DisplaySource::SheetsDiffDefault
     ReaderProvided,
-    /// Synthesised by `sheets-diff` from the typed value.
+    /// Synthesised by this crate from the typed value, by [`CellDisplay::from_value`].
+    /// The only value this crate produces.
     SheetsDiffDefault,
-    /// Substituted by the calling application.
+    /// Display text substituted by the calling application.
+    ///
+    /// **This crate never produces this value**, but a caller may: build a `CellDisplay`
+    /// with [`CellDisplay::new`] and set this as its `source` to mark text the application
+    /// chose. It is vocabulary for that caller, not an outcome the engine can reach.
     ApplicationProvided,
 }
 
@@ -568,24 +590,53 @@ pub enum Severity {
 #[cfg_attr(feature = "serde", derive(Serialize))]
 #[non_exhaustive]
 pub enum DiffStage {
+    /// Cannot occur: no diagnostic is attributed to this stage today — a workbook that
+    /// cannot be opened fails the comparison with an `Err`, it does not warn. A match arm
+    /// on this variant is unreachable today; it is retained as the name of a pipeline
+    /// stage that exists, not as a live case.
     Open,
     Metadata,
     Match,
     Read,
+    /// Cannot occur: no diagnostic is attributed to this stage today — normalising a cell
+    /// value emits none. A match arm on this variant is unreachable today; it is retained
+    /// as the name of a pipeline stage that exists, not as a live case.
     Normalize,
     Compare,
+    /// Cannot occur: no diagnostic is attributed to this stage today — the summary counts
+    /// are derived from what the other stages collected and emit nothing themselves. A
+    /// match arm on this variant is unreachable today; it is retained as the name of a
+    /// pipeline stage that exists, not as a live case.
     Aggregate,
 }
 
-/// Location context attached to a diagnostic.
+/// Where a diagnostic came from.
+///
+/// **`sheet_order` and `sheet_name` are set together or not at all.** A diagnostic that concerns
+/// a particular sheet names it — both fields — as that sheet is in the workbook the diagnostic is
+/// about; for a diagnostic about a matched *pair* of sheets that is the **new** workbook's sheet
+/// (or the old one's when the sheet exists only there), the label the text renderer uses. A
+/// diagnostic that is not about a particular sheet — a defined-name change, the blanket coverage
+/// note, an ambiguous rename that concerns several candidates — leaves **both `None`, and that
+/// means "not about a sheet", not "not recorded"**. It is never `Some` for one and `None` for the
+/// other.
+///
+/// The same information is available from where a diagnostic sits: one in
+/// [`SheetDiff::diagnostics`] is about that sheet, one in [`WorkbookDiff::diagnostics`] is about the
+/// workbook — except that a workbook-level diagnostic may still name the sheet it is about (an
+/// unsupported chart sheet, a changed visibility), which is why the location carries it too.
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 #[non_exhaustive]
 pub struct DiagnosticLocation {
     pub stage: DiffStage,
-    /// 0-based sheet order (workbook index), if applicable.
+    /// 0-based position of the sheet in its workbook (its [`SheetRef::index`]); `None` only when
+    /// the diagnostic is not about a particular sheet. Set exactly when `sheet_name` is.
     pub sheet_order: Option<usize>,
+    /// Name of the sheet the diagnostic is about; `None` only when it is not about a particular
+    /// sheet. Set exactly when `sheet_order` is.
     pub sheet_name: Option<String>,
+    /// The cell, when the diagnostic is about one.
     pub address: Option<CellAddress>,
 }
 
@@ -598,12 +649,8 @@ pub struct DiagnosticLocation {
 #[cfg_attr(feature = "serde", derive(Serialize))]
 pub enum DiagnosticKind {
     FormulaUnavailable,
-    FormulaCachedValueUnverified,
     AmbiguousSheetMatch {
         candidates: Vec<SheetRef>,
-    },
-    UnsupportedCellValue {
-        detail: String,
     },
     UnsupportedWorkbookFeature {
         feature: String,
@@ -612,11 +659,6 @@ pub enum DiagnosticKind {
         category: String,
     },
     DefinedNameScopeUnknown,
-    DateTimeNotNormalized,
-    LimitTruncatedCells {
-        limit: String,
-        observed: u64,
-    },
     /// RFC-035 §5.2: the alignment row-product bound (`Limits::max_alignment_product`)
     /// was exceeded, so this sheet fell back to positional comparison. Never
     /// paired with an error — alignment degrades, it does not fail.
@@ -624,9 +666,7 @@ pub enum DiagnosticKind {
         limit: u64,
         observed: u64,
     },
-    /// Two or more rows share the same alignment key. Replaces the previous
-    /// (incorrect) reuse of `UnsupportedCellValue` for this condition — no
-    /// cell value failed to normalise here.
+    /// Two or more rows share the same alignment key.
     DuplicateAlignmentKey {
         old_count: usize,
         new_count: usize,
@@ -643,19 +683,17 @@ impl DiagnosticKind {
     /// renamed within a major version. Codes also appear verbatim in serialised
     /// JSON.
     ///
-    /// The complete set of codes in this major version:
+    /// The complete set of codes in this major version, **every one of which the engine
+    /// can produce** (`tests/diagnostic_codes.rs` produces each and asserts the produced
+    /// set equals this table — a code that nothing can send is not listed):
     ///
     /// | Code | Meaning |
     /// |---|---|
     /// | `formula_unavailable` | A cell's formula text could not be read |
-    /// | `formula_cached_value_unverified` | A formula's cached value could not be verified |
     /// | `ambiguous_sheet_match` | Sheet rename detection found more than one candidate |
-    /// | `unsupported_cell_value` | A cell value could not be normalised to a `CellValue` |
     /// | `unsupported_workbook_feature` | A non-cell object/sheet type is present but not compared |
     /// | `unsupported_workbook_metadata` | A defined-name / visibility / metadata change was detected |
     /// | `defined_name_scope_unknown` | Defined-name scope is unavailable from the reader |
-    /// | `datetime_not_normalized` | A date/time value could not be normalised to ISO form |
-    /// | `limit_truncated_cells` | A configured cell limit truncated the comparison |
     /// | `alignment_bound_exceeded` | The alignment row-product bound was exceeded; fell back to positional |
     /// | `duplicate_alignment_key` | Two or more rows shared the same alignment key |
     ///
@@ -664,14 +702,10 @@ impl DiagnosticKind {
     pub fn code(&self) -> &'static str {
         match self {
             DiagnosticKind::FormulaUnavailable => "formula_unavailable",
-            DiagnosticKind::FormulaCachedValueUnverified => "formula_cached_value_unverified",
             DiagnosticKind::AmbiguousSheetMatch { .. } => "ambiguous_sheet_match",
-            DiagnosticKind::UnsupportedCellValue { .. } => "unsupported_cell_value",
             DiagnosticKind::UnsupportedWorkbookFeature { .. } => "unsupported_workbook_feature",
             DiagnosticKind::UnsupportedWorkbookMetadata { .. } => "unsupported_workbook_metadata",
             DiagnosticKind::DefinedNameScopeUnknown => "defined_name_scope_unknown",
-            DiagnosticKind::DateTimeNotNormalized => "datetime_not_normalized",
-            DiagnosticKind::LimitTruncatedCells { .. } => "limit_truncated_cells",
             DiagnosticKind::AlignmentBoundExceeded { .. } => "alignment_bound_exceeded",
             DiagnosticKind::DuplicateAlignmentKey { .. } => "duplicate_alignment_key",
         }

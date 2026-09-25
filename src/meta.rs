@@ -164,15 +164,19 @@ fn diff_sheet_visibility(
         .map(|s| (s.name.clone(), format!("{:?}", s.visible)))
         .collect();
 
-    let new_vis: BTreeMap<String, String> = new_wb
+    // name -> (position in the NEW workbook, visibility). The diagnostic below is about a
+    // particular sheet, so it names it — order and name together — as it is in the new workbook,
+    // the same side the text renderer labels a matched pair by.
+    let new_vis: BTreeMap<String, (usize, String)> = new_wb
         .reader
         .sheets_metadata()
         .iter()
-        .map(|s| (s.name.clone(), format!("{:?}", s.visible)))
+        .enumerate()
+        .map(|(i, s)| (s.name.clone(), (i, format!("{:?}", s.visible))))
         .collect();
 
     for (name, old_v) in &old_vis {
-        if let Some(new_v) = new_vis.get(name)
+        if let Some((new_index, new_v)) = new_vis.get(name)
             && old_v != new_v
         {
             diagnostics.push(Diagnostic {
@@ -182,7 +186,7 @@ fn diff_sheet_visibility(
                 },
                 location: DiagnosticLocation {
                     stage: DiffStage::Metadata,
-                    sheet_order: None,
+                    sheet_order: Some(*new_index),
                     sheet_name: Some(name.clone()),
                     address: None,
                 },

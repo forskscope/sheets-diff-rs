@@ -410,11 +410,19 @@ fn build_sheet_diff(
 
     // Alignment (RFC-011): compute row mapping if mode is not Positional.
     let align_mapping = if !matches!(opts.matching.alignment, AlignmentMode::Positional) {
+        // The sheet the alignment warnings are about: the new side, else the old one — the label the
+        // text renderer uses. A matched pair always has at least one side.
+        let sheet = pair
+            .new_sheet
+            .as_ref()
+            .or(pair.old_sheet.as_ref())
+            .expect("a matched pair has at least one side");
         compute_row_mapping(
             &old_map,
             &new_map,
             &opts.matching.alignment,
             opts.limits.max_alignment_product,
+            sheet,
             sheet_diag,
         )
     } else {

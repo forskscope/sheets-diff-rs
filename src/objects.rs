@@ -39,9 +39,11 @@ pub enum ObjectCompareMode {
     #[default]
     WarnIfPresent,
     /// Compare what is available; emit diagnostics for the rest.
-    /// Currently behaves identically to `WarnIfPresent`: calamine 0.36 does
-    /// expose hyperlinks, merged regions, tables, and pivot tables, but this
-    /// crate does not yet call those APIs to compare them.
+    ///
+    /// Selecting it is valid and does not error, but **it behaves identically to
+    /// `WarnIfPresent` today**: calamine 0.36 does expose hyperlinks, merged regions,
+    /// tables, and pivot tables, but this crate does not yet call those APIs to compare
+    /// them. It is a reservation for that comparison, not a different behaviour.
     CompareAvailable,
 }
 

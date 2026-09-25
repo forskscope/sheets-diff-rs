@@ -97,7 +97,19 @@ argues for keeping it.
 
 ### 3.4 Other never-constructed public values — decide, then act (new)
 
-Verified as having zero construction sites anywhere in `src/`:
+**Corrected 2026-09-25 (M10 unit 02).** This list was introduced as "verified as
+having zero construction sites anywhere in `src/`". That is true of eight of the
+ten values and **false of `CellValue::Integer` and `::Duration`**, which are
+constructed at `src/normalize.rs:28` (from `Data::Int`) and `:87` (from
+`Data::DurationIso`) — arms that exist for inputs calamine's `Xlsx` reader never
+emits. *Unreachable through this crate's inputs* is not the same as *never
+constructed*, and the sweep collapsed the two. The decision is unchanged: M4
+unit 01 kept them for exactly that reason and documented it per variant.
+
+Note also that these are **ten values in six rows**; the count of six is a count
+of rows.
+
+The values, with zero production construction sites unless noted:
 
 | Value | Note |
 |---|---|
@@ -106,7 +118,8 @@ Verified as having zero construction sites anywhere in `src/`:
 | `SourceKind::Unknown` | `open.rs` sets `Path`, `Bytes`, `Reader` only |
 | `ObjectCompareMode::CompareAvailable` | RFC-023's compare mode is unimplemented |
 | `CellError::Other(String)` | appears only in a `Display` arm; nothing constructs it |
-| `CellValue::Integer`, `::Duration`, `::Unsupported` | documented as unreachable by M4 unit 01 |
+| `CellValue::Integer`, `::Duration` | **constructed** at `normalize.rs:28` / `:87`, from calamine variants the `Xlsx` reader never emits; documented by M4 unit 01 |
+| `CellValue::Unsupported` | zero sites; documented by M4 unit 01 |
 
 **These are not automatically removals.** `DiffStage` names pipeline stages that
 exist; `CellValue`'s three carry M4's reasoning for keeping them. Each needs a

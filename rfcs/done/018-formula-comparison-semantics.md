@@ -147,6 +147,13 @@ present. It may emit `DiagnosticKind::FormulaCachedValueUnverified` once per
 workbook or sheet when formula cells are compared, unless the option suppresses
 that warning.
 
+> **Corrected M10 unit 02 (unreleased):** the paragraph above was *specified* and **never
+> implemented** — nothing in the engine constructs `FormulaCachedValueUnverified`, so no
+> release ever emitted it, contrary to what "may emit" reads as. The specification stands
+> as written; the claim that it happens does not. The variant, and its code
+> `formula_cached_value_unverified`, were removed in 3.0.0 rather than kept as a diagnostic
+> that can never arrive.
+
 ## 8. Serialization
 
 JSON should preserve both subchanges:

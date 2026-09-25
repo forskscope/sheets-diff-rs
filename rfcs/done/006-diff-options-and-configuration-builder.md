@@ -1,6 +1,13 @@
 # RFC-006: Diff Options and Configuration Builder
 
 **Status.** Implemented (2.0.0–2.2.3) — verified 2026-08-16 against the implementation.
+
+**Note added M10 unit 03 (unreleased):** the `DiffOptions` struct in §5 (`formula_comparison`,
+`value_comparison`, `bounds`, …) is the pre-implementation *sketch*; the implemented option tree is
+RFC-033 §11's (`comparison`, `matching`, `limits`, `execution`, `diagnostics`, `output`), and that section is
+authoritative for it, including the builder's final coverage and naming rule. The builder this RFC calls for
+covers every option as of 3.0.0 (`DiffOptionsBuilder` has a method for each of the twenty leaves, asserted by
+`tests/builder_coverage.rs`).
 **Target:** v2.0.0  
 **Created:** 2026-06-11  
 **Category:** Configuration  

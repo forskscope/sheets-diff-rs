@@ -69,6 +69,19 @@ pub struct Diagnostic {
 
 `message` is for convenience; consumers should rely on code/location for localization.
 
+**`DiagnosticLocation` — the rule (M10 unit 04, unreleased).** *A diagnostic that concerns a particular
+sheet names it — `sheet_order` and `sheet_name` together, never one without the other — as that sheet is in
+the workbook the diagnostic is about (for a matched pair, the new workbook's, else the old one's, the label
+the text renderer uses); a diagnostic that is not about a particular sheet leaves both `None`, which means
+"not about a sheet", not "nobody set this".* This RFC did not say what the location must contain, and the
+implementation filled it where it was convenient: of eleven construction sites two set both fields, one set only
+the name, and eight none — including the two sheet-level alignment warnings (`AlignmentBoundExceeded`,
+`DuplicateAlignmentKey`), which the engine pushes into a specific `SheetDiff` yet recorded nothing. A JSON consumer
+could not tell "not about a sheet" from "not set". Now: the two alignment warnings and the sheet-visibility
+diagnostic name their sheet (the last used to set the name without the order); the defined-name diagnostics, the
+ambiguous-rename warning and the blanket coverage note deliberately stay `None`. `tests/diagnostic_location.rs` pins
+both directions.
+
 ## 6. Internal design
 
 Errors should be created at boundary points: source open, workbook read, sheet range read, normalization, cancellation, and bounds checks.

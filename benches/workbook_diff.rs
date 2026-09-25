@@ -16,7 +16,7 @@ use std::hint::black_box;
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use rust_xlsxwriter::{Formula, Workbook};
-use sheets_diff::options::{AlignmentMode, MatchingOptions};
+use sheets_diff::options::AlignmentMode;
 use sheets_diff::{DiffOptions, compare_bytes, compare_bytes_with_options};
 
 // ---------------------------------------------------------------------------
@@ -183,10 +183,8 @@ fn bench_alignment_vs_positional(c: &mut Criterion) {
                     black_box(o),
                     black_box(n),
                     DiffOptions::builder()
-                        .build_with_matching(MatchingOptions {
-                            sheet_matching: Default::default(),
-                            alignment: AlignmentMode::RowKey { columns: vec![1] },
-                        })
+                        .alignment(AlignmentMode::RowKey { columns: vec![1] })
+                        .build()
                         .unwrap(),
                 )
                 .unwrap()

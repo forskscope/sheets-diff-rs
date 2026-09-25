@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`DiffOptionsBuilder::date_compare_policy` and `DiffOptionsBuilder::max_cells_read`, so the
+  builder covers every option.** `DiffOptions` documents `builder()` as the way to configure it,
+  and two of its twenty leaf options had no method there: `comparison.value.date`
+  (`DateComparePolicy`, a real option with real behaviour) and `limits.max_cells_read`, whose five
+  `Limits` siblings each had one and which could only be set by rebuilding the whole `Limits`.
+  `max_cells_read` takes an `Option<u64>`, as `max_alignment_product` and `max_input_bytes` do, so
+  `None` can be said. **`DiffOptions`'s documentation no longer needs an "except"**, and
+  `tests/builder_coverage.rs` now enforces it: it sets every leaf through the builder, checks that each
+  setter changes its own leaf and no other, and stops compiling if an option is added without being
+  listed. Field assignment still works; no option's type, default or behaviour changed.
+
 ### Changed
 
 - **`SheetMatchReason` now says what the matcher did — breaking.** Every rename this
@@ -31,6 +44,28 @@
   identical to 2.6.0 apart from that one field, and the same for the synthetic
   rename cases in every matching mode.
 
+- **`DiagnosticLocation` now says which sheet a sheet-level diagnostic is about — a change to serialised
+  output.** `--format json` shipped in 2.6.0, so `location` is a published, machine-readable field, and
+  it was half-populated: of eleven places that build one, two set both `sheet_order` and `sheet_name`, one
+  set only the name, and eight set neither — including the two warnings whose job is to say the diff may
+  be wrong, `alignment_bound_exceeded` and `duplicate_alignment_key`, which the engine puts inside a specific
+  sheet's `diagnostics` and then recorded no sheet for. A consumer could not tell "this is not about a
+  sheet" from "nobody set this". **Now, in the JSON:**
+  - `alignment_bound_exceeded` and `duplicate_alignment_key`: `location.sheet_order` and
+    `location.sheet_name` go from `null` to the sheet's position and name. For a renamed or moved sheet
+    that is the **new** workbook's sheet (the label the text renderer uses); for a sheet that exists only on
+    the old side, the old one.
+  - the sheet-visibility diagnostic (`unsupported_workbook_metadata`, category
+    `sheet_visibility_changed:…`): `location.sheet_order` goes from `null` to the sheet's position in the new
+    workbook. It used to set the name without the order.
+  - **Everything else is unchanged, deliberately:** a diagnostic that is not about a particular sheet — a
+    defined-name change, the blanket coverage note, an ambiguous rename (which concerns several candidates) —
+    keeps `null` for both, and that now *means* "not about a sheet". `DiagnosticLocation`'s documentation
+    states the rule: the two fields are set together or not at all.
+  No type changed, so a Rust caller still compiles, and no diagnostic was added, removed or re-classified:
+  per-scenario diagnostic counts are identical to 2.6.0 across the corpus and every synthetic case. The
+  text output is unchanged too (`render_unified` already named the sheet from the owning `SheetDiff`).
+
 ### Removed
 
 - **`SheetMatchReason::ExactName`, `::ContentSimilarity` and `::IndexAndContent`.**
@@ -39,6 +74,56 @@
   rename is not an exact-name match. `IndexAndContent` is replaced, not aliased — a
   deprecated alias for a false statement is still a false statement. Migration is under
   Changed above.
+- **Four `DiagnosticKind` variants that nothing could produce, and their codes.**
+  `DiagnosticKind::code()` tells callers these strings are the stable programmatic surface and
+  to match on them; four of the eleven listed could never arrive. The table now lists the seven
+  that can, and every one of the seven is produced by a test. Removed, with the code string each
+  carried:
+
+  | Variant | Code string |
+  |---|---|
+  | `DiagnosticKind::FormulaCachedValueUnverified` | `"formula_cached_value_unverified"` |
+  | `DiagnosticKind::UnsupportedCellValue { detail }` | `"unsupported_cell_value"` |
+  | `DiagnosticKind::DateTimeNotNormalized` | `"datetime_not_normalized"` |
+  | `DiagnosticKind::LimitTruncatedCells { limit, observed }` | `"limit_truncated_cells"` |
+
+  `LimitTruncatedCells` was structurally impossible — a cell limit returns
+  `Err(LimitExceeded)`, so there is no truncation to report. `UnsupportedCellValue`'s one use,
+  the duplicate-alignment-key condition, moved to `DuplicateAlignmentKey` in 2.3.0 and nothing
+  replaced it. `FormulaCachedValueUnverified` was *specified* by RFC-018 ("may emit") and never
+  implemented; `DateTimeNotNormalized` was never constructed. **Two different breaks, and the
+  second is silent:** a caller matching a removed **variant** no longer compiles (the intended
+  signal); a caller matching a removed **code string** compiles unchanged and simply stops
+  matching, because a string comparison cannot be checked at build time. If you match on any of
+  the four strings above, delete that arm — it has never run.
+- **`SourceKind::Unknown`.** Nothing constructed it: `SourceDescription` is an output the crate
+  builds itself, at one of the three entry points, which set `Path`, `Bytes` or `Reader`. The enum
+  is `#[non_exhaustive]`, so a future source kind arrives as its own variant, not as a fallback
+  to `Unknown`. A caller matching `SourceKind::Unknown` no longer compiles.
+
+- **`DiffOptionsBuilder::number_compare`.** It was `number_compare_policy` under a second name — same
+  argument type, same field. The naming rule, settled once: a setter for a `…Policy`-typed option is
+  named for its type in snake_case (`number_compare_policy`, `numeric_type_policy`,
+  `type_mismatch_policy`, and now `date_compare_policy`); every other setter keeps the name it had.
+  **Migration:** rename `.number_compare(p)` to `.number_compare_policy(p)`; the effect is identical.
+- **`DiffOptionsBuilder::build_with_matching`** — and this one is a bug fix as well as a removal. It
+  assigned the whole `MatchingOptions`, so it **silently discarded a `sheet_matching` set earlier in the
+  chain**: `.sheet_matching(ExactNameOnly).build_with_matching(..)` ended with the default
+  `ExactNameThenConservativeRename`. If you wrote that, your code may have been losing a setting.
+  **Migration:** chain the two setters — `.sheet_matching(m).alignment(a).build()` — which replaces
+  `build_with_matching(MatchingOptions { sheet_matching: m, alignment: a })` and keeps both, in either
+  order. (If you only ever set the alignment, `.alignment(a).build()` suffices.)
+
+### Documentation
+
+- **The public values that stay although the engine never produces them are now documented as
+  what they are.** `DiffStage::{Open, Normalize, Aggregate}`, `CellError::Other` and
+  `ObjectCompareMode::CompareAvailable` say what cannot happen and what they are kept for.
+  **`DisplaySource::ReaderProvided` and `::ApplicationProvided` are documented the other way
+  round: they are not unreachable, they are yours to construct** — `CellDisplay::new` is public
+  and `source` is a public field; the crate only ever sets `SheetsDiffDefault`. RFC-018's "may
+  emit `FormulaCachedValueUnverified`" now says it was specified and never implemented, and
+  RFC-033's lexicon marks which listed values are live.
 
 ## [2.6.0] - 2026-09-25
 

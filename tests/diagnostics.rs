@@ -17,12 +17,9 @@
 mod support;
 use support::{wb_numbers, wb_strings};
 
-use sheets_diff::options::{AlignmentMode, MatchingOptions};
+use sheets_diff::options::AlignmentMode;
 use sheets_diff::output::text::{render_summary, render_unified};
-use sheets_diff::{
-    DiffOptions, Severity, SheetMatchingMode, WorkbookDiff, compare_bytes,
-    compare_bytes_with_options,
-};
+use sheets_diff::{DiffOptions, Severity, WorkbookDiff, compare_bytes, compare_bytes_with_options};
 
 // ---------------------------------------------------------------------------
 // Fixtures, built in-test
@@ -35,10 +32,8 @@ fn row_key_options(
 ) -> DiffOptions {
     let mut opts = DiffOptions::builder()
         .max_alignment_product(max_alignment_product)
-        .build_with_matching(MatchingOptions {
-            sheet_matching: SheetMatchingMode::default(),
-            alignment: AlignmentMode::RowKey { columns: vec![1] },
-        })
+        .alignment(AlignmentMode::RowKey { columns: vec![1] })
+        .build()
         .unwrap();
     opts.diagnostics.min_severity = min_severity;
     opts

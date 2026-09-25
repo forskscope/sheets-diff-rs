@@ -272,24 +272,58 @@ pub struct Diagnostic {
 }
 ```
 
-`DiffStage { Open, Metadata, Match, Read, Normalize, Compare, Aggregate }`.
+**`DiagnosticLocation` (M10 unit 04):** `sheet_order` and `sheet_name` are set together or not at all — a
+diagnostic about a particular sheet names it (for a matched pair, the new workbook's sheet, else the old
+one's); one that is not about a sheet leaves both `None`, meaning "not about a sheet", not "not recorded". The
+rule and its history are in RFC-005; the sheet-level diagnostics sit in `SheetDiff::diagnostics`, the
+workbook-level ones in `WorkbookDiff::diagnostics`.
 
-`DiagnosticKind` is `#[non_exhaustive]` with eleven variants as of 2.3.0:
-`FormulaUnavailable`, `FormulaCachedValueUnverified`, `AmbiguousSheetMatch
-{ candidates }`, `UnsupportedCellValue { detail }`,
-`UnsupportedWorkbookFeature { feature }`, `UnsupportedWorkbookMetadata
-{ category }`, `DefinedNameScopeUnknown`, `DateTimeNotNormalized`,
-`LimitTruncatedCells { limit, observed }`, `AlignmentBoundExceeded { limit,
-observed }` (RFC-035), `DuplicateAlignmentKey { old_count, new_count }`
-(RFC-035).
+`DiffStage { Open, Metadata, Match, Read, Normalize, Compare, Aggregate }`. **Live:**
+`Metadata`, `Match`, `Read`, `Compare` — diagnostics are attributed to these. **Vocabulary,
+never produced:** `Open`, `Normalize`, `Aggregate` — stages the pipeline has, to which no
+diagnostic is attributed (documented in `model.rs` as *cannot occur*; guarded by
+`tests/diagnostic_codes.rs`). Decided 2026-09-25 (RFC-037 §3.4) to stay.
+
+`DiagnosticKind` is `#[non_exhaustive]` with seven variants (eleven as of 2.3.0 through
+2.6.0): `FormulaUnavailable`, `AmbiguousSheetMatch { candidates }`,
+`UnsupportedWorkbookFeature { feature }`, `UnsupportedWorkbookMetadata { category }`,
+`DefinedNameScopeUnknown`, `AlignmentBoundExceeded { limit, observed }` (RFC-035),
+`DuplicateAlignmentKey { old_count, new_count }` (RFC-035). **All seven are live** — the engine
+produces each — which is asserted by `tests/diagnostic_codes.rs`.
+
+**Corrected M10 unit 02 (unreleased):** this lexicon listed four more, none of which any code
+path could construct: `FormulaCachedValueUnverified`, `UnsupportedCellValue { detail }` (its one
+use, the duplicate-alignment-key condition, moved to `DuplicateAlignmentKey` in RFC-035 and
+nothing replaced it), `DateTimeNotNormalized`, and `LimitTruncatedCells { limit, observed }`
+(structurally impossible: a cell limit returns `Err(LimitExceeded)`, so there is no truncation
+to report). Removed in 3.0.0 along with their codes `formula_cached_value_unverified`,
+`unsupported_cell_value`, `datetime_not_normalized` and `limit_truncated_cells`.
+`SourceKind::Unknown` (§ the `SourceDescription` type) was removed with them: the crate builds
+every `SourceDescription` itself at one of three entry points.
 
 **`DiagnosticKind::code()` is the stable programmatic surface**, explicitly
 documented as such in `model.rs`: match on the code string, not the
 `#[non_exhaustive]` enum variant, since new variants may arrive in a minor
 release but an existing code string is never renamed within a major
-version. The eleven current codes are listed in `model.rs`'s own doc table
+version. The seven current codes are listed in `model.rs`'s own doc table
 and are not reproduced here to avoid a second copy drifting out of sync —
 that table is the authoritative one.
+
+**Public values the engine never produces, and stay (M10 unit 02; decided 2026-09-25, RFC-037
+§3.4).** The rule that separates them from the removals above: a value the *engine* would have to
+produce and never does is a dead arm and goes; a value a *caller* may hand us, or that names a
+stage the pipeline really has, is vocabulary and may be wider than today's usage. Each is
+documented in `model.rs` / `objects.rs` and pinned by a documentation guard in
+`tests/diagnostic_codes.rs`.
+
+| Value | Kind | Note |
+|---|---|---|
+| `DiffStage::Open`, `::Normalize`, `::Aggregate` | pipeline vocabulary | *cannot occur*; no diagnostic is attributed to these stages |
+| `DisplaySource::ReaderProvided`, `::ApplicationProvided` | **caller vocabulary** | reachable: `CellDisplay::new` is public with a public `source`; the crate itself only ever sets `SheetsDiffDefault` |
+| `ObjectCompareMode::CompareAvailable` | honest reservation | selectable; behaves as `WarnIfPresent` |
+| `CellError::Other(String)` | forward-compatible catch-all | *cannot occur*: calamine's error conversion is an exhaustive match over eight kinds |
+| `CellValue::Integer`, `::Duration` | unreachable through `.xlsx` | *do* have construction sites (`normalize.rs`, from `Data::Int` / `Data::DurationIso`) on input paths the `.xlsx` reader never takes — RFC-037 §3.4 listed them as having none |
+| `CellValue::Unsupported` | forward-compatible catch-all | no construction site anywhere |
 
 ## §9. Errors
 
@@ -359,23 +393,26 @@ Constructed via `DiffOptions::default()` or `DiffOptions::builder()` →
 `DiffOptionsBuilder`, a consuming fluent builder whose `.build()` runs
 `DiffOptions::validate()` before returning.
 
-**Builder coverage (M8 unit 07, audited against `src/options.rs` by script, not
-counted by eye).** Of the 20 leaf options in the tree, 18 have a builder method of
-their own. Two do not:
+**Builder coverage — final state (M10 unit 03), audited by script and by test.** All **20** leaf
+options in the tree have a builder method of their own; none depends on a whole-struct setter;
+`DiffOptions`'s doc comment says so without an exception. The history, so the counts are not quoted
+again: before M8 unit 07 the audit found 16 with a method, `alignment` and `max_cells_read` reachable
+only through a whole-struct method, and `date` and `min_severity` through none (the handoff had said
+"two", with the wrong two); unit 07 added `alignment` and `min_severity`; **unit 03 added
+`date_compare_policy` and `max_cells_read`**, removed the duplicate `number_compare` and the
+whole-struct `build_with_matching` (which replaced `sheet_matching` too, silently), and removed the two
+redundant `#[allow(dead_code)]` on `AlignmentMode`. Every field is still `pub`, so any option can also be
+set by assignment. `tests/builder_coverage.rs` sets each leaf through the builder, reads it back, checks
+that each setter changes its own leaf and no other, and fails when an option is added without a setter.
 
-| Leaf | Reachable through the builder? |
-|---|---|
-| `comparison.value.date` (`DateComparePolicy`) | **No.** Assign the field. |
-| `limits.max_cells_read` | Only via `limits(Limits { .. })` — no individual method. |
-
-Counted before unit 07 the audit found 16 with a method of their own, `alignment` and
-`max_cells_read` reachable only through a whole-struct method, and `date` and
-`min_severity` reachable through none. `matching.alignment` and `diagnostics.min_severity` gained methods in unit 07
-(`DiffOptionsBuilder::alignment`, `::min_severity`); before it, `min_severity` was
-unreachable and `alignment` was reachable only through the whole-struct
-`build_with_matching(MatchingOptions { .. })`, which replaces `sheet_matching` too.
-Every field is `pub`, so any option can also be set by assignment. `DiffOptions`'s own
-documentation states the two exceptions above.
+**Naming rule (one sentence).** *A setter for a `…Policy`-typed option is named for its type in
+snake_case — `number_compare_policy`, `numeric_type_policy`, `type_mismatch_policy`, `date_compare_policy` —
+and every other setter already carries the name of its option or its type and keeps it.* It required
+exactly one removal (`number_compare`, which was `number_compare_policy` under a second name) and no
+rename. **Known residue, not fixed here:** the `…Mode`-typed setters do not follow one convention
+(`formula_compare`, `format_compare`, `sheet_matching`, `alignment` drop `Mode`; `object_mode`,
+`execution_mode` keep it). Making them uniform is a rename of surviving setters — a break each — and was
+not required to settle the duplicate.
 
 `ComparisonOptions { value: ValueCompareOptions, formula:
 FormulaCompareMode, include_formula_cached_values: bool, format:
