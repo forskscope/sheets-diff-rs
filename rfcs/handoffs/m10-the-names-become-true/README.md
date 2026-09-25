@@ -19,14 +19,25 @@ theme one release on: **a public value should describe what the engine does.**
 | 03 ✅ | [The builder's surface, settled once](./03-the-builder-settled-once.md) | §3.7 | Adds two, removes two |
 | 04 ✅ | [`DiagnosticLocation` is half-populated](./04-diagnosticlocation.md) | M9 O-A | Changes serialised output |
 | 05 ✅ | [What `cells_read` counts](./05-what-cells-read-counts.md) | §3.5 | **Public metric + a security limit; 3 of 80 goldens moved.** |
-| — | *blocked* — options that can only fail | §3.3 | needs §7 Q2 |
-| — | *blocked* — `AlignmentMode::HeaderColumn` | §3.6 | needs §7 Q3 |
+| 06 | [Options a caller cannot usefully set](./06-options-a-caller-cannot-set.md) | §3.3, §3.6 | Removes settings, a field, a mode |
+| 07 | [Values that never arrive](./07-values-that-never-arrive.md) | §3.8 | **Removes a field from serialised output** |
+| 08 | [The options tree becomes extensible](./08-options-become-extensible.md) | §3.9 | **`#[non_exhaustive]`; every later option is additive** |
 | L | The v2→v3 migration guide | §5.6 | **Last. Every removal needs a row.** |
 
-**Order: 01 ✅, then 02, 03, 04 in any order; 05 before the migration guide;
-the migration guide last.**
+**Order: 01–05 ✅, then 06 and 07 in either order, then 08, then the migration
+guide.** 08 is last of the code units because it must see the final set of
+option fields, and the guide is last because it must describe what landed.
 
-**All five code units landed 2026-09-25. Only the migration guide remains.**
+**Units 01–05 landed 2026-09-25. Three more units were added the same day**,
+after the owner reviewed the open questions: §3.3 and §3.6 were decided (unit
+06), and **§3.8 and §3.9 were added to RFC-037 §3 in a single reopening**, which
+was then closed again.
+
+**§3.9 is the largest item in the milestone and was not on anyone's list.** All
+eight public *model* structs are `#[non_exhaustive]`; none of the eight *options*
+structs is, and every field is `pub` — so every option this crate ever adds is a
+breaking change while every result field is additive. Found by checking whether
+§3.3's removal was reversible.
 
 Unit 05 corrected two of the architect's claims at review: the change **loosens
 `max_cells_read` and cannot tighten it** (a box contains every cell in it, so

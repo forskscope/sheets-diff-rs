@@ -1,6 +1,9 @@
 # RFC-037: v3 Scope — the breaks, and the closed list
 
-**Status.** **Accepted** by the owner 2026-09-25. Scope was widened the same day
+**Status.** **Accepted** by the owner 2026-09-25. **§3 reopened and closed again
+the same day** at the owner's direction, adding §3.8, §3.9 and the decisions for
+§3.3 and §3.6 — once, rather than three amendments to a list whose value is
+being closed. It is closed again now. Scope was widened the same day
 (§3.7, §5) before acceptance, after 2.6.0 shipped and a planned 2.7.0 was
 dropped. **§3 is now closed** — nothing joins it without the owner reopening it.
 The three questions in §7 remain open and block the handoffs that depend on them,
@@ -90,10 +93,22 @@ constructible, documented as if usable, and every caller who selects one gets
 `InvalidOptions` if selected without one."* **There is no such feature and none
 is planned** — so the sentence describes a configuration that cannot exist.
 
-`FormatCompareMode` then has one remaining variant, `Ignore`. Decide in the
-handoff whether the enum survives as a single-variant reservation (the
-`ExecutionMode` pattern, honest) or the field goes. RFC-022 is `accepted`, which
-argues for keeping it.
+**Decided 2026-09-25: `FormatCompareMode` and `ComparisonOptions::format` are
+removed entirely.**
+
+The question was whether the enum survives as a single-variant reservation. It
+should not, because the field is worse than the variants: **`comparison.format`
+is read in exactly one place — `validate()`, to reject every value except its
+default.** It is a public option whose only usable setting is the one a caller
+gets by not setting it. A single-variant reservation would preserve exactly
+that.
+
+RFC-022 is `accepted` and will reintroduce both when it is implemented. **That
+reintroduction is additive only because of §3.9** — without it, re-adding a
+field to `ComparisonOptions` would be a second break. The two decisions are
+linked and both are in 3.0.0.
+
+`FormulaCompareMode` keeps `RawText` and `Ignore`.
 
 ### 3.4 Other never-constructed public values — decide, then act (new)
 
@@ -182,9 +197,21 @@ So `HeaderColumn` is exactly `RowKey { columns: vec![1] }` under a name that
 promises header inference. Two public modes, one behaviour, and the second's
 name and documentation describe a third thing. Same family as §3.1.
 
-**Decide:** implement what the name says, rename the variant to what it does, or
-remove it. Not a documentation fix — the doc would have to say "despite the
-name, this is `RowKey` on column 1", which is an admission, not an API.
+**Decided 2026-09-25: remove it.** Three defects stack, and the third is the
+one that settles it:
+
+1. It is **exactly `RowKey { columns: vec![1] }`**. Renaming it would leave two
+   public names for one behaviour — the `number_compare` defect §3.7 removes.
+2. Implementing it is a **feature**, which §4 forbids in this milestone.
+3. **The thing its name promises does not exist anywhere in the crate.**
+   RFC-011 §3 lists *"column alignment based on header names or column
+   signatures"* as a goal; there is no column alignment at all — `RowMapping` is
+   the only mapping type. And **RFC-011's Status says "Implemented
+   (2.0.0–2.2.3) — verified 2026-08-16"**, the same class of false record as
+   RFC-009 §6, which was the root cause of unit 01.
+
+A caller who wants the behaviour writes `RowKey { columns: vec![1] }`.
+RFC-011's Status and §3 goal are annotated the way RFC-009's were.
 
 ### 3.7 The builder's surface, settled once (M8 unit 07 + unit 08, folded in 2026-09-25)
 
@@ -220,6 +247,69 @@ needs no "except":
 of a public enum as dead, and clippy stays clean without them on the pre-unit-07
 source as well. Two lines, no risk, and it interacts with §3.6.
 
+### 3.8 Values that never arrive, and a count that is always zero (added 2026-09-25)
+
+Found by the implementer while working §3.2, outside its scope, and reported
+rather than absorbed. Each appears only in its declaration, a `Display` arm, and
+an exit-code or renderer arm; **none is constructed anywhere**.
+
+**`Severity::Error` is structurally impossible, not merely unused.** RFC-005's
+model is two-tier: fatal conditions are `SheetsDiffError`, recoverable ones are
+`Diagnostic`. A diagnostic that is an "error" has no room in that design — the
+closest real case, `DuplicateAlignmentKey` ("your rows may be paired wrongly"),
+is correctly a `Warning`. All eleven diagnostic sites emit `Info` or `Warning`.
+
+Its cost is not abstract: **`render_summary` prints
+`diagnostics: N error(s), M warning(s)` on every run and `N` can only ever be
+0.** Removing it takes `DiagnosticSummary::errors` and `render_unified`'s
+unreachable `"ERROR"` prefix with it — the point, not a side effect.
+
+| Value | Disposition |
+|---|---|
+| `Severity::Error` | **Remove**, with `DiagnosticSummary::errors` and the `N error(s)` output |
+| `SheetsDiffError::UnsupportedFormat` | **Remove** — duplicates `OpenWorkbook { kind: NotXlsx }`, which is what a non-`.xlsx` file actually produces |
+| `SheetsDiffError::Internal` | **Remove** — the escape hatch for our own bugs, never needed. `SheetsDiffError` is `#[non_exhaustive]`, so re-adding is a minor |
+| `OpenErrorKind::Locked` | **Remove** — see below |
+
+**`Locked` is not simply dead.** A locked file (Excel holding it open) is a real
+condition; `error.rs:259` maps io errors to `NotFound`, `PermissionDenied` or
+`Other`, and nothing produces `Locked`, so we report a locked file as
+"permission denied" — nearly true. Detecting it properly needs raw per-platform
+OS error codes, which is a **feature** and §4 forbids it here. A near-true
+classification beats a variant that never arrives; re-adding is additive.
+
+### 3.9 The options tree cannot be extended without a break (added 2026-09-25)
+
+**The largest item in this RFC, and it was found by checking whether §3.3 was
+reversible.**
+
+Every one of the eight public **model** structs is `#[non_exhaustive]`:
+`WorkbookDiff`, `SheetDiff`, `CellDiff`, `DiffSummary`, `DiffMetrics`,
+`Diagnostic`, `DiagnosticLocation`, `SheetRef`.
+
+**None of the eight public options structs is:** `DiffOptions`,
+`ComparisonOptions`, `ValueCompareOptions`, `MatchingOptions`, `Limits`,
+`ExecutionOptions`, `DiagnosticOptions`, `OutputOptions`. Every field is `pub`,
+so a caller may write `ComparisonOptions { value, formula, … }`.
+
+**Therefore every option this crate ever adds is a breaking change, while every
+result field it adds is additive.** That asymmetry is not a decision anyone
+made; the results got it right and the options were overlooked. It is invisible
+in the API surface, it can only be fixed at a major, and left alone it taxes
+every future release — RFC-011's column alignment, RFC-022's formatting, a
+formula normaliser: each one adds an option.
+
+**Add `#[non_exhaustive]` to all eight.** Two consequences, both to be stated:
+
+- Callers constructing options by struct literal move to
+  `DiffOptions::builder()` or `..Default::default()`. The builder covers all
+  leaf options (§3.7), so the recommended path is complete.
+- **`tests/builder_coverage.rs` destructures these exhaustively and is a
+  separate crate**, so `#[non_exhaustive]` breaks its `E0027` guard — the best
+  structural test this milestone produced. **Move it into `src/` as a unit
+  test**, where `#[non_exhaustive]` does not apply. The guard survives and gets
+  stronger for sitting beside what it guards.
+
 ## 4. Explicitly **not** in scope
 
 Stating these closes the list, which is the point of writing it down.
@@ -235,7 +325,14 @@ Stating these closes the list, which is the point of writing it down.
   decision, not a layout change.
 - **Nothing found after this RFC is accepted joins it** without the owner
   reopening the list. That is what "closed" means, and it is the mechanism that
-  stops a major becoming a six-month project.
+  stops a major becoming a six-month project. **It was reopened once, on
+  2026-09-25, for §3.8 and §3.9 and the §3.3/§3.6 decisions — deliberately in a
+  single amendment — and closed again.**
+- **`hardened()`'s `max_cells_read` value (5,000,000)** is *not* in scope. It
+  was chosen when the field meant bounding-box area and now bounds retained
+  cells, so it should be re-derived from a stated memory budget — but changing
+  a value is not a breaking change, so it is a task for any release, not a v3
+  item. It must be **measured, not estimated**: the standing rule since M7.
 
 ## 5. Sequence
 

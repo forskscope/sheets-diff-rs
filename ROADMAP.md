@@ -541,8 +541,9 @@ owner reopening it.
 | 03 | **§3.7 — the builder's surface, settled once.** Adds `date_compare` and `max_cells_read`; removes `number_compare` (duplicate) and `build_with_matching` (discards `sheet_matching` silently). | Adds two, removes two |
 | 04 | **M9 O-A — `DiagnosticLocation` is half-populated.** Moved here 2026-09-25: it changes `location.sheet_name` in serialised output, which `--format json` now publishes. | Changes serialised output |
 | 05 ✅ | **§3.5 — `cells_read` meant bounding-box area**, reporting 5,200 against 2 compared cells on `sparse_range`; now 4. **The metric and `Limits::max_cells_read` were one accumulator**, so both changed: the bound now counts populated cells, which is what the cell map costs since streaming removed the dense allocation. It **loosens only** — a box contains every cell in it, so no workbook passed in 2.6.0 and fails now. | Public metric **and a security limit**; 3 of 80 goldens moved |
-| — | **§3.3 — options that can only fail.** Blocked on RFC-037 §7 Q2. | |
-| — | **§3.6 — `AlignmentMode::HeaderColumn`.** Blocked on §7 Q3. | |
+| 06 | **§3.3 + §3.6 — options a caller cannot usefully set.** Four comparison settings return `InvalidOptions` if selected; `comparison.format` is read only to be rejected, so its only usable value is its default; `AlignmentMode::HeaderColumn` is exactly `RowKey{[1]}` under a name promising column alignment the crate does not have. | Removes settings, a field, a mode |
+| 07 | **§3.8 — values that never arrive.** `Severity::Error` is structurally impossible in RFC-005's two-tier model, and makes `render_summary` print an error count that can only be 0; plus `SheetsDiffError::UnsupportedFormat`, `::Internal`, `OpenErrorKind::Locked`. Found by the implementer outside unit 02's scope. | Removes a field from serialised output |
+| 08 | **§3.9 — the options tree cannot be extended without a break.** All eight public *model* structs are `#[non_exhaustive]`; **none of the eight *options* structs is**, and every field is `pub`. So every option ever added is a break while every result field is additive. Found checking whether §3.3 was reversible. **The largest item in the milestone.** | `#[non_exhaustive]`; every later option additive |
 | L | **§5.6 — the v2→v3 migration guide.** Every removal needs a row. | Last |
 
 **§3.4's six values were decided 2026-09-25** and recorded in the milestone
@@ -554,10 +555,21 @@ separates them: a value the *engine* would have to produce and never does is a
 dead arm; a value a *caller* may hand us is vocabulary, and vocabulary may be
 wider than today's usage.
 
-**Three questions remain open** (RFC-037 §7) and block the two units above:
-whether 2.x gets anything after 3.0.0; whether `FormatCompareMode` survives as a
-single-variant reservation; and whether `HeaderColumn` is implemented, renamed
-or removed.
+**All five open questions were reviewed and settled 2026-09-25** against the
+owner's design philosophy; the memo is
+`.git-exclude/decisions/001-v3-open-questions.md`. RFC-037 §3 was reopened
+**once**, gained §3.8 and §3.9 and the §3.3/§3.6 decisions, and was closed
+again.
+
+**One question remains open and is not a v3 item:** `hardened()`'s
+`max_cells_read` value (5,000,000) was chosen when the field meant bounding-box
+area. It should be re-derived from a stated memory budget — **measured, not
+estimated**, per the standing rule since M7 — but changing a value is not
+breaking, so it can land in any release.
+
+**Still open, and unrelated to v3:** whether 2.x gets anything after 3.0.0.
+The ForskScope letter goes out after the final stable release and will have to
+**state** that answer rather than ask it.
 
 ### Release plan
 
