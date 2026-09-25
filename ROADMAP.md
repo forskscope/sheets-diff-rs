@@ -348,7 +348,9 @@ review). M4 unit 02 documented `cells_compared`, leaving it the only documented
 field of five. The gap that matters is `cells_read`: on the `sparse_range`
 fixture it reads 5200 against 2 compared, because it counts every physically
 visited cell including empties — a 2600× difference no consumer would predict
-from the name.
+from the name. *(Historical: fixed in 3.0.0 by M10 unit 05, which made both
+`cells_read` and `max_cells_read` count populated cells. `sparse_range` now
+reads 4.)*
 
 Also **`ReadErrorKind`'s undocumented variants** (F-G, raised in M4 unit 04's
 review). No variant carries a doc comment, and after M4 `Other` is a public
@@ -445,7 +447,7 @@ shipped as 2.4.0 rather than 2.3.1) and A6 changes a public metric.
 | ~~04~~ | **WITHDRAWN to RFC-037 (v3) 2026-09-25.** **A4 — four `DiagnosticKind` variants nothing constructs** (`FormulaCachedValueUnverified`, `UnsupportedCellValue`, `DateTimeNotNormalized`, `LimitTruncatedCells`), each live in the stable `code()` table callers are told to match on. `LimitTruncatedCells` cannot occur: limits return `Err`. **Plus O1, and O1 is worse than reported: `SheetMatchReason` has three variants and only one is ever constructed.** `ExactName` is structurally impossible — the enum appears only inside `Renamed`/`RenamedAndMoved`. `ContentSimilarity` is never produced because the matcher never inspects content. `IndexAndContent` is produced for *every* rename and is inaccurate at all three sites, worst at `matcher.rs:151` where the pair is formed by elimination — neither index nor content. Found by the implementer during unit 01, folded here 2026-09-24. | Documentation only |
 | 06 | **The CLI you can actually install — two defects that compound, found reviewing unit 03.** `cargo install sheets-diff` installs **nothing** (`default = []`, the bin needs `cli`), and **neither `README.md` nor `docs/` contains the string `cargo install`** — a tool documented since 2.0.0 with no stated way to get it. Meanwhile `cli` enables `serde` but not `chrono`, so the installable binary emits `"iso": null` for every datetime. The command users will be told to run is exactly the build that is wrong. **Must ship in 2.6.0 with `--format json`, not after it.** | Feature set of the shipped binary |
 | 07 | **O-D — the builder omits two options.** `DiffOptions` documents `builder()` as the construction entry point; `DiffOptionsBuilder` has 19 setters and none for `diagnostics.min_severity` (which unit 02 just gave behaviour) or `matching.alignment` (whose warnings unit 02 just made visible) — while its sibling `matching.sheet_matching` has one. | Additive API |
-| ~~05~~ | **WITHDRAWN to RFC-037 (v3) 2026-09-25.** **A6 — `cells_read` means bounding-box area**, reporting 5,200 against 2 compared cells on `sparse_range`. | Public metric moves; every golden moves |
+| ~~05~~ | **WITHDRAWN to RFC-037 (v3) 2026-09-25**, done as M10 unit 05. **A6 — `cells_read` meant bounding-box area**, reporting 5,200 against 2 compared cells on `sparse_range`. | Public metric; **3 of 80 goldens moved**, not every one |
 
 **M8 now closes at unit 07.** Units 04 and 05 moved to
 [RFC-037](rfcs/accepted/037-v3-scope.md) on 2026-09-25: both are fixed by
@@ -538,7 +540,7 @@ owner reopening it.
 | 02 | **§3.2 + §3.4 — values nothing produces.** Four `DiagnosticKind` variants, all live in the stable `code()` table callers are told to match on; plus `SourceKind::Unknown`. | Removals + documentation |
 | 03 | **§3.7 — the builder's surface, settled once.** Adds `date_compare` and `max_cells_read`; removes `number_compare` (duplicate) and `build_with_matching` (discards `sheet_matching` silently). | Adds two, removes two |
 | 04 | **M9 O-A — `DiagnosticLocation` is half-populated.** Moved here 2026-09-25: it changes `location.sheet_name` in serialised output, which `--format json` now publishes. | Changes serialised output |
-| 05 | **§3.5 — `cells_read` means bounding-box area**, reporting 5,200 against 2 compared cells on `sparse_range`. | Public metric; every golden moves |
+| 05 ✅ | **§3.5 — `cells_read` meant bounding-box area**, reporting 5,200 against 2 compared cells on `sparse_range`; now 4. **The metric and `Limits::max_cells_read` were one accumulator**, so both changed: the bound now counts populated cells, which is what the cell map costs since streaming removed the dense allocation. It **loosens only** — a box contains every cell in it, so no workbook passed in 2.6.0 and fails now. | Public metric **and a security limit**; 3 of 80 goldens moved |
 | — | **§3.3 — options that can only fail.** Blocked on RFC-037 §7 Q2. | |
 | — | **§3.6 — `AlignmentMode::HeaderColumn`.** Blocked on §7 Q3. | |
 | L | **§5.6 — the v2→v3 migration guide.** Every removal needs a row. | Last |

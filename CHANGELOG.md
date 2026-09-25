@@ -66,6 +66,34 @@
   per-scenario diagnostic counts are identical to 2.6.0 across the corpus and every synthetic case. The
   text output is unchanged too (`render_unified` already named the sheet from the owning `SheetDiff`).
 
+- **`DiffMetrics::cells_read` and `Limits::max_cells_read` now count populated cells, not the area of their
+  bounding box — a change to a published metric and to what a security preset accepts.** The two are one
+  number (one accumulator in `src/diff.rs`), so they change together. Through 2.6.0 it was the area of
+  the bounding box of each sheet's populated cells, summed over sheets and sides: the memory a *dense*
+  read allocated, until 2.5.1 made the read stream and nothing spent it any more. The name said cells and
+  the number was geometry — `sparse_range` (two populated cells, `A1` and `Z100`) reported **5,200**
+  against `cells_compared`'s **2**; it now reports **4** (two cells on each of two sides). A styled blank
+  cell is still not counted, and a repeated address counts once, so the figure is the size of the cell maps.
+  - **The metric.** `--format json` publishes it, so it is a machine-readable surface: `metrics.cells_read`
+    reports a different number wherever a sheet's box has empty positions inside it. On the corpus that is
+    **3 of 19 scenarios** — `sparse_range` 5200 → 4, `chart_sheet` 8 → 6, `formula_shifted_origin` 6 → 4 —
+    and the other sixteen are unchanged, because their boxes are full. No type changed, so a Rust caller
+    still compiles; anyone who stored or asserted on the number sees the change. `cells_read >= cells_compared`
+    still holds (checked, not assumed).
+  - **The limit, and `Limits::hardened()`.** `max_cells_read` now fires on the running count of populated
+    cells retained, before each cell is retained — still before the memory it bounds is spent, and still
+    mid-sheet. `LimitExceeded { limit: CellsRead, observed }` reports the running count at the breaking cell,
+    so `observed` is `max + 1`, not the running box area (2.5.1 through 2.6.0). **What it accepts changes in
+    one direction only.** A bounding box contains every cell in it, so the populated count never exceeds
+    the box area: a workbook the new bound refuses, the old one refused too. **Nothing that was accepted is
+    newly refused; some that were refused are now accepted.** The case that moves is the one that motivated
+    the streaming read: a few kilobytes, two populated cells, a 20-million-position box. It was refused by a
+    bound of 1,000 and by `hardened()` (5,000,000); **it is no longer refused by either**, because it costs
+    memory in proportion to its two cells — measured at about 0.13 MB under `hardened()` against a 64 MiB
+    budget, where the dense read cost about 646 MB. A workbook with many populated cells in a small box is
+    refused exactly as before. `hardened()`'s value, 5,000,000, is unchanged; whether it is still the right
+    number is a separate question. The threat model's *Sheet reading* section records all of this.
+
 ### Removed
 
 - **`SheetMatchReason::ExactName`, `::ContentSimilarity` and `::IndexAndContent`.**

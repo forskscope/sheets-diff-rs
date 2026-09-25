@@ -361,6 +361,13 @@ pub struct Limits {
 `LimitKind { Sheets, CellsRead, CellsCompared, DiffsReturned,
 InputBytes }` — the values a `LimitExceeded` error can name.
 
+**Corrected M10 unit 05 (unreleased):** `max_cells_read` and `DiffMetrics::cells_read` are one number
+(one accumulator in `src/diff.rs`) and were the **area of the bounding box** of each sheet's populated
+cells through 2.6.0 — the memory a dense read allocated, spent by nothing since the read streamed. Both
+now count **populated cells retained**. The limit rejects a subset of what it rejected before (a box
+contains its cells); the sparse-box workbook is no longer refused. `LimitExceeded.observed` for
+`CellsRead` is the running count at the breaking cell, i.e. `max + 1`.
+
 Split by default behaviour (RFC-035 §5.1): the four linear fields default
 to `None` (unbounded) — their cost scales predictably with input the
 caller already chose to open. `max_alignment_product` (default

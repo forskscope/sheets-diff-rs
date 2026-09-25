@@ -203,6 +203,17 @@ pub const DEFAULT_MAX_INPUT_BYTES: u64 = 500 * 1024 * 1024;
 #[derive(Clone, Debug)]
 pub struct Limits {
     pub max_sheets: Option<u32>,
+    /// Bounds the number of **populated cells** retained, summed over every sheet and both
+    /// workbooks — the figure reported as
+    /// [`DiffMetrics::cells_read`](crate::DiffMetrics::cells_read) — and so bounds the memory the
+    /// cell maps cost. A styled blank cell is not counted. The bound is evaluated before each cell
+    /// is retained, so it fires before the memory it limits is spent; the comparison then fails with
+    /// [`LimitExceeded`](crate::SheetsDiffError::LimitExceeded) whose `observed` is `max + 1`.
+    ///
+    /// Through 2.6.0 this counted the **area of the bounding box** of each sheet's populated cells,
+    /// which bounded a dense read's allocation until the read was made to stream, and bounded nothing
+    /// any cost after that. A workbook with a vast box and few populated cells — a stray cell far from
+    /// the data — is therefore no longer refused by this bound, and none that was accepted is newly refused.
     pub max_cells_read: Option<u64>,
     pub max_cells_compared: Option<u64>,
     pub max_diffs_returned: Option<u64>,
@@ -249,8 +260,8 @@ impl Limits {
     ///
     /// All six fields are set, and each is evaluated before the resource it
     /// limits is spent: input size before any byte is read; sheet count before
-    /// any sheet is read; the bounding box of a sheet's populated cells before
-    /// a cell is retained; coordinates compared before a sheet's comparison
+    /// any sheet is read; the number of populated cells retained, before each
+    /// cell is retained; coordinates compared before a sheet's comparison
     /// loop runs; the row-alignment table before it is allocated; and diffs
     /// returned before the diff is recorded.
     ///
@@ -271,6 +282,16 @@ impl Limits {
     /// *The zip container* and *Sheet reading*) is the authority on both. Its
     /// *XML parsing* section records a third thing no `Limits` field bounds: the
     /// behaviour this crate inherits from `calamine`'s XML parser.
+    ///
+    /// # What `max_cells_read` counts
+    ///
+    /// Populated cells, not the area of their bounding box (which it counted through 2.6.0).
+    /// Its bound of 5,000,000 is unchanged, so what `hardened()` accepts changes in **one direction
+    /// only**: a workbook whose box was larger than 5,000,000 positions but whose populated cells
+    /// were fewer — the sparse-box workbook that motivated the streaming read in 2.5.1 — used to be
+    /// refused and is now accepted, at a cost proportional to its populated cells (measured in
+    /// `tests/streaming_read.rs`). Nothing that passed before is newly refused, because a box always
+    /// contains its cells.
     ///
     /// # Correction
     ///

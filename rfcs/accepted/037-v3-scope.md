@@ -136,6 +136,16 @@ metric counts is a semantic break, and doing it here means it stops being a
 golden-churning problem inside a minor. Every golden moves; each must be shown
 to differ only in `cells_read`.
 
+**Corrected 2026-09-25 (M10 unit 05, at review).** Two claims above are wrong.
+**"Every golden moves" is false** — three of eighty did (`sparse_range`
+5200→4, `chart_sheet` 8→6, `formula_shifted_origin` 6→4); the other sixteen
+scenarios have no empty position inside their box, so the two definitions
+coincide. And the extension below said the bound's strictness changes **in both
+directions**; it changes in **one**. A bounding box contains every cell in it,
+so `populated ≤ area` always — the new bound refuses a strict subset of what
+the old one refused, and **no workbook passed in 2.6.0 and fails now**. Both
+errors were the architect's, both found by the implementer.
+
 **Extended by the owner 2026-09-25, after the unit was scoped.** This section
 asked only that the *metric* change. It cannot: `DiffMetrics::cells_read` and
 `Limits::max_cells_read` are one accumulator in `src/diff.rs`, so the metric's
@@ -152,7 +162,10 @@ preserve exactly the kind of value this milestone exists to remove.
 **Consequence to be stated, not discovered:** a workbook with a vast box and few
 populated cells is no longer rejected by `max_cells_read`. It is cheap to read,
 so this is a correction; the threat model must say so rather than let the case
-drop quietly.
+drop quietly. **Measured at implementation:** the f123 workbook — two cells in a
+200,001 × 101 box — is now accepted by `hardened()` and peaks at **134,591
+bytes** against a 64 MiB budget, where the dense read it replaced measured
+~646 MB.
 
 ### 3.6 `AlignmentMode::HeaderColumn` — the name describes something else (new)
 

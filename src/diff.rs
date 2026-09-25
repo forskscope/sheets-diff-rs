@@ -631,12 +631,14 @@ fn build_sheet_diff(
 /// proportional to the populated cells and puts both checks inside the loop that
 /// spends the resource.
 ///
-/// `cells_read` and `max_cells_read` keep their meaning: a sheet contributes the
-/// **area of the bounding box of its populated cells**, empty positions included,
-/// cumulatively across sheets and sides. What changes is that the area is now a
-/// running figure — the bound fires as soon as a cell makes the box too large,
-/// before anything proportional to it exists — and that memory no longer tracks it.
-/// The cancellation poll counts every cell record streamed, blank or not.
+/// `cells_read` and `max_cells_read` count **populated cells**: each sheet contributes the
+/// cells this function retains in the returned map, cumulatively across sheets and sides.
+/// (Through 2.6.0 they counted the *area of the bounding box* of those cells — the memory a
+/// dense range allocated, which streaming stopped spending.) The bound is evaluated on that
+/// running count before each cell is retained, so it fires before the memory it bounds is
+/// spent. A blank record — a styled cell with no value — is not counted, exactly as it is
+/// not retained. The cancellation poll counts every cell record streamed, blank or not: a
+/// different quantity, and deliberately so, since blank records cost time.
 fn read_sheet_cells(
     wb: &mut OpenedWorkbook,
     sheet: &SheetRef,
@@ -654,11 +656,6 @@ fn read_sheet_cells(
     // `total_cells_read` accumulator — a mid-sheet cancellation checkpoint
     // every `CANCEL_POLL_INTERVAL` cell records (M7 Handoff 03).
     let mut poll_count: u64 = 0;
-
-    // Bounding box (0-based, inclusive) of the non-empty cells streamed so far:
-    // (min row, min col, max row, max col). Its area is what `Range` allocated.
-    let read_before = *total_cells_read;
-    let mut bbox: Option<(u32, u32, u32, u32)> = None;
 
     // Pass 1: values. A chart sheet is not a worksheet; `worksheet_range` gave it
     // an empty range, so it has no cells here either.
@@ -680,25 +677,6 @@ fn read_sheet_cells(
                 continue;
             }
 
-            // max_cells_read limit, on the running bounding box: checked before
-            // the cell is retained, so the bound fires before anything is spent.
-            let (r, c) = cell.get_position();
-            let b = match bbox {
-                None => (r, c, r, c),
-                Some((r0, c0, r1, c1)) => (r0.min(r), c0.min(c), r1.max(r), c1.max(c)),
-            };
-            bbox = Some(b);
-            let area = (b.2 - b.0 + 1) as u64 * (b.3 - b.1 + 1) as u64;
-            *total_cells_read = read_before + area;
-            if let Some(max) = opts.limits.max_cells_read
-                && *total_cells_read > max
-            {
-                return Err(SheetsDiffError::LimitExceeded {
-                    limit: LimitKind::CellsRead,
-                    observed: *total_cells_read,
-                });
-            }
-
             let data: calamine::Data = cell.get_value().clone().into();
             let value = normalize_cell_value(&data, is_1904);
             if matches!(value, crate::model::CellValue::Empty) {
@@ -708,6 +686,23 @@ fn read_sheet_cells(
             // Convert the absolute 0-based position to 1-based coordinates.
             let (row0, col0) = cell.get_position();
             let (row1, col1) = (row0 + 1, col0 + 1);
+
+            // max_cells_read: one more retained cell than the bound allows. Checked *before*
+            // the insert, so it fires before the memory it bounds is spent. A repeated
+            // address replaces the cell it repeats and retains nothing more, so it is not
+            // counted: the figure is the size of the map, not the number of records streamed.
+            if !cells.contains_key(&(row1, col1)) {
+                if let Some(max) = opts.limits.max_cells_read
+                    && *total_cells_read >= max
+                {
+                    return Err(SheetsDiffError::LimitExceeded {
+                        limit: LimitKind::CellsRead,
+                        observed: *total_cells_read + 1,
+                    });
+                }
+                *total_cells_read += 1;
+            }
+
             update_bounds(&mut range_start, &mut range_end, row1, col1);
             cells.insert(
                 (row1, col1),

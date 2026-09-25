@@ -78,6 +78,12 @@ The distinction that matters is not "how big" but **how the cost grows**.
   these by default would break working code for no safety gain that the caller
   could not have anticipated.
 
+> **Note added M10 unit 05 (unreleased):** this section classifies `max_cells_read` as a *linear* path
+> ("scales predictably with input size"). That was not true of what it counted at the time — the **area
+> of the bounding box** of each sheet's populated cells, which one stray cell can inflate by orders of
+> magnitude — and it became a bound on nothing once the read streamed (2.5.1). As of 3.0.0 it counts
+> populated cells retained, which *is* linear in the input, so the classification above is now correct.
+
 This split keeps the change non-breaking in practice — no positional diff that
 works today starts failing — while removing the failure mode that can take the
 host process down.

@@ -129,11 +129,12 @@ Turning each worksheet's XML into this crate's sparse `CellMap`.
 straight into the sparse map, in two passes — values, then formula text — so
 memory follows the **populated cells** rather than the sheet's extent.
 `max_cells_read` and the cancellation poll both sit inside the loop that spends
-the resource: the bound is evaluated on the running bounding box of the
-populated cells *before* a cell is retained, so it fires before anything
-proportional to that box exists — the same check-before-the-spend pattern as
+the resource: the bound is evaluated on the running count of **populated cells
+retained** *before* each cell is retained, so it fires before the memory it
+limits is spent — the same check-before-the-spend pattern as
 `max_alignment_product` above — and the poll counts every streamed cell record,
-blank or not.
+blank or not. (Through 2.6.0 the bound was evaluated on the running *bounding
+box* of the populated cells instead; see the 3.0.0 paragraph below.)
 
 **This surface was open in every published version from 2.0.0 through 2.5.0.**
 Those versions read each sheet through `Xlsx::worksheet_range` and
@@ -174,9 +175,39 @@ very large number of populated cells still costs proportional memory and time
 unless the caller sets `max_cells_read` or uses `Limits::hardened()`. Styled
 blank cell records are skipped before the bound is evaluated: they cost time, not
 memory, are not counted by `max_cells_read`, and are limited only by
-`max_input_bytes` and by cancellation latency. `DiffMetrics::cells_read` still
-reports the bounding-box area of the populated cells, not the number of cell
-records read.
+`max_input_bytes` and by cancellation latency. `DiffMetrics::cells_read` is the
+number of populated cells retained, not the number of cell records read.
+
+**Changed in 3.0.0 — what `max_cells_read` bounds, and a case it no longer
+refuses.** Through 2.6.0 `DiffMetrics::cells_read` and `Limits::max_cells_read`
+were one number, the **area of the bounding box** of each sheet's populated
+cells. That was the memory a dense read allocated; once the read streamed
+(2.5.1) nothing spent it, so the bound guarded a quantity nobody pays for. Both
+now count **populated cells retained**, which is what the cell maps cost. Stated
+plainly, because a threat model that quietly drops a case is worse than one that
+admits it:
+
+- **The sparse-box workbook that motivated the streaming read — a few kilobytes,
+  two populated cells, a 200,001 × 101 box of 20,200,101 positions — is no longer
+  refused by `max_cells_read`, including under `Limits::hardened()`**
+  (5,000,000 < 20,200,101 before; 2 cells against 5,000,000 now). It is
+  acceptable because that workbook now costs memory in proportion to its two
+  cells: `tests/streaming_read.rs` measures a peak heap growth of about 0.13 MB
+  under `hardened()`, against a 64 MiB budget, where the dense read it replaced
+  measured about 646 MB. The refusal it used to get was a refusal of something
+  cheap.
+- **The change loosens the bound and never tightens it.** A bounding box contains
+  every cell in it, so for any sheet the populated count is at most the box area,
+  and a workbook refused by the new bound was refused by the old one. No workbook
+  that was accepted is newly refused; some that were refused are now accepted.
+  (`tests/cells_read.rs` states this and checks it against all 19 corpus
+  scenarios.) A workbook with many populated cells in a small box is refused
+  exactly as before.
+- **What the bound now protects is memory in proportion to retained cells** — the
+  quantity a caller comparing untrusted input at scale actually needs capped —
+  and it fires mid-sheet, before the cell that would exceed it is retained. It
+  does not cap time spent on cell records that carry no value (unchanged, above),
+  and the two paths `Limits::hardened()` never covered are unchanged.
 
 ### Alignment (`src/align.rs`, `src/diff.rs`)
 
@@ -270,7 +301,8 @@ Said plainly, because the failure mode of a threat model is overclaiming:
 | MSRV floor is real, not merely declared | Yes | CI `msrv` job — builds at the pinned toolchain, asserts the resolved version matches |
 | Comparison output does not silently drift | Yes | The fixture corpus (`tests/fixtures/generated/*/expected.json`) — CI `tree` job additionally asserts the test suite itself never dirties the working tree |
 | Resource bounds actually bound (§5.1–5.4) | Partially | Unit tests assert degrade-not-error and the measured default (RFC-035 §9); there is no continuous benchmark asserting the *measured* costs stay within the stated envelope over time |
-| A sheet read allocates in proportion to its populated cells, and its bound and cancellation poll fire before the spend | Yes | `tests/streaming_read.rs` — peak heap from a counting allocator against a 64 MiB budget, on a fixture where the pre-fix dense read measured about 646.5 million bytes (roughly ten times the budget) |
+| A sheet read allocates in proportion to its populated cells, and its bound and cancellation poll fire before the spend | Yes | `tests/streaming_read.rs` — peak heap from a counting allocator against a 64 MiB budget, on a fixture where the pre-fix dense read measured about 646.5 million bytes (roughly ten times the budget); it also asserts the bound fires mid-sheet (`observed == max + 1`, peak a fraction of the whole read) and that `Limits::hardened()` accepts that fixture within the budget |
+| `cells_read` / `max_cells_read` count populated cells, and the bound is never stricter than the 2.6.0 box-area bound | Yes | `tests/cells_read.rs` — an independent count by `calamine` over all 19 corpus scenarios, the dense control, both directions of the limit, cumulative counting, the repeated-address case, and `cells_read >= cells_compared` |
 | Each cancellation poll (sheet pair, value read, formula read, compare loop) can actually cancel | Partially | `tests/integration.rs::cancellation_observed_during_{read,compare}_phase`, plus `tests/streaming_read.rs`. Each test was shown to fail when only its own poll is removed — demonstrated by hand on 2026-09-24, one poll at a time; no CI job repeats the removal, so a future test edit could lose that property unnoticed |
 | Normalisation/alignment/formula-attachment correctness | No dedicated ongoing check beyond the fixture corpus | The four Handoff 05 defects were found by manual audit, not by an automated property; a fifth of the same shape would only be caught if it happens to move a golden or fail a hand-written test |
 | Comparison never accesses the network (NF-015) | Indirectly | Enforced structurally (no networking dependency can enter the tree, per the `[bans]` row above) rather than by a runtime sandbox or a dedicated test that observes zero syscalls |

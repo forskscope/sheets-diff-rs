@@ -90,10 +90,10 @@ const BUDGET: usize = 64 * 1024 * 1024;
 /// Far row and column of the stray cell. The bounding box it makes with A1 is
 /// 200,001 x 101 = 20,200,101 positions per side: a dense read of that is about
 /// 646 MB on this crate's own types (32 bytes a position), and a workbook that
-/// produces it is about 5 KB.
+/// produces it is about 5 KB. It has **two populated cells** a side, which is
+/// what `cells_read` and `max_cells_read` now count.
 const FAR_ROW: u32 = 200_000;
 const FAR_COL: u16 = 100;
-const FAR_AREA: u64 = (FAR_ROW as u64 + 1) * (FAR_COL as u64 + 1);
 
 /// A1 plus one stray cell at (`FAR_ROW`, `FAR_COL`).
 fn wb_stray(stray: &str) -> Vec<u8> {
@@ -130,19 +130,21 @@ fn a_stray_far_cell_is_read_in_memory_proportional_to_populated_cells() {
 }
 
 #[test]
-fn cells_read_still_counts_the_bounding_box() {
-    // The metric and the limit keep their meaning (a sheet contributes the
-    // area of the bounding box of its populated cells); only when it is
-    // computed changed. Pinned here on the shape that would most easily break
-    // it if the count were "simplified" to populated cells.
+fn cells_read_counts_the_populated_cells_not_the_bounding_box() {
+    // M10 unit 05. Through 2.6.0 this fixture reported 2 x 20,200,101 = 40,400,202, the area of
+    // its box. It has two populated cells a side, and that is what is counted now.
     let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let (old, new) = (wb_stray("x"), wb_stray("y"));
     let diff = compare_bytes(&old, &new).unwrap();
-    assert_eq!(diff.metrics.cells_read, 2 * FAR_AREA);
+    assert_eq!(diff.metrics.cells_read, 4);
 }
 
+/// The workbook that motivated the streaming read — a few kilobytes, two populated cells and a
+/// 20-million-position box — is **no longer refused by `max_cells_read`**, and that is safe: it costs
+/// memory in proportion to its two cells, which is what the bound now measures. Under 2.6.0 a bound of
+/// 1,000 refused it, and so did `Limits::hardened()` (5,000,000 < 20,200,101).
 #[test]
-fn max_cells_read_fires_before_the_range_is_allocated() {
+fn the_sparse_box_workbook_is_accepted_under_a_bound_and_stays_small() {
     let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let (old, new) = (wb_stray("x"), wb_stray("y"));
     let opts = DiffOptions::builder()
@@ -155,20 +157,72 @@ fn max_cells_read_fires_before_the_range_is_allocated() {
 
     let (result, peak) = peak_growth(|| compare_bytes_with_options(&old, &new, opts));
 
+    let diff = result.expect("four populated cells are under a bound of 1,000");
+    assert_eq!(diff.metrics.cells_read, 4);
+    assert!(peak < BUDGET, "accepted, but spent {peak} bytes");
+}
+
+#[test]
+fn the_hardened_preset_accepts_the_sparse_box_workbook_within_the_memory_budget() {
+    // The claim the threat model now makes about `hardened()`, measured rather than argued.
+    let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    let (old, new) = (wb_stray("x"), wb_stray("y"));
+    let opts = DiffOptions::builder()
+        .limits(Limits::hardened())
+        .build()
+        .unwrap();
+
+    let (result, peak) = peak_growth(|| compare_bytes_with_options(&old, &new, opts));
+
+    assert_eq!(result.expect("hardened accepts it").metrics.cells_read, 4);
+    assert!(
+        peak < BUDGET,
+        "hardened accepted it, but spent {peak} bytes"
+    );
+}
+
+/// The bound fires **mid-sheet**, at the cell that would exceed it, before the rest of the sheet is
+/// retained. 60,000 populated cells a side, a bound of 1,000: the error carries `1,001` — the running
+/// count at the cell that broke it — and the peak heap is a fraction of what reading the whole sheet costs.
+#[test]
+fn max_cells_read_fires_mid_sheet_before_the_rest_is_retained() {
+    let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    let build = |tag: &str| {
+        let mut wb = Workbook::new();
+        let ws = wb.add_worksheet();
+        for r in 0..300u32 {
+            for c in 0..200u16 {
+                ws.write_string(r, c, format!("{tag}{r}_{c}")).unwrap();
+            }
+        }
+        wb.save_to_buffer().unwrap()
+    };
+    let (old, new) = (build("o"), build("n"));
+
+    let (_, whole) = peak_growth(|| compare_bytes(&old, &new).unwrap());
+    let opts = DiffOptions::builder()
+        .limits(Limits {
+            max_cells_read: Some(1_000),
+            ..Limits::default()
+        })
+        .build()
+        .unwrap();
+    let (result, bounded) = peak_growth(|| compare_bytes_with_options(&old, &new, opts));
+
     match result {
         Err(SheetsDiffError::LimitExceeded {
             limit: LimitKind::CellsRead,
             observed,
         }) => assert_eq!(
-            observed, FAR_AREA,
-            "the running bounding box at the cell that broke it"
+            observed, 1_001,
+            "the running count at the cell that broke it"
         ),
         other => panic!("expected LimitExceeded{{CellsRead}}, got {other:?}"),
     }
     assert!(
-        peak < BUDGET,
-        "the bound fired, but only after {peak} bytes were spent: it must fire \
-         before the allocation it exists to prevent"
+        bounded * 4 < whole,
+        "the bound fired, but only after {bounded} bytes against {whole} for the whole read: \
+         it must fire before the rest of the sheet is retained"
     );
 }
 

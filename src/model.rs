@@ -774,19 +774,21 @@ pub struct DiffSummary {
 pub struct DiffMetrics {
     /// Sheet pairs processed — one per matched, added, or removed sheet.
     pub sheets_read: u32,
-    /// The **area of the bounding box of each sheet's populated cells**, summed
-    /// over every sheet and both workbooks: `(last row - first row + 1) *
-    /// (last column - first column + 1)`, worked out from the box's corners as
-    /// the sheet streams. Empty positions inside the box are counted by that
-    /// arithmetic; none is visited. It is **not** the number of cells with
-    /// content, and it is not a count of anything the reader handled: one
-    /// populated cell far from the rest widens the box, and this figure with it.
+    /// The number of **populated cells** the reader retained, summed over every sheet and both
+    /// workbooks: a cell with a value counts once, a styled blank cell (a record with no value)
+    /// does not, and a repeated address replaces the cell it repeats rather than adding one — the
+    /// size of the cell maps, which is what the comparison spends memory on.
     ///
-    /// On the `sparse_range` corpus fixture (two populated cells, `A1` and
-    /// `Z100`) each side's box is 100 x 26 = 2,600 positions, so this is
-    /// **5200** against `cells_compared`'s **2** — almost all of it is the empty
-    /// area the box spans between the two cells. `Limits::max_cells_read` bounds
-    /// this same figure. Always `>= cells_compared`.
+    /// It is **not** the area of the bounding box of those cells, which is what this figure
+    /// reported through 2.6.0. On the `sparse_range` corpus fixture (two populated cells, `A1`
+    /// and `Z100`, per side) it is **4** — two cells on each of two sides — against
+    /// `cells_compared`'s **2**, the two coordinates compared; the old figure was **5200**, the
+    /// area of two 100 x 26 boxes. Where every position inside a sheet's box is populated the two
+    /// definitions agree: a dense 5 x 4 block on each side reports 40 either way.
+    ///
+    /// [`Limits::max_cells_read`](crate::Limits::max_cells_read) bounds this same figure. Always
+    /// `>= cells_compared`: every coordinate compared came from at least one retained cell, and
+    /// each retained cell belongs to at most one coordinate.
     pub cells_read: u64,
     /// Every coordinate compared between the two sides: the union of both
     /// sides' populated cells for each sheet pair, remapped by alignment

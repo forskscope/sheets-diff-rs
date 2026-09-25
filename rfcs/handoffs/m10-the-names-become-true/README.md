@@ -18,13 +18,20 @@ theme one release on: **a public value should describe what the engine does.**
 | 02 ✅ | [Values nothing produces](./02-values-nothing-produces.md) | §3.2, §3.4 | Removals + documentation |
 | 03 ✅ | [The builder's surface, settled once](./03-the-builder-settled-once.md) | §3.7 | Adds two, removes two |
 | 04 ✅ | [`DiagnosticLocation` is half-populated](./04-diagnosticlocation.md) | M9 O-A | Changes serialised output |
-| 05 | [What `cells_read` counts](./05-what-cells-read-counts.md) | §3.5 | **Public metric + a security limit; every golden moves.** |
+| 05 ✅ | [What `cells_read` counts](./05-what-cells-read-counts.md) | §3.5 | **Public metric + a security limit; 3 of 80 goldens moved.** |
 | — | *blocked* — options that can only fail | §3.3 | needs §7 Q2 |
 | — | *blocked* — `AlignmentMode::HeaderColumn` | §3.6 | needs §7 Q3 |
 | L | The v2→v3 migration guide | §5.6 | **Last. Every removal needs a row.** |
 
 **Order: 01 ✅, then 02, 03, 04 in any order; 05 before the migration guide;
 the migration guide last.**
+
+**All five code units landed 2026-09-25. Only the migration guide remains.**
+
+Unit 05 corrected two of the architect's claims at review: the change **loosens
+`max_cells_read` and cannot tighten it** (a box contains every cell in it, so
+`populated ≤ area`, so no workbook passed in 2.6.0 and fails now), and **three
+of eighty goldens moved**, not every one. RFC-037 §3.5 carries both corrections.
 
 **Units 01–04 landed 2026-09-25; unit 05 is released.** §3.5 could not be
 implemented as written — `DiffMetrics::cells_read` and `Limits::max_cells_read`
