@@ -193,6 +193,10 @@ where
 #[cfg(doctest)]
 pub struct MigrationGuideDoctests;
 
+#[doc = include_str!("../docs/src/migration/v2-to-v3.md")]
+#[cfg(doctest)]
+pub struct MigrationGuideV3Doctests;
+
 #[doc = include_str!("../docs/src/api-guide.md")]
 #[cfg(doctest)]
 pub struct ApiGuideDoctests;

@@ -252,6 +252,12 @@
   and `source` is a public field; the crate only ever sets `SheetsDiffDefault`. RFC-018's "may
   emit `FormulaCachedValueUnverified`" now says it was specified and never implemented, and
   RFC-033's lexicon marks which listed values are live.
+- **A migration guide from 2.6.0 to 3.0** (`docs/src/migration/v2-to-v3.md`, in the book under *Migration* beside the v1→v2 guide).
+  One page that answers "what do I write instead" for every removal and every change a caller has to act on — including the
+  four dead diagnostic code strings, which fail silently rather than at compile time, and the `..Default::default()` break, which
+  breaks a pattern this project's own API guide showed. Its baseline is 2.6.0. **Every example is compiled and run** as part of
+  `cargo test --doc` (the page is included in the crate's doctest harness), and its `compile_fail` examples name `E0639` (rustdoc
+  enforces the code on nightly; on stable it only checks that the example fails), so the page cannot drift from the API it describes.
 
 ## [2.6.0] - 2026-09-25
 

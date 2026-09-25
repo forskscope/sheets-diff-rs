@@ -23,9 +23,18 @@ theme one release on: **a public value should describe what the engine does.**
 | 07 ✅ | [Values that never arrive](./07-values-that-never-arrive.md) | §3.8 | **Removes a field from serialised output** |
 | 08 ✅ | [The options tree becomes extensible](./08-options-become-extensible.md) | §3.9 | **`#[non_exhaustive]`; every later option is additive** |
 | 09 ✅ | [One error type, and two more structs](./09-one-error-type-and-two-more-structs.md) | §3.10, §3.11 | **Signature change; two more structs** |
-| 10 | [The v2→v3 migration guide](./10-the-v2-to-v3-migration-guide.md) | §5.6 | **Last. Every removal needs a row (criterion 2).** |
+| 10 ✅ | [The v2→v3 migration guide](./10-the-v2-to-v3-migration-guide.md) | §5.6 | **Last. Every removal needs a row (criterion 2).** |
 
-**All nine code units landed 2026-09-25. Only the migration guide remains.**
+**M10 IS COMPLETE — ten units, all landed 2026-09-25.** RFC-037's
+implementation is done and 3.0.0 can be prepared.
+
+**One guard is weaker than three of these handoffs claimed.**
+`compile_fail,EXXXX` does **not** enforce the error code on stable rustdoc —
+only on nightly — so the thirteen `compile_fail` blocks across units 08, 09 and
+10 pass if the example fails to compile for *any* reason, including a typo.
+Verified both ways at review. The pins are correct today (checked on nightly);
+making them enforced is one step in CI, which already installs nightly for
+`fuzz-smoke`. **Routed to M9's CI unit.**
 
 **Two things it must carry, beyond a row per removal:**
 1. **`..Default::default()` does not work** on a `#[non_exhaustive]` struct from

@@ -35,6 +35,8 @@ the [API guide](api-guide.md#json--serde-feature-only).
   part.
 - **[Migration from v1](migration/v1-to-v2.md)** — how to update existing code
   that used v1's `Diff::new` / string cell model.
+- **[Migration from v2 to v3](migration/v2-to-v3.md)** — what 3.0.0 removed and
+  what to write instead.
 - **[Threat model](maintainers/threat-model.md)** — what this crate defends
   against, what it does not, and how each claim is checked.
 - **[Performance](maintainers/performance.md)** — measured, not inferred:
