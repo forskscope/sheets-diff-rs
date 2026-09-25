@@ -1,8 +1,12 @@
 # Non-goals and limitations
 
 What this engine deliberately does not attempt, and where it is limited
-despite trying. Both lists are current as of 2.5.x (re-checked against the
-code on 2026-09-24), checked against the code rather than against what an
+despite trying. Both lists are current as of 3.0.0 (re-checked against the
+code on 2026-09-26, before the cut: the RFC table's seven entries — 007, 017,
+019, 020, 021, 023, 024 — are untouched by 3.0.0, `CellValue` still has nine
+variants with the same three unreachable, and the resource-limits section still
+holds, `max_cells_read` having changed what it counts but not whether it is set
+by default), checked against the code rather than against what an
 earlier document said about it — several
 items below were previously recorded elsewhere as either more complete or
 more current than they actually are; see [Corrections found writing this

@@ -35,12 +35,12 @@ line loses its `N error(s)` half.
 
 - **`DiffOptionsBuilder::date_compare_policy` and `DiffOptionsBuilder::max_cells_read`, so the
   builder covers every option.** `DiffOptions` documents `builder()` as the way to configure it,
-  and two of its twenty leaf options had no method there: `comparison.value.date`
+  and two of its leaf options had no method there: `comparison.value.date`
   (`DateComparePolicy`, a real option with real behaviour) and `limits.max_cells_read`, whose five
   `Limits` siblings each had one and which could only be set by rebuilding the whole `Limits`.
   `max_cells_read` takes an `Option<u64>`, as `max_alignment_product` and `max_input_bytes` do, so
   `None` can be said. **`DiffOptions`'s documentation no longer needs an "except"**, and
-  `tests/builder_coverage.rs` now enforces it: it sets every leaf through the builder, checks that each
+  `src/builder_coverage.rs` now enforces it: it sets every leaf through the builder, checks that each
   setter changes its own leaf and no other, and stops compiling if an option is added without being
   listed. Field assignment still works; no option's type, default or behaviour changed.
 
