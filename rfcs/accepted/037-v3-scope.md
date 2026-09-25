@@ -407,7 +407,7 @@ Stating these closes the list, which is the point of writing it down.
    `DiagnosticLocation` at the push sites changes `location.sheet_name` in
    serialised output, which `--format json` now publishes. M9's other six units
    are invisible and need no release.
-4. **3.0.0 is the next release.** There is no planned 2.7.0; see `ROADMAP.md`.
+4. **3.0.0 followed 2.6.0 directly.** There was no 2.7.0; see `ROADMAP.md`.
 5. **v3 handoffs are written against the 2.6.0 tree**, not this one.
 6. **A `v2-to-v3` migration guide** is required, matching
    `docs/src/migration/v1-to-v2.md` in form, and every removal here needs a row

@@ -6,7 +6,7 @@
 **Extends:** RFC-015, RFC-030
 **Related:** RFC-034 (the golden corpus this builds on), G-009
 
-**Note added M10 unit 06 (unreleased):** this RFC names `AlignmentMode::HeaderColumn` as an uncovered mode (§ evidence and
+**Note added M10 unit 06 (3.0.0):** this RFC names `AlignmentMode::HeaderColumn` as an uncovered mode (§ evidence and
 matrix row 4). That mode was removed in 3.0.0 — it was `RowKey { columns: vec![1] }` under another name, and the
 corpus scenario `alignment_header_column` now covers that alignment. The matrix row stands as history.
 

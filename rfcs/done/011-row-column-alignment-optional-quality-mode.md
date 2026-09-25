@@ -2,7 +2,7 @@
 
 **Status.** Implemented (2.0.0–2.2.3) — verified 2026-08-16 against the implementation.
 
-**Corrected M10 unit 06 (unreleased):** the Status covers the **row half only**, and the Status word stays.
+**Corrected M10 unit 06 (3.0.0):** the Status covers the **row half only**, and the Status word stays.
 §3's goal *"design column alignment based on header names or column signatures"* was **never
 implemented**: there is no column alignment anywhere in this crate (`RowMapping` is the only mapping type).
 §5's `HeaderColumn` variant *looked* like it was — `header_column_alignment` delegated to

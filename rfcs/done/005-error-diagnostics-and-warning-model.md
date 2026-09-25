@@ -69,7 +69,7 @@ pub struct Diagnostic {
 
 `message` is for convenience; consumers should rely on code/location for localization.
 
-**The two-tier model, stated (M10 unit 07, unreleased).** *A condition that stops a comparison is a
+**The two-tier model, stated (M10 unit 07, 3.0.0).** *A condition that stops a comparison is a
 `SheetsDiffError` and produces no result; a condition that does not is a `Diagnostic` and rides along with a
 successful one. Therefore a diagnostic severity of "error" cannot exist* — a fatal diagnostic has no place in this
 design, and the most severe recoverable condition is a `Warning` (`DuplicateAlignmentKey`, "your rows may have been
@@ -83,7 +83,7 @@ removed three `SheetsDiffError`/`OpenErrorKind` values nothing constructed: `Uns
 our own bugs, never needed) and `OpenErrorKind::Locked` (detecting it needs raw per-platform OS codes — a feature, not
 a fix; a locked file is reported as permission denied or `Other`).
 
-**`DiagnosticLocation` — the rule (M10 unit 04, unreleased).** *A diagnostic that concerns a particular
+**`DiagnosticLocation` — the rule (M10 unit 04, 3.0.0).** *A diagnostic that concerns a particular
 sheet names it — `sheet_order` and `sheet_name` together, never one without the other — as that sheet is in
 the workbook the diagnostic is about (for a matched pair, the new workbook's, else the old one's, the label
 the text renderer uses); a diagnostic that is not about a particular sheet leaves both `None`, which means

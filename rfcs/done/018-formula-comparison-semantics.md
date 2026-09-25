@@ -111,7 +111,7 @@ Default: `RawText` and `include_formula_cached_values = true`.
 normalizer. Until then, the public enum can exist but the mode may return
 `UnsupportedOption` unless the corresponding feature is enabled.
 
-> **Corrected M10 unit 06 (unreleased):** what shipped was the enum *with* the two unusable variants, and a
+> **Corrected M10 unit 06 (3.0.0):** what shipped was the enum *with* the two unusable variants, and a
 > `validate()` that returned `InvalidOptions` for them unconditionally — there is no normaliser and none is
 > planned. Both variants (`NormalizedText`, `RawAndNormalized`) were **removed in 3.0.0**: a setting that can
 > only fail is not an option. `FormulaCompareMode` keeps `RawText` and `Ignore`, which work. Re-adding them
@@ -153,7 +153,7 @@ present. It may emit `DiagnosticKind::FormulaCachedValueUnverified` once per
 workbook or sheet when formula cells are compared, unless the option suppresses
 that warning.
 
-> **Corrected M10 unit 02 (unreleased):** the paragraph above was *specified* and **never
+> **Corrected M10 unit 02 (3.0.0):** the paragraph above was *specified* and **never
 > implemented** — nothing in the engine constructs `FormulaCachedValueUnverified`, so no
 > release ever emitted it, contrary to what "may emit" reads as. The specification stands
 > as written; the claim that it happens does not. The variant, and its code

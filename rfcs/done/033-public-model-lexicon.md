@@ -241,7 +241,7 @@ Names and indices live on `SheetDiff.old_sheet` / `.new_sheet`, not
 duplicated inside the variant payloads. `MatchConfidence { Exact, High,
 Medium, Low }`; `SheetMatchReason { SameIndex, SoleRemainingPair }`.
 
-**Corrected M10 unit 01 (unreleased):** this lexicon recorded `SheetMatchReason {
+**Corrected M10 unit 01 (3.0.0):** this lexicon recorded `SheetMatchReason {
 ExactName, IndexAndContent, ContentSimilarity }`. Two of the three were never
 constructed — `ExactName` could not be, since the enum appears only inside `Renamed` and
 `RenamedAndMoved` and a rename is not an exact-name match — and the third,
@@ -291,7 +291,7 @@ diagnostic is attributed (documented in `model.rs` as *cannot occur*; guarded by
 `DuplicateAlignmentKey { old_count, new_count }` (RFC-035). **All seven are live** — the engine
 produces each — which is asserted by `tests/diagnostic_codes.rs`.
 
-**Corrected M10 unit 02 (unreleased):** this lexicon listed four more, none of which any code
+**Corrected M10 unit 02 (3.0.0):** this lexicon listed four more, none of which any code
 path could construct: `FormulaCachedValueUnverified`, `UnsupportedCellValue { detail }` (its one
 use, the duplicate-alignment-key condition, moved to `DuplicateAlignmentKey` in RFC-035 and
 nothing replaced it), `DateTimeNotNormalized`, and `LimitTruncatedCells { limit, observed }`
@@ -339,7 +339,7 @@ kind, inner }`, `EncryptedWorkbook
 { side }`, `InvalidOptions { detail }`, `Cancelled`, `LimitExceeded { limit:
 LimitKind, observed: u64 }`.
 
-**Corrected M10 unit 07 (unreleased):** this lexicon listed eight. `UnsupportedFormat { side, detail }` (a duplicate of
+**Corrected M10 unit 07 (3.0.0):** this lexicon listed eight. `UnsupportedFormat { side, detail }` (a duplicate of
 `OpenWorkbook { kind: NotXlsx }`) and `Internal { detail }` (an escape hatch never needed) were never constructed and were
 removed in 3.0.0, as was `OpenErrorKind::Locked`; `Severity::Error` and `DiagnosticSummary::errors` were removed with them
 (§8; RFC-005 states why an error *severity* cannot exist). **Of the six left, one is also never constructed:**
@@ -371,7 +371,7 @@ pub struct Limits {
 `LimitKind { Sheets, CellsRead, CellsCompared, DiffsReturned,
 InputBytes }` — the values a `LimitExceeded` error can name.
 
-**Corrected M10 unit 05 (unreleased):** `max_cells_read` and `DiffMetrics::cells_read` are one number
+**Corrected M10 unit 05 (3.0.0):** `max_cells_read` and `DiffMetrics::cells_read` are one number
 (one accumulator in `src/diff.rs`) and were the **area of the bounding box** of each sheet's populated
 cells through 2.6.0 — the memory a dense read allocated, spent by nothing since the read streamed. Both
 now count **populated cells retained**. The limit rejects a subset of what it rejected before (a box
@@ -422,7 +422,7 @@ redundant `#[allow(dead_code)]` on `AlignmentMode`. Every field is still `pub`, 
 set by assignment. `tests/builder_coverage.rs` sets each leaf through the builder, reads it back, checks
 that each setter changes its own leaf and no other, and fails when an option is added without a setter.
 
-**Extensibility (M10 unit 08, unreleased) — new options are additive from 3.0.0 on.** All eight options structs in this
+**Extensibility (M10 unit 08, 3.0.0) — new options are additive from 3.0.0 on.** All eight options structs in this
 tree are `#[non_exhaustive]`, as every result struct always was: an option added to any of them is an added field, not a
 breaking change, and the coverage audit (`src/builder_coverage.rs`, which destructures each struct exhaustively and so
 must live inside the crate) fails to compile until the new option has a builder setter. Through 2.x the options were the
@@ -453,7 +453,7 @@ AlignmentMode }` (RFC-009, RFC-011) — not itself cited to an RFC-033
 section anywhere in `src/`, included here only because it is a direct
 field of the §11 struct.
 
-**Resolved M10 unit 06 (unreleased) — the §13 item 2 divergence.** `validate()` used to reject
+**Resolved M10 unit 06 (3.0.0) — the §13 item 2 divergence.** `validate()` used to reject
 `FormulaCompareMode::NormalizedText` and `RawAndNormalized` (`InvalidOptions`, "no formula normaliser is
 implemented yet") and any `FormatCompareMode` other than `Ignore`; `comparison.format` was read in exactly one
 place — that rejection. Three settings that could only fail and a field that could only hold its default. All are
@@ -516,7 +516,7 @@ change. As of 2.3.0, RFC-021 and RFC-023 both surface their findings
 exclusively through `diagnostics` (§8); the structured variants these two
 types are reserved for have never been populated in any shipped version.
 
-**`address::CellAddress` and `address::ComparedRange` are `#[non_exhaustive]` (M10 unit 09, unreleased).** `ComparedRange` is a **result**
+**`address::CellAddress` and `address::ComparedRange` are `#[non_exhaustive]` (M10 unit 09, 3.0.0).** `ComparedRange` is a **result**
 field (`SheetDiff::compared_range`) and `CellAddress` is `CellDiff::address`; through 2.6.0 neither was marked, so this lexicon's
 statement above that the result types are `#[non_exhaustive]` was true of the structs in `model.rs` and not of every struct a result
 contains (RFC-037 §3.9 repeated the overstatement). Both are made by their public constructors — `CellAddress::new(row, col)`

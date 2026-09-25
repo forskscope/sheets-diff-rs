@@ -8,14 +8,14 @@ CLI format that did not exist. It now does (`OutputFormat::Json`, dispatching to
 `to_json_pretty`), and the `cli` feature enables `serde` so that the binary's
 advertised formats do not depend on how it was compiled. §5's names and signature and
 §11's open question are corrected in place below, each annotated with what it said.
-**Corrected M10 unit 07 (unreleased):** the Status above says `exit_code_for` maps `UnsupportedFormat` to 3. It did — and
+**Corrected M10 unit 07 (3.0.0):** the Status above says `exit_code_for` maps `UnsupportedFormat` to 3. It did — and
 `SheetsDiffError::UnsupportedFormat` was **never constructed**, so that arm never ran; a non-`.xlsx` input is
 `OpenWorkbook { kind: NotXlsx }`, which has always mapped to 3, and still does. The variant, and the equally unreachable
 `Internal` arm and `OpenErrorKind::Locked`, were removed in 3.0.0 with **no change to any exit code** (the table is in the M10
 unit 07 review request; the guard is `tests/cli.rs`). **Not touched here, and not made worse:** §5's exit-code list below
 (`4 = cancelled or limit exceeded`, `5 = internal error`) still names codes the CLI never emits — cancellation and limits exit
 2, and there is now no internal-error value at all (there never was a construction site); M8 unit 03 reported this as F-2.
-**Corrected M10 unit 09 (unreleased):** the CLI's `--format json` path can no longer fail, and the exit-2-on-serialisation-failure
+**Corrected M10 unit 09 (3.0.0):** the CLI's `--format json` path can no longer fail, and the exit-2-on-serialisation-failure
 branch M8 unit 03 added — which could only be tested by fault injection in a scratch copy, because the failure it handled was
 unreachable — is gone. `to_json` / `to_json_pretty` return `String` (§5 below shows the 2.x `Result<String, String>` signatures as
 annotated history); serialising a `WorkbookDiff` cannot fail (no maps or sets in the shape, every `Serialize` derived, non-finite
@@ -70,7 +70,7 @@ pub mod output {
 > error type is not changed here. (`render_unified` also differs from this sketch: it
 > takes no `UnifiedOutputOptions`.)
 >
-> **Corrected M10 unit 09 (unreleased):** the error type *was* changed, in 3.0.0: both functions now return `String`. The
+> **Corrected M10 unit 09 (3.0.0):** the error type *was* changed, in 3.0.0: both functions now return `String`. The
 > `Result<String, String>` shown above is the 2.x signature, kept as history.
 
 CLI examples:

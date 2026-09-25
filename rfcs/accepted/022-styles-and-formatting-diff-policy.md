@@ -2,7 +2,7 @@
 
 **Status.** Accepted — design settled; implementation incomplete as of 2.2.3. See ../README.md.
 
-**Note added M10 unit 06 (unreleased):** the public surface this RFC specified in §6 — `FormatCompareMode` and
+**Note added M10 unit 06 (3.0.0):** the public surface this RFC specified in §6 — `FormatCompareMode` and
 `ComparisonOptions::format` — was **removed in 3.0.0**, because `comparison.format` was read in exactly one place,
 `validate()`, to reject everything but `Ignore`: a public option whose only usable setting was the one a caller got by
 not setting it (and `NumberFormatOnly` / `AllAvailable` could only fail). Removal, not a single-variant reservation

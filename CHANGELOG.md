@@ -1,6 +1,35 @@
 # Changelog
 
-## [Unreleased]
+## [3.0.0] - 2026-09-26
+
+**Major release: a correction, not new capability. 3.0.0 removes and renames API that
+described behaviour the engine does not have, and adds nothing except two builder setters that
+close gaps.** A caller upgrading gets no new feature; they get an API that stops claiming things
+that were never true. Every defect in it was found by us, in readiness reviews and while scoping
+the work; no user reported any of them.
+
+**Two changes need action from every caller they affect.**
+
+1. **The options structs are `#[non_exhaustive]`, so struct-literal construction no longer
+   compiles — including `..Default::default()`.** This is the pattern our own API guide showed
+   (`Limits { max_sheets: Some(50), ..Limits::default() }`) and a test pinned as a compatibility
+   promise, so anyone who followed the guide is affected. Use the builder, or `Default::default()`
+   and assign the fields. `CellAddress` and `ComparedRange` are marked the same way.
+2. **`to_json` and `to_json_pretty` return `String`, not a `Result`.** Delete the `?` or
+   `.unwrap()`.
+
+**What the break buys.** You pay once; in exchange, every option added after 3.0.0 — including the
+return of one of those removed here — is an added field and not a breaking change.
+
+**The rest are removals**, nine of them, of values nothing produced, options that could only
+fail, and names that duplicated another. Each has a row in the
+2.6.0 → 3.0 migration guide (`docs/src/migration/v2-to-v3.md`), which also says what did not change:
+which cells differ and which sheets pair, the six `compare_*` entry points, and the CLI's exit codes
+are as they were. Some changes do not stop your code compiling, so they need a look if you match on
+diagnostic code strings, consume `--format json` or parse the CLI's summary line: the four removed
+code strings simply stop matching; in the JSON the `reason` string on a rename, the `errors` count,
+`location` on some diagnostics and `metrics.cells_read` on some results change; and the summary
+line loses its `N error(s)` half.
 
 ### Added
 
@@ -95,8 +124,9 @@
     number is a separate question. The threat model's *Sheet reading* section records all of this.
 
 - **The options structs are `#[non_exhaustive]`: one break now, in exchange for every future option being additive.**
-  Every *result* struct has always been `#[non_exhaustive]` (`WorkbookDiff`, `SheetDiff`, `CellDiff`, `DiffSummary`,
-  `DiffMetrics`, `Diagnostic`, `DiagnosticLocation`, `SheetRef`); the *options* structs — `DiffOptions`,
+  Every *top-level* result struct was already `#[non_exhaustive]` (`WorkbookDiff`, `SheetDiff`, `CellDiff`,
+  `DiffSummary`, `DiffMetrics`, `Diagnostic`, `DiagnosticLocation`, `SheetRef`) — though not every type
+  reachable from one, which is why `CellAddress` and `ComparedRange` are marked below; the *options* structs — `DiffOptions`,
   `ComparisonOptions`, `ValueCompareOptions`, `MatchingOptions`, `Limits`, `ExecutionOptions`, `DiagnosticOptions`,
   `OutputOptions` — were not, so a caller could write a struct literal naming every field and **any new option broke
   that code**. That was an oversight, not a decision, and it could only be fixed at a major. **After this, adding an option

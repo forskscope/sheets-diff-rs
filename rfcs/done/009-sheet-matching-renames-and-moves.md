@@ -2,7 +2,7 @@
 
 **Status.** Implemented (2.0.0–2.2.3) — verified 2026-08-16 against the implementation.
 
-**Corrected M10 unit 01 (unreleased):** §6 describes a matcher that, for the one-removed /
+**Corrected M10 unit 01 (3.0.0):** §6 describes a matcher that, for the one-removed /
 one-added case, "compare[s] metadata and optionally sample[s] content" and scores
 `index_similarity + dimension_similarity + sampled_content_similarity`. **None of that was
 implemented, and the Status above does not say so.** The matcher inspects no cell content and
@@ -65,7 +65,7 @@ pub enum SheetMatchingMode {
 
 ## 6. Internal design
 
-> **Corrected M10 unit 01 (3.0.0, unreleased): this section describes an
+> **Corrected M10 unit 01 (3.0.0): this section describes an
 > approach that was never built.** No scoring function exists; `grep` across
 > `src/` finds zero occurrences of `index_similarity`, `dimension_similarity`
 > or `sampled_content_similarity`, and `src/matcher.rs` mentions neither
@@ -132,7 +132,7 @@ Acceptance criteria:
 
 - Exact same-name sheets match.
 - One renamed sheet with same content is detected as renamed.
-  - **Annotated M10 unit 01 (3.0.0, unreleased): this passes, and it does not
+  - **Annotated M10 unit 01 (3.0.0): this passes, and it does not
     test what it reads as testing.** The matcher pairs **any** sole remaining
     unmatched sheet on each side as a rename, whether or not the content
     matches — see §6's correction. A fixture whose content *differs* would

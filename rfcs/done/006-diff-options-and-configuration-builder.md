@@ -2,7 +2,7 @@
 
 **Status.** Implemented (2.0.0–2.2.3) — verified 2026-08-16 against the implementation.
 
-**Note added M10 unit 08 (unreleased): the options tree is extensible, and a new option is additive from 3.0.0 on.**
+**Note added M10 unit 08 (3.0.0): the options tree is extensible, and a new option is additive from 3.0.0 on.**
 All eight options structs — `DiffOptions`, `ComparisonOptions`, `ValueCompareOptions`, `MatchingOptions`, `Limits`,
 `ExecutionOptions`, `DiagnosticOptions`, `OutputOptions` — are `#[non_exhaustive]`, exactly as every result struct always
 was. **An author planning a new option can add a field without a breaking change**: the builder gets a setter (the
@@ -13,7 +13,7 @@ a formula normaliser each risked waiting for a major. Callers build options with
 and field assignment; **`..Default::default()` is not available from outside the crate** (functional update is a struct
 expression, rejected exactly as a full literal is).
 
-**Note added M10 unit 03 (unreleased):** the `DiffOptions` struct in §5 (`formula_comparison`,
+**Note added M10 unit 03 (3.0.0):** the `DiffOptions` struct in §5 (`formula_comparison`,
 `value_comparison`, `bounds`, …) is the pre-implementation *sketch*; the implemented option tree is
 RFC-033 §11's (`comparison`, `matching`, `limits`, `execution`, `diagnostics`, `output`), and that section is
 authoritative for it, including the builder's final coverage and naming rule. The builder this RFC calls for

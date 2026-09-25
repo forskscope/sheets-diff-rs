@@ -583,7 +583,7 @@ The ForskScope letter goes out after the final stable release and will have to
 **There is no planned 2.7.0.** *(Corrected 2026-09-25.)* One was scheduled in
 `01b0579` — the commit *before* RFC-037 — for "M9's observable half", and then
 carried forward unexamined once the owner decided to go straight to a major. The
-owner caught it. **3.0.0 is the next release.**
+owner caught it. **3.0.0 followed 2.6.0 directly.**
 
 Two reasons, and the second is the better one:
 

@@ -168,7 +168,7 @@ single dimension has its own method (`.max_sheets(50)`, `.max_cells_read(Some(..
 
 **Building options: the builder, or `Default` and assignment — not a struct literal.** Every options struct
 (`DiffOptions`, `ComparisonOptions`, `ValueCompareOptions`, `MatchingOptions`, `Limits`, `ExecutionOptions`,
-`DiagnosticOptions`, `OutputOptions`) is `#[non_exhaustive]`, like the result types. That is a deliberate trade: **a
+`DiagnosticOptions`, `OutputOptions`) is `#[non_exhaustive]`, as the result types are. That is a deliberate trade: **a
 future option is an added field, and adding a field is not a breaking change** — but a struct expression naming one
 does not compile from outside the crate, **including with `..Default::default()`**. Fields are still public: read them,
 and assign them.

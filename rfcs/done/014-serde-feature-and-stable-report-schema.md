@@ -7,7 +7,7 @@ the same path". The CLI had no JSON output until M8 unit 03, so that was unmet f
 2.0.0 through 2.5.1 and this Status did not say so. It is met now, through `to_json_pretty`.
 The schema stability policy this RFC calls for is stated in RFC-013 §11: stable within 2.x,
 additive in minors.
-**Corrected M10 unit 09 (unreleased):** `to_json` / `to_json_pretty` returned `Result<String, String>` — the only `String` error in the
+**Corrected M10 unit 09 (3.0.0):** `to_json` / `to_json_pretty` returned `Result<String, String>` — the only `String` error in the
 crate and a `Result` that could not be `Err` — through 2.6.0. From 3.0.0 they return `String`: the serialised shape has no maps or
 sets, every `Serialize` is derived, and non-finite floats serialise as `null`. The functions' docs state the four conditions and that a
 future model field that broke one would restore the need for a `Result`; `tests/json_infallible.rs` checks the conditions that can be
