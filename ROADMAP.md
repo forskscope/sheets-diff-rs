@@ -518,6 +518,18 @@ per-side count, and `confidence` stops claiming `Exact`. Pairing keyless rows
 positionally — ForskScope's suggestion, and better — is a quality change that
 needs a design and follows separately.
 
+### Alignment follow-ups — 🔄 **RECORDED 2026-09-26** *(no release yet)*
+
+From ForskScope's measurements of 2026-09-26. Recorded so the answers given in
+our reply are scheduled rather than promised.
+
+| Item | State |
+|---|---|
+| **Alignment is not cancellable.** `grep -c check_cancel src/align.rs` → 0. 2.5.1 made the *read* cancellable and left this phase; a cancel requested 100 ms into a 1.2 s alignment is observed at 1,208 ms. **Accepted** in the reply; the LCS loop is the natural place. | To schedule |
+| **Keyless rows compared positionally against their neighbours**, rather than reported as removed/inserted. ForskScope's suggestion; the quality half of f130, which ships correctness only. Needs a design: which neighbour, and what happens when the per-side counts differ. | To design |
+| **O((m+n)·D) alignment** in place of O(m·n) LCS. Internal only — same `RowMapping` out, no API surface. Their figures: 3.7 bytes and 48 ns per `m × n` cell; `max_alignment_product` (25M) bites at ~5,000 rows; 10,000 rows is 4.9 s and 465 MB. **Direction accepted, RFC-gated, no date** — degenerates toward O(m·n) at large D, so the bound stays as a guard. | RFC first |
+| **Row space on `CellDiff`.** A matched or removed row is numbered in the old sheet's space, an inserted one in the new; `CellDiff` carries an address and nothing saying which. Additive (`#[non_exhaustive]`), so a minor. **The naming is the hard part** — the field means *which file's row numbering this address uses*, not *which file the cell is in*. | RFC first |
+
 ### M9 — "Reaching the code, and a record that agrees with itself" — 🔄 **OPEN 2026-09-26** *(no release)*
 
 Handoffs: [`rfcs/handoffs/m9-reaching-the-code/`](rfcs/handoffs/m9-reaching-the-code/README.md).
