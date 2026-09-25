@@ -1,6 +1,19 @@
 # RFC-011: Row/Column Alignment Optional Quality Mode
 
 **Status.** Implemented (2.0.0–2.2.3) — verified 2026-08-16 against the implementation.
+
+**Corrected M10 unit 06 (unreleased):** the Status covers the **row half only**, and the Status word stays.
+§3's goal *"design column alignment based on header names or column signatures"* was **never
+implemented**: there is no column alignment anywhere in this crate (`RowMapping` is the only mapping type).
+§5's `HeaderColumn` variant *looked* like it was — `header_column_alignment` delegated to
+`row_key_alignment` with `columns = [1]` and **never read a header**, i.e. it was exactly
+`RowKey { columns: vec![1] }` — and §5's `RowAndColumn` variant never existed at all. `HeaderColumn` was removed
+in 3.0.0 (migration: `RowKey { columns: vec![1] }`, proved equal by `tests/rowkey_replaces_header_column.rs`).
+Why the Status word is unchanged: the unit-01 distinction applies. Column alignment is a §3 *design goal*;
+§9's acceptance criteria — the contract — are all about row alignment (insert a row at the top; duplicate
+keys detected; positional unchanged; cancellable) and pass. An RFC whose acceptance criteria are met is
+implemented; a goal never built is a stale paragraph, not a broken promise. Column alignment remains open
+work, and adding it later is an added variant on a `#[non_exhaustive]` enum.
 **Target:** v2.1 candidate, optional v2.0 if ready  
 **Created:** 2026-06-11  
 **Category:** Diff quality  

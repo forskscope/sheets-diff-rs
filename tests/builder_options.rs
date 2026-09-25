@@ -111,11 +111,6 @@ fn a_builder_configured_comparison_equals_a_field_configured_one() {
             Some(Severity::Warning),
         ),
         (
-            "dup key, >= Error",
-            duplicate_key_pair(),
-            Some(Severity::Error),
-        ),
-        (
             "shifted rows, >= Warning",
             shifted_pair(),
             Some(Severity::Warning),
@@ -136,12 +131,12 @@ fn a_builder_configured_comparison_equals_a_field_configured_one() {
     let positional = compare_bytes(&old, &new).unwrap();
     assert_ne!(keyed, positional, "RowKey must change the result");
 
-    // Non-vacuity 2: `min_severity` is doing something — the filter changes the
-    // result on the duplicate-key pair, where a Warning exists to be dropped.
-    let (old, new) = duplicate_key_pair();
+    // Non-vacuity 2: `min_severity` is doing something — `Some(Warning)` drops the `Info` diagnostics of a
+    // comparison that has them (there are only two severities, so `Warning` is the highest filter).
+    let (old, new) = numeric_pair();
     let kept = compare_bytes_with_options(&old, &new, by_builder(row_key(), None)).unwrap();
     let dropped =
-        compare_bytes_with_options(&old, &new, by_builder(row_key(), Some(Severity::Error)))
+        compare_bytes_with_options(&old, &new, by_builder(row_key(), Some(Severity::Warning)))
             .unwrap();
     assert_ne!(kept, dropped, "min_severity must change the result");
     assert!(diagnostic_count(&kept) > diagnostic_count(&dropped));
@@ -172,7 +167,7 @@ fn min_severity_none_undoes_an_earlier_filter() {
     // e.g. when layering options over a base configuration.
     let (old, new) = numeric_pair();
     let opts = DiffOptions::builder()
-        .min_severity(Some(Severity::Error))
+        .min_severity(Some(Severity::Warning))
         .min_severity(None)
         .build()
         .unwrap();

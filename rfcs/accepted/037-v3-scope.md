@@ -294,12 +294,33 @@ so a caller may write `ComparisonOptions { value, formula, … }`.
 
 **Therefore every option this crate ever adds is a breaking change, while every
 result field it adds is additive.** That asymmetry is not a decision anyone
-made; the results got it right and the options were overlooked. It is invisible
+made; the options were overlooked.
+
+**Corrected 2026-09-25 (unit 08, at review).** This paragraph said *"the results
+got it right"*. That was a scan of the eight structs in `model.rs`, not of the
+crate, and it is **not true as written**: `address::CellAddress` and
+`address::ComparedRange` are public, have public fields, and are not
+`#[non_exhaustive]` — and `ComparedRange` is reachable as
+`SheetDiff::compared_range`, a **result** field. Six more in `output::view` have
+the same shape. The decision below is unaffected — the options tree still had to
+be fixed — but the remaining problem is larger than one family. It is invisible
 in the API surface, it can only be fixed at a major, and left alone it taxes
 every future release — RFC-011's column alignment, RFC-022's formatting, a
 formula normaliser: each one adds an option.
 
-**Add `#[non_exhaustive]` to all eight.** Two consequences, both to be stated:
+**Add `#[non_exhaustive]` to all eight.**
+
+**The migration path is the builder, or `Default::default()` followed by field
+assignment — not `..Default::default()`.** Functional update is a struct
+expression, which `#[non_exhaustive]` rejects from another crate (`E0639`),
+base or no base. An earlier draft of this section and of unit 08's handoff said
+otherwise; both were wrong about Rust, and the error was found because a
+**documented 2.x pattern** — `Limits { max_sheets: Some(50), ..Limits::default() }`,
+shown in the API guide and pinned by a compatibility test — stopped compiling.
+That makes it the one break in this milestone we actively told callers to rely
+on, and the migration guide must lead with it.
+
+Two consequences, both to be stated:
 
 - Callers constructing options by struct literal move to
   `DiffOptions::builder()` or `..Default::default()`. The builder covers all

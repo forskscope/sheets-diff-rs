@@ -159,14 +159,33 @@ above. If you built a threat model or an operating posture on it, re-check it
 against them; the values `hardened()` sets have not changed.
 
 Every other builder method configures comparison *behaviour*, not
-resource bounds — `.formula_compare`, `.format_compare`, `.number_compare_policy`,
+resource bounds — `.formula_compare`, `.number_compare_policy`,
 `.date_compare_policy`, `.sheet_matching`, `.alignment`, `.min_severity`, and others; see
 [`DiffOptionsBuilder`]'s own documentation for the full list. **Every option has a builder
-method of its own.** `.limits(Limits { .. })` also accepts a
-hand-built `Limits` value via struct-update syntax
-(`Limits { max_sheets: Some(50), ..Limits::default() }`) for bounding several
-dimensions at once without adopting `hardened()`'s full preset; a single dimension has its own
-method (`.max_sheets(50)`, `.max_cells_read(Some(..))`, …).
+method of its own.** `.limits(..)` also accepts a whole `Limits` value — `Limits::hardened()`, or one you
+built with `Limits::default()` and assigned (`let mut l = Limits::default(); l.max_sheets = Some(50);`) — but a
+single dimension has its own method (`.max_sheets(50)`, `.max_cells_read(Some(..))`, …), and that is usually what you want.
+
+**Building options: the builder, or `Default` and assignment — not a struct literal.** Every options struct
+(`DiffOptions`, `ComparisonOptions`, `ValueCompareOptions`, `MatchingOptions`, `Limits`, `ExecutionOptions`,
+`DiagnosticOptions`, `OutputOptions`) is `#[non_exhaustive]`, like the result types. That is a deliberate trade: **a
+future option is an added field, and adding a field is not a breaking change** — but a struct expression naming one
+does not compile from outside the crate, **including with `..Default::default()`**. Fields are still public: read them,
+and assign them.
+
+```rust
+use sheets_diff::{DiffOptions, Limits};
+
+// The builder covers every option:
+let a = DiffOptions::builder().max_sheets(50).max_cells_read(Some(1_000_000)).build()?;
+
+// Or Default plus assignment (what replaces a struct literal):
+let mut b = DiffOptions::default();
+b.limits.max_sheets = Some(50);
+b.limits.max_cells_read = Some(1_000_000);
+# let _ = (a, b, Limits::hardened());
+# Ok::<(), sheets_diff::SheetsDiffError>(())
+```
 
 [`DiffOptionsBuilder`]: https://docs.rs/sheets-diff/latest/sheets_diff/struct.DiffOptionsBuilder.html
 
@@ -243,9 +262,8 @@ Every entry point returns `Result<WorkbookDiff, SheetsDiffError>`. An
 example that only `unwrap()`s — as every example above does, for brevity —
 teaches the wrong habit for code embedding this crate somewhere a panic is
 not acceptable (a GUI, a long-running service). `SheetsDiffError` is
-`#[non_exhaustive]` with eight variants (`OpenWorkbook`, `ReadSheet`,
-`UnsupportedFormat`, `EncryptedWorkbook`, `InvalidOptions`, `Cancelled`,
-`LimitExceeded`, `Internal`) — matching them individually is optional; the
+`#[non_exhaustive]` with six variants (`OpenWorkbook`, `ReadSheet`,
+`EncryptedWorkbook`, `InvalidOptions`, `Cancelled`, `LimitExceeded`) — matching them individually is optional; the
 `Display` impl and `Error::source()` are always available, and
 diagnostics carry a stable `code()` for programmatic matching (this
 crate's own GUI-embedding consumer's adapter matches on it):

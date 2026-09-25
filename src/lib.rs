@@ -61,6 +61,11 @@ pub mod model;
 /// Comparison options and builder (`DiffOptions`, `DiffOptionsBuilder`, …).
 pub mod options;
 
+// The options coverage audit destructures the options structs exhaustively, which `#[non_exhaustive]`
+// forbids from any other crate — so it lives here. See its module comment.
+#[cfg(test)]
+mod builder_coverage;
+
 /// Output formatters (text summary, unified diff).
 pub mod output;
 
@@ -88,7 +93,7 @@ pub use address::{CellAddress, ComparedRange, MAX_COL, MAX_COL_LABEL, MAX_ROW};
 pub use objects::ObjectCompareMode;
 pub use options::{
     AlignmentMode, Cancellation, ComparisonOptions, DateComparePolicy, DiagnosticOptions,
-    DiffEvent, DiffOptions, DiffOptionsBuilder, ExecutionMode, ExecutionOptions, FormatCompareMode,
+    DiffEvent, DiffOptions, DiffOptionsBuilder, ExecutionMode, ExecutionOptions,
     FormulaCompareMode, Limits, MatchingOptions, NumberComparePolicy, NumericTypePolicy,
     OutputOptions, ProgressSink, SheetMatchingMode, TypeMismatchPolicy, ValueCompareOptions,
 };

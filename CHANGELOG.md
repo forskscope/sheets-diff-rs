@@ -94,6 +94,32 @@
     refused exactly as before. `hardened()`'s value, 5,000,000, is unchanged; whether it is still the right
     number is a separate question. The threat model's *Sheet reading* section records all of this.
 
+- **The options structs are `#[non_exhaustive]`: one break now, in exchange for every future option being additive.**
+  Every *result* struct has always been `#[non_exhaustive]` (`WorkbookDiff`, `SheetDiff`, `CellDiff`, `DiffSummary`,
+  `DiffMetrics`, `Diagnostic`, `DiagnosticLocation`, `SheetRef`); the *options* structs — `DiffOptions`,
+  `ComparisonOptions`, `ValueCompareOptions`, `MatchingOptions`, `Limits`, `ExecutionOptions`, `DiagnosticOptions`,
+  `OutputOptions` — were not, so a caller could write a struct literal naming every field and **any new option broke
+  that code**. That was an oversight, not a decision, and it could only be fixed at a major. **After this, adding an option
+  to any of them is an added field and not a breaking change**, and so is bringing back one of the options 3.0.0 removed
+  (RFC-022's format comparison, a formula normaliser, column alignment). You pay once, here. Fields stay `pub`: reading and
+  assigning them from your own code works exactly as before — only *constructing* by struct expression is rejected.
+  **Migration.** A struct literal, or struct-update syntax, no longer compiles:
+  ```rust
+  // 2.x — does not compile in 3.0 (error[E0639]: cannot create non-exhaustive struct using struct expression)
+  let limits = Limits { max_sheets: Some(50), ..Limits::default() };
+  ```
+  Use the builder, which covers every option, or `Default` followed by assignment:
+  ```rust
+  let opts = DiffOptions::builder().max_sheets(50).build()?;          // preferred
+  let mut limits = Limits::default();                                  // or: Default, then assign
+  limits.max_sheets = Some(50);
+  ```
+  **`..Default::default()` is not a substitute** — functional update is itself a struct expression, and is rejected from
+  outside the crate exactly as a full literal is. This applies to all eight structs, and to `Limits { .. }` in particular,
+  which the API guide used to show. The same change is why `ComparisonOptions { .. }` construction had to break in this
+  release anyway (see the format-option removal). Inside your own code nothing else changes: `Default`, every field, every
+  setter and the builder are as they were.
+
 ### Removed
 
 - **`SheetMatchReason::ExactName`, `::ContentSimilarity` and `::IndexAndContent`.**
@@ -141,6 +167,58 @@
   **Migration:** chain the two setters — `.sheet_matching(m).alignment(a).build()` — which replaces
   `build_with_matching(MatchingOptions { sheet_matching: m, alignment: a })` and keeps both, in either
   order. (If you only ever set the alignment, `.alignment(a).build()` suffices.)
+
+- **Four comparison settings that could only fail, and the option that could only hold its default.**
+  `DiffOptions::validate()` rejected all four unconditionally, so a caller who selected one received
+  `Err(InvalidOptions)` and nothing else:
+  - `FormulaCompareMode::NormalizedText` and `::RawAndNormalized` — the first's documentation promised "a
+    normaliser feature"; there is no such feature and none is planned. `FormulaCompareMode` keeps `RawText` and
+    `Ignore`, which work.
+  - `FormatCompareMode::NumberFormatOnly` and `::AllAvailable` — and, with them, **the whole
+    `FormatCompareMode` enum, `ComparisonOptions::format` and `DiffOptionsBuilder::format_compare`**.
+    `comparison.format` was read in exactly one place, `validate()`, to reject everything but `Ignore`: a public
+    option whose only usable setting was the one you get by not setting it. A single-variant
+    `FormatCompareMode { Ignore }` would have preserved that, so it goes. RFC-022 (styles and formatting) is not
+    withdrawn; when it is implemented the option returns, and — because the options structs become
+    `#[non_exhaustive]` in this same release — **adding it back will not be a breaking change**.
+
+  **Nothing to migrate to:** a caller who set any of these was already receiving an error. Remove the call.
+  **Three breaks, and they are separate.** Naming a removed variant, `FormatCompareMode` or `format_compare` no
+  longer compiles (the intended signal). **Constructing `ComparisonOptions` with a struct literal no longer
+  compiles**, because a field is gone — unavoidable here, and the last time for options: see the options-structs
+  entry. And `validate()` now has nothing left to reject, so **no combination of options is currently invalid**
+  and `build()` cannot fail today; it still returns a `Result`, and `SheetsDiffError::InvalidOptions` remains, for
+  the next option that can be set to something unusable.
+- **`AlignmentMode::HeaderColumn`.** It was `RowKey { columns: vec![1] }` under another name:
+  `header_column_alignment` delegated to `row_key_alignment` with `columns = [1]` and never read a header, and its
+  name promised column identity from header names — there is no column alignment anywhere in this crate.
+  **Migration, exact:** replace `AlignmentMode::HeaderColumn` with `AlignmentMode::RowKey { columns: vec![1] }`.
+  The result is identical (proved on five comparisons where alignment changes the outcome, against the recorded
+  output of the removed mode). Column alignment was a design goal of RFC-011 that was never built; RFC-011's Status
+  now says so, and the goal remains open.
+
+- **`Severity::Error`, and the error count that could only ever be zero.** No diagnostic the engine produces is
+  an error — every push site emits `Info` or `Warning`, because a condition that stops a comparison is a
+  `SheetsDiffError` and produces no result (RFC-005's two-tier model). So `render_summary`'s line
+  `diagnostics: N error(s), M warning(s)` printed an `N` that was 0 on every run for every workbook, and a reader could
+  fairly infer that errors are possible and they got lucky. Removed: `Severity::Error`, `DiagnosticSummary::errors`,
+  the `"ERROR"` prefix in the unified renderer, and the `N error(s)` half of the line. **Serialised surface changes**
+  (`--format json` shipped in 2.6.0): `summary.diagnostics` loses `errors` — `{"errors": 0, "warnings": 2, "info": 5}`
+  becomes `{"warnings": 2, "info": 5}`; a consumer reading `errors` was reading a constant. **The CLI's summary line
+  changes shape**, for anyone parsing it: `diagnostics: 0 error(s), 2 warning(s)` becomes `diagnostics: 2 warning(s)`,
+  and, as before, the line is absent when there are no warnings. Rust callers: `Severity::Error` and `.errors` no longer
+  compile; a `match` on `Severity` with only `Info`/`Warning`/`Error` arms loses the `Error` arm; `Severity::Info <
+  Severity::Warning` still holds, so `min_severity`'s `>=` is unchanged. `Severity` and `DiagnosticSummary` are
+  `#[non_exhaustive]`, so adding a level or a count later is not a break — but "error" would contradict the model.
+- **Three error values nothing constructed:** `SheetsDiffError::UnsupportedFormat`, `SheetsDiffError::Internal` and
+  `OpenErrorKind::Locked`. `UnsupportedFormat` duplicated `OpenWorkbook { kind: NotXlsx }`, which is what a
+  non-`.xlsx` file actually produces; `Internal` was an escape hatch for our own bugs that was never needed
+  (`SheetsDiffError` is `#[non_exhaustive]`, so re-adding is not a break); `Locked` names a real condition — a file
+  held open by Excel — that this crate never detected (it needs raw per-platform OS error codes, which is a feature)
+  and reports as a permission error or `Other`. **No exit code changes**: a non-`.xlsx` file still exits 3 (via
+  `NotXlsx`), a missing file 2, a corrupt or encrypted workbook 3 — the removed arms could not have been reached.
+  A `match` naming a removed variant no longer compiles; **a `_` arm you already had now also covers nothing more**, so
+  nothing silently changes meaning.
 
 ### Documentation
 

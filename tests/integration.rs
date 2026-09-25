@@ -472,16 +472,32 @@ fn max_sheets_limit_triggers() {
     ));
 }
 
+/// No combination of options is invalid today (`validate()` has no arm left), so every mode of the
+/// one option that used to have unusable settings builds. M10 unit 06 removed the settings that could
+/// only fail; what remains is asserted usable, in both modes.
 #[test]
-fn invalid_option_rejected_before_io() {
+fn every_remaining_formula_compare_mode_builds_and_is_honoured() {
     use sheets_diff::FormulaCompareMode;
-    let result = DiffOptions::builder()
-        .formula_compare(FormulaCompareMode::NormalizedText)
-        .build();
-    assert!(matches!(
-        result,
-        Err(SheetsDiffError::InvalidOptions { .. })
-    ));
+    let build = |f: &str| {
+        let mut wb = Workbook::new();
+        let ws = wb.add_worksheet();
+        ws.write_string(0, 0, "a").unwrap();
+        ws.write_formula(5, 3, rust_xlsxwriter::Formula::new(f).set_result("2"))
+            .unwrap();
+        wb.save_to_buffer().unwrap()
+    };
+    let (old, new) = (build("=1+1"), build("=2*1"));
+    for (mode, formulas_changed) in [
+        (FormulaCompareMode::RawText, 1),
+        (FormulaCompareMode::Ignore, 0),
+    ] {
+        let opts = DiffOptions::builder()
+            .formula_compare(mode)
+            .build()
+            .unwrap();
+        let d = compare_bytes_with_options(&old, &new, opts).unwrap();
+        assert_eq!(d.summary.formulas_changed, formulas_changed, "{mode:?}");
+    }
 }
 
 // ============================================================================
@@ -1153,16 +1169,13 @@ fn default_limits_bound_alignment_and_input_but_not_linear_paths() {
 }
 
 #[test]
-fn limits_struct_update_syntax_still_compiles() {
-    // The pre-existing `Limits { field: ..., ..Limits::default() }`
-    // construction pattern must keep working now that `Limits` no longer
-    // derives `Default` (it has a manual impl instead, since two fields
-    // default to `Some` rather than `None`).
+fn limits_are_configured_by_default_plus_assignment() {
+    // Through 2.6.0 this pinned `Limits { field: ..., ..Limits::default() }`. `Limits` is `#[non_exhaustive]`
+    // since 3.0.0, so from outside the crate a struct expression — including that functional update — does not
+    // compile (`E0639`). `Default` plus field assignment does, and keeps the two `Some` defaults.
     use sheets_diff::Limits;
-    let limits = Limits {
-        max_sheets: Some(10),
-        ..Limits::default()
-    };
+    let mut limits = Limits::default();
+    limits.max_sheets = Some(10);
     assert_eq!(limits.max_sheets, Some(10));
     assert!(limits.max_alignment_product.is_some());
     assert!(limits.max_input_bytes.is_some());
@@ -1408,22 +1421,6 @@ fn diff_view_sheet_summary() {
     assert_eq!(sheets[0].name, "S1");
     assert_eq!(sheets[0].cells_changed, 1);
     assert_eq!(sheets[1].cells_changed, 0);
-}
-
-// ============================================================================
-// v2.1 — RFC-022 format mode validation
-// ============================================================================
-
-#[test]
-fn format_compare_non_ignore_returns_invalid_options() {
-    use sheets_diff::{DiffOptions, FormatCompareMode, SheetsDiffError};
-    let result = DiffOptions::builder()
-        .format_compare(FormatCompareMode::NumberFormatOnly)
-        .build();
-    assert!(matches!(
-        result,
-        Err(SheetsDiffError::InvalidOptions { .. })
-    ));
 }
 
 // ============================================================================
@@ -2185,15 +2182,17 @@ fn alignment_header_column_fixture_reduces_cascade() {
     let positional = compare_bytes(&old, &new).unwrap();
     assert_eq!(positional.summary.cells_changed, 8);
 
-    // HeaderColumn had never been exercised by any test before this fixture.
+    // Header row plus data rows, one row inserted, matched on the first column. (Through 2.6.0 this
+    // used `AlignmentMode::HeaderColumn`, which was `RowKey { columns: vec![1] }` under another name;
+    // `tests/rowkey_replaces_header_column.rs` proves the equivalence.)
     let opts = DiffOptions::builder()
-        .alignment(AlignmentMode::HeaderColumn)
+        .alignment(AlignmentMode::RowKey { columns: vec![1] })
         .build()
         .unwrap();
     let aligned = compare_bytes_with_options(&old, &new, opts).unwrap();
     assert!(
         aligned.summary.cells_changed < positional.summary.cells_changed,
-        "HeaderColumn alignment should report far fewer changes than the \
+        "RowKey{{[1]}} alignment should report far fewer changes than the \
          positional cascade: aligned={}, positional={}",
         aligned.summary.cells_changed,
         positional.summary.cells_changed

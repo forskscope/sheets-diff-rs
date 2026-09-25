@@ -23,7 +23,7 @@ use calamine::{Reader, Xlsx};
 use rust_xlsxwriter::Workbook;
 use sheets_diff::options::AlignmentMode;
 use sheets_diff::{
-    DiffOptions, LimitKind, Limits, SheetsDiffError, WorkbookDiff, compare_bytes,
+    DiffOptions, LimitKind, SheetsDiffError, WorkbookDiff, compare_bytes,
     compare_bytes_with_options,
 };
 
@@ -193,10 +193,7 @@ fn stray(tag: &str) -> Vec<u8> {
 
 fn bounded(n: u64) -> DiffOptions {
     DiffOptions::builder()
-        .limits(Limits {
-            max_cells_read: Some(n),
-            ..Limits::default()
-        })
+        .max_cells_read(Some(n))
         .build()
         .unwrap()
 }
@@ -332,7 +329,6 @@ fn cells_read_is_never_less_than_cells_compared() {
                 sample_columns: None,
             },
         ),
-        ("header column", AlignmentMode::HeaderColumn),
     ] {
         let opts = DiffOptions::builder().alignment(mode).build().unwrap();
         cases.push((

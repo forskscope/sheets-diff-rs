@@ -129,7 +129,9 @@ sheet, matched on a stable id column), two alignment modes:
 **Confirmed linear, not superlinear** — bytes/row is within 0.1% between a
 10x change in row count, and the percentage overhead is stable (~33%). This
 is a real, moderate, and *avoidable-by-default* cost: it is paid only by
-callers who opt into `RowKey`, `RowSignature`, or `HeaderColumn` alignment.
+callers who opt into `RowKey` or `RowSignature` alignment. (Through 2.6.0 there was a third mode,
+`HeaderColumn`; it was `RowKey` on column 1 under another name and was removed in 3.0.0, so its cost
+was `RowKey`'s.)
 `Positional` callers — the default — never pay it.
 
 *(An earlier attempt at this measurement keyed `RowKey` on the wrong column

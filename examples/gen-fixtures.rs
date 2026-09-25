@@ -591,8 +591,9 @@ fn main() {
         println!("✓ alignment_row_signature");
     }
 
-    // 12. HeaderColumn alignment — header row plus data rows, one inserted.
-    //     Zero test coverage before this scenario.
+    // 12. Row-key alignment on the first column — header row plus data rows, one inserted.
+    //     (Through 2.6.0 this covered `AlignmentMode::HeaderColumn`, which was `RowKey { columns: vec![1] }`
+    //     under another name and was removed in 3.0.0; the scenario keeps its name.)
     {
         let dir = base.join("alignment_header_column");
         let old = {
@@ -624,9 +625,10 @@ fn main() {
             &dir,
             "alignment_header_column",
             "regression",
-            "Header row plus 3 data rows, one row inserted, matched by \
-             HeaderColumn alignment. HeaderColumn had zero test coverage \
-             before this scenario (RFC-036 #4).",
+            "Header row plus 3 data rows, one row inserted, aligned on the \
+             first column with RowKey { columns: vec![1] }. Through 2.6.0 it \
+             covered AlignmentMode::HeaderColumn, the same alignment under \
+             another name, removed in 3.0.0 (RFC-036 #4).",
         );
         println!("✓ alignment_header_column");
     }

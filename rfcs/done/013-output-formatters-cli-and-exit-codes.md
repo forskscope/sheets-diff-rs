@@ -8,6 +8,13 @@ CLI format that did not exist. It now does (`OutputFormat::Json`, dispatching to
 `to_json_pretty`), and the `cli` feature enables `serde` so that the binary's
 advertised formats do not depend on how it was compiled. §5's names and signature and
 §11's open question are corrected in place below, each annotated with what it said.
+**Corrected M10 unit 07 (unreleased):** the Status above says `exit_code_for` maps `UnsupportedFormat` to 3. It did — and
+`SheetsDiffError::UnsupportedFormat` was **never constructed**, so that arm never ran; a non-`.xlsx` input is
+`OpenWorkbook { kind: NotXlsx }`, which has always mapped to 3, and still does. The variant, and the equally unreachable
+`Internal` arm and `OpenErrorKind::Locked`, were removed in 3.0.0 with **no change to any exit code** (the table is in the M10
+unit 07 review request; the guard is `tests/cli.rs`). **Not touched here, and not made worse:** §5's exit-code list below
+(`4 = cancelled or limit exceeded`, `5 = internal error`) still names codes the CLI never emits — cancellation and limits exit
+2, and there is now no internal-error value at all (there never was a construction site); M8 unit 03 reported this as F-2.
 **Target:** v2.0.0  
 **Created:** 2026-06-11  
 **Category:** Output/CLI  

@@ -215,8 +215,8 @@ side; otherwise Modified.
 `FormulaChange { old: Option<FormulaText>, new: Option<FormulaText> }` —
 `None` in either side means the formula was added or removed.
 `FormulaText { raw: String, normalized: Option<String> }` — `normalized`
-is `None` unless `FormulaCompareMode::NormalizedText` is selected, which it
-currently cannot be (§11 divergence, §13 item 2).
+is always `None`: no formula normaliser exists (M10 unit 06 removed the `NormalizedText` mode that
+would have filled it; §11).
 
 `FormatChange` is a zero-field placeholder, reserved for RFC-022, which
 remains blocked: calamine 0.36 does not expose a cell-style API.
@@ -265,7 +265,7 @@ covered by the `sheet_reordered` corpus scenario.
 
 ```rust
 pub struct Diagnostic {
-    pub severity: Severity,           // Info, Warning, Error
+    pub severity: Severity,           // Info, Warning (no Error: RFC-005's two-tier model; removed M10 unit 07)
     pub kind: DiagnosticKind,
     pub location: DiagnosticLocation, // stage, sheet_order, sheet_name, address
     pub message: String,              // display only, never a matching key
@@ -309,6 +309,10 @@ version. The seven current codes are listed in `model.rs`'s own doc table
 and are not reproduced here to avoid a second copy drifting out of sync —
 that table is the authoritative one.
 
+**`DiagnosticSummary` (M10 unit 07):** `{ warnings, info }` — there is no `errors` count, because a diagnostic is never
+fatal (RFC-005), so it could only ever be zero. `Severity` is `{ Info, Warning }` with `Info < Warning`, on which
+`min_severity`'s `>=` depends. The CLI's summary line is `diagnostics: M warning(s)` (absent when M is 0).
+
 **Public values the engine never produces, and stay (M10 unit 02; decided 2026-09-25, RFC-037
 §3.4).** The rule that separates them from the removals above: a value the *engine* would have to
 produce and never does is a dead arm and goes; a value a *caller* may hand us, or that names a
@@ -329,13 +333,19 @@ documented in `model.rs` / `objects.rs` and pinned by a documentation guard in
 
 **Source:** `src/error.rs`. Governed originally by RFC-005.
 
-`SheetsDiffError` is `#[non_exhaustive]` with eight variants:
+`SheetsDiffError` is `#[non_exhaustive]` with six variants:
 `OpenWorkbook { side, source, kind, inner }`, `ReadSheet { side, sheet,
-kind, inner }`, `UnsupportedFormat { side, detail }`, `EncryptedWorkbook
+kind, inner }`, `EncryptedWorkbook
 { side }`, `InvalidOptions { detail }`, `Cancelled`, `LimitExceeded { limit:
-LimitKind, observed: u64 }`, `Internal { detail }`.
+LimitKind, observed: u64 }`.
 
-`OpenErrorKind { NotFound, PermissionDenied, NotXlsx, Corrupt, Locked,
+**Corrected M10 unit 07 (unreleased):** this lexicon listed eight. `UnsupportedFormat { side, detail }` (a duplicate of
+`OpenWorkbook { kind: NotXlsx }`) and `Internal { detail }` (an escape hatch never needed) were never constructed and were
+removed in 3.0.0, as was `OpenErrorKind::Locked`; `Severity::Error` and `DiagnosticSummary::errors` were removed with them
+(§8; RFC-005 states why an error *severity* cannot exist). **Of the six left, one is also never constructed:**
+`InvalidOptions`, since M10 unit 06 left `validate()` with no arm — kept as the seam for the next option that can be unusable.
+
+`OpenErrorKind { NotFound, PermissionDenied, NotXlsx, Corrupt,
 Other }`; `ReadErrorKind { SheetNotFound, MalformedSheet, Other }`. The
 `calamine::XlsxError` source is preserved behind
 `std::error::Error::source()` (a boxed, opaque `CalamiLineError`) and never
@@ -400,7 +410,7 @@ Constructed via `DiffOptions::default()` or `DiffOptions::builder()` →
 `DiffOptionsBuilder`, a consuming fluent builder whose `.build()` runs
 `DiffOptions::validate()` before returning.
 
-**Builder coverage — final state (M10 unit 03), audited by script and by test.** All **20** leaf
+**Builder coverage — final state (M10 unit 03; 19 leaves after unit 06), audited by script and by test.** All **19** leaf
 options in the tree have a builder method of their own; none depends on a whole-struct setter;
 `DiffOptions`'s doc comment says so without an exception. The history, so the counts are not quoted
 again: before M8 unit 07 the audit found 16 with a method, `alignment` and `max_cells_read` reachable
@@ -412,18 +422,29 @@ redundant `#[allow(dead_code)]` on `AlignmentMode`. Every field is still `pub`, 
 set by assignment. `tests/builder_coverage.rs` sets each leaf through the builder, reads it back, checks
 that each setter changes its own leaf and no other, and fails when an option is added without a setter.
 
+**Extensibility (M10 unit 08, unreleased) — new options are additive from 3.0.0 on.** All eight options structs in this
+tree are `#[non_exhaustive]`, as every result struct always was: an option added to any of them is an added field, not a
+breaking change, and the coverage audit (`src/builder_coverage.rs`, which destructures each struct exhaustively and so
+must live inside the crate) fails to compile until the new option has a builder setter. Through 2.x the options were the
+one part of the public surface that was not extensible — an oversight, not a decision — so every option ever added was a
+break, and RFC-011's column alignment, RFC-022's formatting and a formula normaliser each threatened to wait for 4.0.0.
+Construction from outside the crate is the builder, or `Default::default()` plus field assignment; a struct expression —
+**including `..Default::default()`** — is rejected (`E0639`).
+
 **Naming rule (one sentence).** *A setter for a `…Policy`-typed option is named for its type in
 snake_case — `number_compare_policy`, `numeric_type_policy`, `type_mismatch_policy`, `date_compare_policy` —
 and every other setter already carries the name of its option or its type and keeps it.* It required
 exactly one removal (`number_compare`, which was `number_compare_policy` under a second name) and no
 rename. **Known residue, not fixed here:** the `…Mode`-typed setters do not follow one convention
-(`formula_compare`, `format_compare`, `sheet_matching`, `alignment` drop `Mode`; `object_mode`,
+(`formula_compare`, `sheet_matching`, `alignment` drop `Mode`; `object_mode`,
 `execution_mode` keep it). Making them uniform is a rename of surviving setters — a break each — and was
 not required to settle the duplicate.
 
 `ComparisonOptions { value: ValueCompareOptions, formula:
-FormulaCompareMode, include_formula_cached_values: bool, format:
-FormatCompareMode }`. `ValueCompareOptions { number: NumberComparePolicy,
+FormulaCompareMode, include_formula_cached_values: bool }`
+(`FormulaCompareMode { RawText, Ignore }`; M10 unit 06 removed `format:
+FormatCompareMode` and the two formula modes that could only fail — see the
+note below). `ValueCompareOptions { number: NumberComparePolicy,
 numeric_type: NumericTypePolicy, date: DateComparePolicy, type_mismatch:
 TypeMismatchPolicy }` — the policies described in §4.
 
@@ -432,15 +453,15 @@ AlignmentMode }` (RFC-009, RFC-011) — not itself cited to an RFC-033
 section anywhere in `src/`, included here only because it is a direct
 field of the §11 struct.
 
-**Divergence recorded, not resolved here — see §13, item 2:**
-`validate()` unconditionally rejects `FormulaCompareMode::NormalizedText`
-and `RawAndNormalized` (`InvalidOptions`, "no formula normaliser is
-implemented yet"), and rejects any `FormatCompareMode` other than
-`Ignore`. Both are real, present variants in `#[non_exhaustive]` public
-enums that can be *selected* but never successfully *built*. This is
-documented at the call site, not hidden — but it means part of §11's own
-surface is currently unreachable by construction, same shape as the §2–§3
-divergence.
+**Resolved M10 unit 06 (unreleased) — the §13 item 2 divergence.** `validate()` used to reject
+`FormulaCompareMode::NormalizedText` and `RawAndNormalized` (`InvalidOptions`, "no formula normaliser is
+implemented yet") and any `FormatCompareMode` other than `Ignore`; `comparison.format` was read in exactly one
+place — that rejection. Three settings that could only fail and a field that could only hold its default. All are
+**removed** (`FormulaCompareMode` keeps `RawText` and `Ignore`; `FormatCompareMode` and `ComparisonOptions::format` are
+gone). `validate()` now has **no arm**: no combination of options is invalid today. It stays as the seam a future
+option that can be set to something unusable would use, and `SheetsDiffError::InvalidOptions` stays as what it would
+return — but nothing constructs that variant today (reported in the M10 unit 06 review request). RFC-022's format
+option returns when RFC-022 is implemented, additively (M10 unit 08).
 
 `ExecutionOptions { progress, cancellation, mode: ExecutionMode }` —
 `ExecutionMode` has one variant (`Sequential`); a parallel mode was
@@ -525,12 +546,13 @@ smoothed over in the section text above.
    whether these stay, documented as reserved, or the model shrinks —
    which would be breaking.
 2. **§11: `FormulaCompareMode` and `FormatCompareMode` each have variants
-   that can be selected but never successfully built.** `validate()`
-   rejects `NormalizedText`/`RawAndNormalized` and anything but
-   `FormatCompareMode::Ignore`. This is documented at the call site (the
-   error messages say why), so it is not a *silent* trap — but a citation
+   that can be selected but never successfully built.** *(Resolved M10 unit 06: the unusable variants, the
+   `FormatCompareMode` enum and `ComparisonOptions::format` were removed; see §11.)* `validate()` rejected
+   `NormalizedText`/`RawAndNormalized` and anything but
+   `FormatCompareMode::Ignore`. This was documented at the call site (the
+   error messages said why), so it was not a *silent* trap — but a citation
    describing §11 as "the options surface" without this caveat would
-   overstate what is actually usable today.
+   have overstated what was usable.
 3. **§0 (not a numbered lexicon section, but worth recording plainly):
    `rfcs/README.md`'s restoration notes undercounted the citation sites at
    11; the true count, by direct grep, is 20.** Corrected in this

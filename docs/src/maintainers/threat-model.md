@@ -211,7 +211,7 @@ admits it:
 
 ### Alignment (`src/align.rs`, `src/diff.rs`)
 
-The optional row-alignment feature (`RowKey`/`RowSignature`/`HeaderColumn`
+The optional row-alignment feature (`RowKey`/`RowSignature`
 modes) that reduces false-positive cascades after row insertions/deletions.
 **Mitigation:** `max_alignment_product` (default 25,000,000, `Limits::hardened()`
 same value — this bound was already conservative) caps the `old_rows ×

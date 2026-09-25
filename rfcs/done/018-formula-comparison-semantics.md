@@ -111,6 +111,12 @@ Default: `RawText` and `include_formula_cached_values = true`.
 normalizer. Until then, the public enum can exist but the mode may return
 `UnsupportedOption` unless the corresponding feature is enabled.
 
+> **Corrected M10 unit 06 (unreleased):** what shipped was the enum *with* the two unusable variants, and a
+> `validate()` that returned `InvalidOptions` for them unconditionally — there is no normaliser and none is
+> planned. Both variants (`NormalizedText`, `RawAndNormalized`) were **removed in 3.0.0**: a setting that can
+> only fail is not an option. `FormulaCompareMode` keeps `RawText` and `Ignore`, which work. Re-adding them
+> alongside a real normaliser is an added variant, not a break. `FormulaText::normalized` stays as a reserved,
+> always-`None` field.
 ## 7. Internal design
 
 ### 7.1 Extraction

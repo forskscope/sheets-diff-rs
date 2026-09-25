@@ -184,7 +184,7 @@ pub fn compare_formulas(
 
     let old_text = old_formula.map(|r| FormulaText {
         raw: r.to_owned(),
-        normalized: None, // NormalizedText mode guard is in options validation
+        normalized: None, // no formula normaliser exists (RFC-018)
     });
     let new_text = new_formula.map(|r| FormulaText {
         raw: r.to_owned(),

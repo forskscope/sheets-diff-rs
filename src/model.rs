@@ -472,8 +472,9 @@ pub struct ValueChange {
 #[non_exhaustive]
 pub struct FormulaText {
     pub raw: String,
-    /// `None` unless the `NormalizedText` formula-compare mode is enabled and
-    /// a normaliser is available (RFC-018).
+    /// Always `None` today: this crate has no formula normaliser. Reserved for one
+    /// (RFC-018 specifies it); the struct is `#[non_exhaustive]`, so populating this
+    /// later is not a break.
     pub normalized: Option<String>,
 }
 
@@ -489,8 +490,9 @@ pub struct FormulaChange {
 }
 
 /// Reserved for RFC-022 (style/format diffs).  Always `None` — calamine 0.36
-/// does not expose a cell-style API. Set via `FormatCompareMode` (currently
-/// only `Ignore` is accepted).
+/// does not expose a cell-style API. There is no option that turns format comparison
+/// on: it returns with RFC-022, as an added option (additive), together with the fields
+/// this struct will gain.
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 #[non_exhaustive]
@@ -575,14 +577,22 @@ impl CellDiff {
 // Diagnostics (RFC-005 / RFC-033 §8)
 // ---------------------------------------------------------------------------
 
-/// Severity of a diagnostic entry.
+/// Severity of a diagnostic entry. Ordered: `Info < Warning`.
+///
+/// There is no `Error`. This crate's model is two-tier: a condition that stops a comparison is a
+/// [`SheetsDiffError`](crate::SheetsDiffError) and produces no result; one that does not is a
+/// `Diagnostic` and rides along with a successful result. A diagnostic that is fatal has no place in that
+/// design, so no severity for it exists — the most severe recoverable condition is a `Warning` ("the diff
+/// you are reading may be wrong", as `DuplicateAlignmentKey` says). The enum is `#[non_exhaustive]`, so a
+/// further level could be added later without a break.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 #[non_exhaustive]
 pub enum Severity {
+    /// Something a reader may want to know; the comparison is not in doubt.
     Info,
+    /// The comparison completed, but its result may be incomplete or wrong in a way the caller should hear about.
     Warning,
-    Error,
 }
 
 /// Which processing stage emitted a diagnostic.
@@ -738,12 +748,15 @@ pub struct SheetSummary {
     pub formulas_changed: usize,
 }
 
-/// Diagnostic counts rolled up at any level.
+/// The diagnostics a result carries, counted by severity, workbook-level and per-sheet together.
+///
+/// There is no error count, on purpose: a diagnostic is never fatal — a condition that stops a
+/// comparison is a [`SheetsDiffError`](crate::SheetsDiffError), not a diagnostic — so an "errors" figure
+/// could only ever be zero. (Through 2.6.0 it was, on every run.)
 #[derive(Clone, Default, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 #[non_exhaustive]
 pub struct DiagnosticSummary {
-    pub errors: usize,
     pub warnings: usize,
     pub info: usize,
 }
@@ -953,7 +966,6 @@ impl WorkbookDiff {
         let sheet_level = sheets.iter().flat_map(|sd| sd.diagnostics.iter());
         for d in diagnostics.iter().chain(sheet_level) {
             match d.severity {
-                Severity::Error => s.diagnostics.errors += 1,
                 Severity::Warning => s.diagnostics.warnings += 1,
                 Severity::Info => s.diagnostics.info += 1,
             }

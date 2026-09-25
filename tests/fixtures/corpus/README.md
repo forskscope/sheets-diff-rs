@@ -110,7 +110,7 @@ for every row below, not just a golden comparison.
 | 1 | `row_shifted_origin` | origin not at A1, row axis | `row_shifted_origin_fixture_reports_correct_address` |
 | 2 | `formula_shifted_origin` + `formula_at_first_cell` | general case of D-04's origin fix; the negative control that would have hidden D-04 entirely | `formula_shifted_origin_fixture_attaches_to_the_real_formula_cell`, `formula_at_first_cell_fixture_negative_control` |
 | 3 | `alignment_row_signature` | `AlignmentMode::RowSignature` — zero coverage before this | `alignment_row_signature_fixture_reduces_cascade` |
-| 4 | `alignment_header_column` | `AlignmentMode::HeaderColumn` — zero coverage before this | `alignment_header_column_fixture_reduces_cascade` |
+| 4 | `alignment_header_column` | `RowKey { columns: vec![1] }` on a header-plus-data sheet (through 2.6.0: `AlignmentMode::HeaderColumn`, the same alignment under another name, removed in 3.0.0) | `alignment_header_column_fixture_reduces_cascade` |
 | 5 | `error_values` | `CellError` comparison and `ValueDifferenceKind::ErrorKindChanged` — zero coverage at any level before this | `error_values_fixture_detects_error_kind_change` |
 | 6 | `sheet_reordered` | `SheetChange::Moved`, never distinguished from `Unchanged` by any prior assertion | `sheet_reordered_fixture_distinguishes_moved_from_modified` |
 | 7 | `date_column` | no golden-corpus fixture used dates at all, despite dates being where four M2 defects lived | `date_column_fixture_detects_date_change`, plus the golden — blessed under the canonical `serde,chrono` feature set (see Step 2 above) since `CellDateTime.iso` is `chrono`-conditional |

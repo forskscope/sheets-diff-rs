@@ -53,7 +53,7 @@ unstable dependency types as mandatory public API.
 ## 6. Unsupported format policy
 
 If the caller uses an `.xlsx` API with non-xlsx input, return
-`UnsupportedFormat` or `Open` with a clear kind. Do not infer solely from file
+`UnsupportedFormat` or `Open` with a clear kind. *(Corrected M10 unit 07: the implementation always chose the second — `OpenWorkbook { kind: NotXlsx }` — and `SheetsDiffError::UnsupportedFormat`, which nothing constructed, was removed in 3.0.0.)* Do not infer solely from file
 extension; bytes/reader APIs may have no extension.
 
 Use content inspection where the reader provides it.

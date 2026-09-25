@@ -1,4 +1,4 @@
 name        = "alignment_header_column"
 kind        = "regression"
-description = "Header row plus 3 data rows, one row inserted, matched by HeaderColumn alignment. HeaderColumn had zero test coverage before this scenario (RFC-036 #4)."
+description = "Header row plus 3 data rows, one row inserted, aligned on the first column with RowKey { columns: vec![1] }. Through 2.6.0 it covered AlignmentMode::HeaderColumn, the same alignment under another name, removed in 3.0.0 (RFC-036 #4)."
 notes       = ""

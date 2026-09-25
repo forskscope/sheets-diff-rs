@@ -1,36 +1,35 @@
-//! The builder covers every option — audited by a test, not by a person noticing (M10 unit 03).
+//! The builder covers every option — audited by a test, not by a person noticing (M10 units 03 and 08).
 //!
-//! `DiffOptions` documents `builder()` as the way to configure it. This file is the standing
-//! audit behind that sentence. It works in three layers:
+//! **This is a `#[cfg(test)]` module inside `src/` on purpose, and the one place the project's rule against
+//! inline test modules (readiness finding B2) is knowingly ignored.** The guard below destructures every options
+//! struct *exhaustively* — no `..` — so that adding a field to any of them fails to compile until it is listed. Since
+//! M10 unit 08 those structs are `#[non_exhaustive]`, and a pattern without `..` is rejected (`E0638`) from any
+//! other crate, so the guard only works from inside this one. Moving it here is the price of making options
+//! extensible; deleting it, or weakening it to a `..` pattern so it compiles from `tests/`, would silently remove the
+//! guarantee and leave a test that looks like a guard.
 //!
-//! 1. `leaves()` destructures **every** options struct *exhaustively* — no `..` — so adding a
-//!    field to any of them is a compile error here until it is listed.
+//! It works in three layers:
+//!
+//! 1. `leaves()` destructures **every** options struct *exhaustively* — no `..`.
 //! 2. `SETTERS` names one builder call per leaf. A test asserts the two lists are the same
-//!    twenty names, so a leaf that is listed but has no setter cannot hide.
+//!    nineteen names, so a leaf that is listed but has no setter cannot hide.
 //! 3. Each setter is applied on its own to a default builder and the result compared with the
 //!    default: **exactly its own leaf must change, and no other.** That is what "a method of
 //!    its own" means — a whole-struct setter would move several leaves, or none it named.
 //!
-//! Two leaves cannot be moved to a non-default value through `build()`, for reasons that are
-//! stated where they are listed (`execution.mode` has one variant; `comparison.format` accepts
-//! only `Ignore`). For those the test asserts the setter is accepted and changes nothing else.
-
-mod support;
-use support::{patch_xlsx_xml, wb_strings};
+//! One leaf cannot be moved to a non-default value, for the reason stated where it is listed
+//! (`execution.mode`: `ExecutionMode` has one variant). For it the test asserts the setter is
+//! accepted and changes nothing else.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use rust_xlsxwriter::Workbook;
-use sheets_diff::options::{
-    AlignmentMode, ComparisonOptions, DiagnosticOptions, ExecutionOptions, Limits, MatchingOptions,
-    OutputOptions, ValueCompareOptions,
+use crate::options::{
+    AlignmentMode, ComparisonOptions, DateComparePolicy, DiagnosticOptions, DiffOptions,
+    DiffOptionsBuilder, ExecutionMode, ExecutionOptions, FormulaCompareMode, Limits,
+    MatchingOptions, NumberComparePolicy, NumericTypePolicy, OutputOptions, SheetMatchingMode,
+    TypeMismatchPolicy, ValueCompareOptions,
 };
-use sheets_diff::{
-    DateComparePolicy, DiffOptions, DiffOptionsBuilder, ExecutionMode, FormatCompareMode,
-    FormulaCompareMode, NumberComparePolicy, NumericTypePolicy, ObjectCompareMode, Severity,
-    SheetMatchingMode, SheetsDiffError, TypeMismatchPolicy, WorkbookDiff, compare_bytes,
-    compare_bytes_with_options,
-};
+use crate::{ObjectCompareMode, Severity};
 
 // ---------------------------------------------------------------------------
 // Layer 1 — every leaf, read back
@@ -51,7 +50,6 @@ fn leaves(o: &DiffOptions) -> BTreeMap<&'static str, String> {
         value,
         formula,
         include_formula_cached_values,
-        format,
     } = comparison;
     let ValueCompareOptions {
         number,
@@ -95,7 +93,6 @@ fn leaves(o: &DiffOptions) -> BTreeMap<&'static str, String> {
         "comparison.include_formula_cached_values",
         format!("{include_formula_cached_values:?}"),
     );
-    put("comparison.format", format!("{format:?}"));
     put("matching.sheet_matching", format!("{sheet_matching:?}"));
     put("matching.alignment", format!("{alignment:?}"));
     put("limits.max_sheets", format!("{max_sheets:?}"));
@@ -133,11 +130,8 @@ type Setter = fn(DiffOptionsBuilder) -> DiffOptionsBuilder;
 
 /// `(leaf, setter, whether the value it sets differs from the default)`.
 ///
-/// The two `false` rows are the exceptions the module comment names:
-/// * `execution.mode` — `ExecutionMode` has a single variant, `Sequential`, so there is no
-///   other value to set.
-/// * `comparison.format` — `validate()` rejects every `FormatCompareMode` except `Ignore`, so
-///   `build()` cannot return a non-default one (RFC-037 §3.3 is about that).
+/// The one `false` row is the exception the module comment names: `execution.mode` —
+/// `ExecutionMode` has a single variant, `Sequential`, so there is no other value to set.
 const SETTERS: &[(&str, Setter, bool)] = &[
     (
         "comparison.value.number",
@@ -168,11 +162,6 @@ const SETTERS: &[(&str, Setter, bool)] = &[
         "comparison.include_formula_cached_values",
         |b| b.include_formula_cached_values(false),
         true,
-    ),
-    (
-        "comparison.format",
-        |b| b.format_compare(FormatCompareMode::Ignore),
-        false,
     ),
     (
         "matching.sheet_matching",
@@ -238,10 +227,10 @@ fn default_leaves() -> BTreeMap<&'static str, String> {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn the_twenty_leaves_are_exactly_the_ones_with_a_setter() {
+fn the_leaves_are_exactly_the_ones_with_a_setter() {
     let leaf_names: BTreeSet<&str> = default_leaves().keys().copied().collect();
     let setter_names: BTreeSet<&str> = SETTERS.iter().map(|(n, _, _)| *n).collect();
-    assert_eq!(leaf_names.len(), 20, "the options tree has 20 leaves");
+    assert_eq!(leaf_names.len(), 19, "the options tree has 19 leaves");
     assert_eq!(
         leaf_names, setter_names,
         "a leaf option and the builder's setter table have drifted apart"
@@ -282,7 +271,7 @@ fn each_setter_changes_its_own_leaf_and_no_other() {
 }
 
 #[test]
-fn all_twenty_setters_together_configure_all_twenty_leaves() {
+fn all_setters_together_configure_every_movable_leaf() {
     let mut b = DiffOptions::builder();
     for (_, set, _) in SETTERS {
         b = set(b);
@@ -303,120 +292,6 @@ fn all_twenty_setters_together_configure_all_twenty_leaves() {
     assert_eq!(
         changed.len(),
         18,
-        "18 leaves can be moved off their default"
+        "18 of the 19 leaves can be moved off their default"
     );
-}
-
-// ---------------------------------------------------------------------------
-// The equivalence property, including the two options this unit adds
-// ---------------------------------------------------------------------------
-
-/// A date cell written under the 1900 system, and the same real date under 1904: equal
-/// under `NormalizeEquivalentDateTimes`, different under `ExactRepresentation`.
-fn epoch_pair() -> (Vec<u8>, Vec<u8>) {
-    use rust_xlsxwriter::{ExcelDateTime, Format};
-    let base = {
-        let mut wb = Workbook::new();
-        let ws = wb.add_worksheet();
-        let f = Format::new().set_num_format("yyyy-mm-dd");
-        ws.write_datetime_with_format(0, 0, ExcelDateTime::from_ymd(2024, 6, 15).unwrap(), &f)
-            .unwrap();
-        wb.save_to_buffer().unwrap()
-    };
-    let empty = {
-        let mut wb = Workbook::new();
-        wb.add_worksheet();
-        wb.save_to_buffer().unwrap()
-    };
-    let added = compare_bytes(&empty, &base).unwrap();
-    let serial_1900 = match &added.sheets[0].cell_diffs[0].value.as_ref().unwrap().new {
-        sheets_diff::CellValue::DateTime(dt) => dt.serial,
-        other => panic!("expected a DateTime, got {other:?}"),
-    };
-    let serial_1904 = serial_1900 - 1462.0;
-    let new = patch_xlsx_xml(&base, "xl/workbook.xml", |xml| {
-        xml.replacen("<workbookPr", "<workbookPr date1904=\"1\" ", 1)
-    });
-    let new = patch_xlsx_xml(&new, "xl/worksheets/sheet1.xml", |xml| {
-        xml.replace(&serial_1900.to_string(), &serial_1904.to_string())
-    });
-    (base, new)
-}
-
-fn outcome(r: Result<WorkbookDiff, SheetsDiffError>) -> Result<WorkbookDiff, String> {
-    r.map_err(|e| e.to_string())
-}
-
-/// `date_compare_policy` — builder-configured equals field-configured, and the option is
-/// doing something (the default disagrees).
-#[test]
-fn date_compare_policy_equals_field_assignment_and_is_not_vacuous() {
-    let (old, new) = epoch_pair();
-    let built = DiffOptions::builder()
-        .date_compare_policy(DateComparePolicy::NormalizeEquivalentDateTimes)
-        .build()
-        .unwrap();
-    let mut assigned = DiffOptions::default();
-    assigned.comparison.value.date = DateComparePolicy::NormalizeEquivalentDateTimes;
-
-    let via_builder = compare_bytes_with_options(&old, &new, built).unwrap();
-    let via_field = compare_bytes_with_options(&old, &new, assigned).unwrap();
-    assert_eq!(via_builder, via_field);
-
-    let default = compare_bytes(&old, &new).unwrap();
-    assert_eq!(
-        default.summary.values_changed, 1,
-        "control: exact comparison sees a change"
-    );
-    assert_eq!(
-        via_builder.summary.values_changed, 0,
-        "the policy reconciles the epochs"
-    );
-    assert_ne!(via_builder, default);
-}
-
-/// `max_cells_read` — same property; the two paths produce the same *error* (the limit fires),
-/// and the default produces none.
-#[test]
-fn max_cells_read_equals_field_assignment_and_is_not_vacuous() {
-    let old = wb_strings(&[(0, 0, "a"), (1, 0, "b"), (2, 0, "c")]);
-    let new = wb_strings(&[(0, 0, "a"), (1, 0, "b"), (2, 0, "z")]);
-
-    let built = DiffOptions::builder()
-        .max_cells_read(Some(2))
-        .build()
-        .unwrap();
-    let mut assigned = DiffOptions::default();
-    assigned.limits.max_cells_read = Some(2);
-
-    let via_builder = outcome(compare_bytes_with_options(&old, &new, built));
-    let via_field = outcome(compare_bytes_with_options(&old, &new, assigned));
-    assert_eq!(via_builder, via_field);
-    assert!(
-        via_builder.is_err(),
-        "a bound of 2 must trip on a 3-cell sheet"
-    );
-    assert!(
-        compare_bytes(&old, &new).is_ok(),
-        "control: no bound, no error"
-    );
-}
-
-/// `max_cells_read(None)` is accepted and behaves as the default (unbounded).
-#[test]
-fn max_cells_read_none_behaves_as_the_default() {
-    let old = wb_strings(&[(0, 0, "a"), (1, 0, "b")]);
-    let new = wb_strings(&[(0, 0, "a"), (1, 0, "c")]);
-    let opts = DiffOptions::builder().max_cells_read(None).build().unwrap();
-    assert!(opts.limits.max_cells_read.is_none());
-    let said_none = outcome(compare_bytes_with_options(&old, &new, opts));
-    assert_eq!(said_none, outcome(compare_bytes(&old, &new)));
-
-    // ... and it undoes an earlier bound.
-    let undone = DiffOptions::builder()
-        .max_cells_read(Some(1))
-        .max_cells_read(None)
-        .build()
-        .unwrap();
-    assert!(undone.limits.max_cells_read.is_none());
 }

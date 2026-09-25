@@ -80,7 +80,7 @@ enum OutputFormat {
 /// **2** for everything else — reaching those bytes in the first place
 /// (missing file, permissions, a lock held by another process), caller
 /// misconfiguration, a resource limit, or an internal bug. `NotFound` /
-/// `PermissionDenied` / `Locked` are about the environment around the file,
+/// `PermissionDenied` are about the environment around the file,
 /// not the file's own content, so they stay environment errors (2) rather
 /// than joining the corrupt-input bucket (3).
 ///
@@ -91,7 +91,7 @@ fn exit_code_for(err: &SheetsDiffError) -> i32 {
     match err {
         SheetsDiffError::OpenWorkbook { kind, .. } => match kind {
             OpenErrorKind::NotXlsx | OpenErrorKind::Corrupt => 3,
-            OpenErrorKind::NotFound | OpenErrorKind::PermissionDenied | OpenErrorKind::Locked => 2,
+            OpenErrorKind::NotFound | OpenErrorKind::PermissionDenied => 2,
             _ => 2,
         },
         // The workbook opened, but a sheet inside it couldn't be read.
@@ -112,12 +112,10 @@ fn exit_code_for(err: &SheetsDiffError) -> i32 {
             ReadErrorKind::Other => 2,
             _ => 2,
         },
-        SheetsDiffError::UnsupportedFormat { .. } => 3,
         SheetsDiffError::EncryptedWorkbook { .. } => 3,
         SheetsDiffError::InvalidOptions { .. } => 2,
         SheetsDiffError::Cancelled => 2,
         SheetsDiffError::LimitExceeded { .. } => 2,
-        SheetsDiffError::Internal { .. } => 2,
         _ => 2,
     }
 }

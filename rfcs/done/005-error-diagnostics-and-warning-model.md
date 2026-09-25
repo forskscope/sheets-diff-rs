@@ -41,7 +41,7 @@ GUI applications need localized, contextual error handling. CLI tools need exit 
 
 ## 5. External design
 
-Proposed fatal error type:
+Proposed fatal error type *(sketch; the implemented `SheetsDiffError` is RFC-033 §9 — it has no `UnsupportedFormat`)*:
 
 ```rust
 #[derive(Debug)]
@@ -68,6 +68,20 @@ pub struct Diagnostic {
 ```
 
 `message` is for convenience; consumers should rely on code/location for localization.
+
+**The two-tier model, stated (M10 unit 07, unreleased).** *A condition that stops a comparison is a
+`SheetsDiffError` and produces no result; a condition that does not is a `Diagnostic` and rides along with a
+successful one. Therefore a diagnostic severity of "error" cannot exist* — a fatal diagnostic has no place in this
+design, and the most severe recoverable condition is a `Warning` (`DuplicateAlignmentKey`, "your rows may have been
+paired wrongly", is the closest real case and is correctly a `Warning`). This is why `Severity::Error` was **removed**
+rather than left as a gap to fill later: every diagnostic push site in the engine emits `Info` or `Warning`, so the
+CLI's `diagnostics: N error(s), M warning(s)` printed a number that could only ever be 0, on every run.
+`Severity` and `DiagnosticSummary` are `#[non_exhaustive]`, so a further level or count could be added later without a
+break — but "error" would contradict the model; a genuinely new tier would need its own design. The same review
+removed three `SheetsDiffError`/`OpenErrorKind` values nothing constructed: `UnsupportedFormat` (a duplicate of
+`OpenWorkbook { kind: NotXlsx }`, which is what a non-`.xlsx` input actually produces), `Internal` (an escape hatch for
+our own bugs, never needed) and `OpenErrorKind::Locked` (detecting it needs raw per-platform OS codes — a feature, not
+a fix; a locked file is reported as permission denied or `Other`).
 
 **`DiagnosticLocation` — the rule (M10 unit 04, unreleased).** *A diagnostic that concerns a particular
 sheet names it — `sheet_order` and `sheet_name` together, never one without the other — as that sheet is in

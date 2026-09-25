@@ -34,13 +34,8 @@ pub fn render_summary(diff: &WorkbookDiff) -> String {
     )
     .unwrap();
 
-    if s.diagnostics.errors + s.diagnostics.warnings > 0 {
-        writeln!(
-            out,
-            "  diagnostics: {} error(s), {} warning(s)",
-            s.diagnostics.errors, s.diagnostics.warnings
-        )
-        .unwrap();
+    if s.diagnostics.warnings > 0 {
+        writeln!(out, "  diagnostics: {} warning(s)", s.diagnostics.warnings).unwrap();
     }
 
     for sd in &diff.sheets {
@@ -195,7 +190,6 @@ fn write_diagnostics_section(out: &mut String, diff: &WorkbookDiff) {
     writeln!(out, "\n# Diagnostics").unwrap();
     for (sheet, d) in shown {
         let prefix = match d.severity {
-            Severity::Error => "ERROR",
             Severity::Warning => "WARN",
             Severity::Info => "INFO",
         };

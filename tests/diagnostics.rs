@@ -88,7 +88,7 @@ fn count(d: &WorkbookDiff, severity: Severity) -> usize {
 /// The summary's diagnostic total, all severities.
 fn summary_total(d: &WorkbookDiff) -> usize {
     let s = &d.summary.diagnostics;
-    s.errors + s.warnings + s.info
+    s.warnings + s.info
 }
 
 // ===========================================================================
@@ -139,8 +139,16 @@ fn min_severity_warning_drops_info_at_both_levels_and_the_counters_follow() {
     assert_eq!(d.metrics.diagnostics_emitted, 0, "so does the metric");
 }
 
+/// `min_severity`'s `>=` filter depends on the derived order, and there are exactly two levels.
 #[test]
-fn min_severity_error_drops_warnings_too() {
+fn severity_is_ordered_info_below_warning() {
+    assert!(Severity::Info < Severity::Warning);
+    assert!(Severity::Warning >= Severity::Info);
+    assert_eq!(Severity::Info.max(Severity::Warning), Severity::Warning);
+}
+
+#[test]
+fn min_severity_warning_keeps_warnings_and_info_is_the_floor() {
     let (old, new) = duplicate_key_pair();
 
     // Warning keeps the warning (>=) ...
@@ -154,13 +162,11 @@ fn min_severity_error_drops_warnings_too() {
         kept.sheets[0].diagnostics
     );
 
-    // ... Error drops it.
-    let dropped =
-        compare_bytes_with_options(&old, &new, row_key_options(Some(Severity::Error), None))
-            .unwrap();
-    assert_eq!(count(&dropped, Severity::Warning), 0);
-    assert!(dropped.sheets[0].diagnostics.is_empty());
-    assert_eq!(dropped.summary.diagnostics.warnings, 0);
+    // ... and `Info` is the floor: asking for it keeps everything, exactly as `None` does.
+    let all = compare_bytes_with_options(&old, &new, row_key_options(Some(Severity::Info), None))
+        .unwrap();
+    let none = compare_bytes_with_options(&old, &new, row_key_options(None, None)).unwrap();
+    assert_eq!(all, none);
 }
 
 // ===========================================================================
@@ -202,12 +208,7 @@ fn summary_total_equals_diagnostics_emitted_when_both_levels_have_diagnostics() 
 
     // And with a filter applied, they still agree with each other and with the vectors.
     let (old, new) = duplicate_key_pair();
-    for min in [
-        None,
-        Some(Severity::Info),
-        Some(Severity::Warning),
-        Some(Severity::Error),
-    ] {
+    for min in [None, Some(Severity::Info), Some(Severity::Warning)] {
         let d = compare_bytes_with_options(&old, &new, row_key_options(min, None)).unwrap();
         assert_eq!(
             summary_total(&d),
@@ -255,9 +256,10 @@ fn render_summary_counts_a_sheet_level_warning() {
     let (old, new) = duplicate_key_pair();
     let d = compare_bytes_with_options(&old, &new, row_key_options(None, None)).unwrap();
     let s = render_summary(&d);
+    assert!(s.contains("diagnostics: 1 warning(s)"), "got: {s}");
     assert!(
-        s.contains("diagnostics: 0 error(s), 1 warning(s)"),
-        "got: {s}"
+        !s.contains("error"),
+        "the summary line has no error count (there is no error severity): {s}"
     );
 }
 

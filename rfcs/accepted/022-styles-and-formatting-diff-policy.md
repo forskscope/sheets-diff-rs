@@ -1,6 +1,16 @@
 # RFC-022 — Styles and Formatting Diff Policy
 
 **Status.** Accepted — design settled; implementation incomplete as of 2.2.3. See ../README.md.
+
+**Note added M10 unit 06 (unreleased):** the public surface this RFC specified in §6 — `FormatCompareMode` and
+`ComparisonOptions::format` — was **removed in 3.0.0**, because `comparison.format` was read in exactly one place,
+`validate()`, to reject everything but `Ignore`: a public option whose only usable setting was the one a caller got by
+not setting it (and `NumberFormatOnly` / `AllAvailable` could only fail). Removal, not a single-variant reservation
+(`FormatCompareMode { Ignore }`), was chosen **because reintroducing an option is additive from 3.0.0**: the options
+structs are `#[non_exhaustive]` (M10 unit 08), so when this RFC is implemented it adds `ComparisonOptions::format`
+and the enum back **without a breaking change**. **This RFC is not withdrawn** — its Status is unchanged; only its
+placeholder surface is gone until the implementation exists. The result-side placeholder, `FormatChange` and
+`CellDiff::format`, stays.
 **Target:** v2.1 candidate  
 **Related:** RFC-020, RFC-023, RFC-029
 

@@ -148,10 +148,7 @@ fn the_sparse_box_workbook_is_accepted_under_a_bound_and_stays_small() {
     let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let (old, new) = (wb_stray("x"), wb_stray("y"));
     let opts = DiffOptions::builder()
-        .limits(Limits {
-            max_cells_read: Some(1_000),
-            ..Limits::default()
-        })
+        .max_cells_read(Some(1_000))
         .build()
         .unwrap();
 
@@ -201,10 +198,7 @@ fn max_cells_read_fires_mid_sheet_before_the_rest_is_retained() {
 
     let (_, whole) = peak_growth(|| compare_bytes(&old, &new).unwrap());
     let opts = DiffOptions::builder()
-        .limits(Limits {
-            max_cells_read: Some(1_000),
-            ..Limits::default()
-        })
+        .max_cells_read(Some(1_000))
         .build()
         .unwrap();
     let (result, bounded) = peak_growth(|| compare_bytes_with_options(&old, &new, opts));

@@ -2,11 +2,22 @@
 
 **Status.** Implemented (2.0.0–2.2.3) — verified 2026-08-16 against the implementation.
 
+**Note added M10 unit 08 (unreleased): the options tree is extensible, and a new option is additive from 3.0.0 on.**
+All eight options structs — `DiffOptions`, `ComparisonOptions`, `ValueCompareOptions`, `MatchingOptions`, `Limits`,
+`ExecutionOptions`, `DiagnosticOptions`, `OutputOptions` — are `#[non_exhaustive]`, exactly as every result struct always
+was. **An author planning a new option can add a field without a breaking change**: the builder gets a setter (the
+coverage audit in `src/builder_coverage.rs` fails to compile until it is listed), and no caller's code stops compiling,
+because no caller outside the crate can name every field. Through 2.x this was not so — a caller could write a struct
+literal naming every field, so every option was a break — which is why RFC-011's column alignment, RFC-022's formatting and
+a formula normaliser each risked waiting for a major. Callers build options with the builder, or with `Default::default()`
+and field assignment; **`..Default::default()` is not available from outside the crate** (functional update is a struct
+expression, rejected exactly as a full literal is).
+
 **Note added M10 unit 03 (unreleased):** the `DiffOptions` struct in §5 (`formula_comparison`,
 `value_comparison`, `bounds`, …) is the pre-implementation *sketch*; the implemented option tree is
 RFC-033 §11's (`comparison`, `matching`, `limits`, `execution`, `diagnostics`, `output`), and that section is
 authoritative for it, including the builder's final coverage and naming rule. The builder this RFC calls for
-covers every option as of 3.0.0 (`DiffOptionsBuilder` has a method for each of the twenty leaves, asserted by
+covers every option as of 3.0.0 (`DiffOptionsBuilder` has a method for each of its nineteen leaves, asserted by
 `tests/builder_coverage.rs`).
 **Target:** v2.0.0  
 **Created:** 2026-06-11  

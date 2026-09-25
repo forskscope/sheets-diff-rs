@@ -12,11 +12,6 @@ pub enum FormulaCompareMode {
     /// Compare raw formula strings exactly.  Default.
     #[default]
     RawText,
-    /// Compare normalised formula strings.  Requires a normaliser feature;
-    /// returns `InvalidOptions` if selected without one.
-    NormalizedText,
-    /// Compare both raw and normalised; emits both in `FormulaText`.
-    RawAndNormalized,
     /// Do not compare formulas at all.
     Ignore,
 }
@@ -70,7 +65,18 @@ pub enum TypeMismatchPolicy {
 }
 
 /// All value-comparison policy fields grouped together.
+///
+/// **Build it with [`DiffOptions::builder()`] or with `Default` and field assignment — not with a struct
+/// literal.** `ValueCompareOptions` is `#[non_exhaustive]`: an option added to it later is **not** a breaking change,
+/// and in exchange a struct expression naming it does not compile outside this crate — not even with
+/// `..Default::default()`. Reading and assigning its fields works as always:
+///
+/// ```compile_fail,E0639
+/// use sheets_diff::{NumberComparePolicy, ValueCompareOptions};
+/// let _ = ValueCompareOptions { number: NumberComparePolicy::Exact, ..Default::default() };
+/// ```
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct ValueCompareOptions {
     pub number: NumberComparePolicy,
     pub numeric_type: NumericTypePolicy,
@@ -82,34 +88,28 @@ pub struct ValueCompareOptions {
 // Format / style comparison (RFC-022)
 // ---------------------------------------------------------------------------
 
-/// Controls whether cell formatting (number format, font, fill, …) is compared.
-///
-/// Default is `Ignore` — calamine 0.36 does not expose a cell-style API, so
-/// `AllAvailable` emits an `UnsupportedWorkbookFeature` diagnostic at runtime.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
-pub enum FormatCompareMode {
-    /// Ignore all formatting differences (default).
-    #[default]
-    Ignore,
-    /// Compare number-format strings only (future, requires style reader).
-    NumberFormatOnly,
-    /// Compare all available style fields (future, best-effort).
-    AllAvailable,
-}
-
 // ---------------------------------------------------------------------------
 // Comparison options
 // ---------------------------------------------------------------------------
 
 /// All comparison-behaviour options.
+///
+/// **Build it with [`DiffOptions::builder()`] or with `Default` and field assignment — not with a struct
+/// literal.** `ComparisonOptions` is `#[non_exhaustive]`: an option added to it later is **not** a breaking change,
+/// and in exchange a struct expression naming it does not compile outside this crate — not even with
+/// `..Default::default()`. Reading and assigning its fields works as always:
+///
+/// ```compile_fail,E0639
+/// use sheets_diff::ComparisonOptions;
+/// let _ = ComparisonOptions { include_formula_cached_values: false, ..Default::default() };
+/// ```
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct ComparisonOptions {
     pub value: ValueCompareOptions,
     pub formula: FormulaCompareMode,
     /// Whether the formula's cached value is compared as a value change.
     pub include_formula_cached_values: bool,
-    /// Cell formatting comparison mode (RFC-022). Default: `Ignore`.
-    pub format: FormatCompareMode,
 }
 
 impl Default for ComparisonOptions {
@@ -118,7 +118,6 @@ impl Default for ComparisonOptions {
             value: ValueCompareOptions::default(),
             formula: FormulaCompareMode::default(),
             include_formula_cached_values: true,
-            format: FormatCompareMode::default(),
         }
     }
 }
@@ -153,12 +152,21 @@ pub enum AlignmentMode {
     /// `sample_columns` limits which columns contribute to the signature;
     /// `None` means all columns.
     RowSignature { sample_columns: Option<Vec<u32>> },
-    /// Match rows using the first row as a column-header identity.
-    HeaderColumn,
 }
 
 /// Options controlling sheet matching and cell alignment.
+///
+/// **Build it with [`DiffOptions::builder()`] or with `Default` and field assignment — not with a struct
+/// literal.** `MatchingOptions` is `#[non_exhaustive]`: an option added to it later is **not** a breaking change,
+/// and in exchange a struct expression naming it does not compile outside this crate — not even with
+/// `..Default::default()`. Reading and assigning its fields works as always:
+///
+/// ```compile_fail,E0639
+/// use sheets_diff::{AlignmentMode, MatchingOptions};
+/// let _ = MatchingOptions { alignment: AlignmentMode::Positional, ..Default::default() };
+/// ```
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct MatchingOptions {
     pub sheet_matching: SheetMatchingMode,
     pub alignment: AlignmentMode,
@@ -200,7 +208,18 @@ pub const DEFAULT_MAX_INPUT_BYTES: u64 = 500 * 1024 * 1024;
 /// before any comparison logic can observe it, which is exactly the failure
 /// class RFC-035 exists to close. See [`Limits::hardened()`] for a preset
 /// that bounds every dimension, for callers who do not trust their input.
+///
+/// **Build it with [`DiffOptions::builder()`] or with `Default` and field assignment — not with a struct
+/// literal.** `Limits` is `#[non_exhaustive]`: an option added to it later is **not** a breaking change,
+/// and in exchange a struct expression naming it does not compile outside this crate — not even with
+/// `..Default::default()`. Reading and assigning its fields works as always:
+///
+/// ```compile_fail,E0639
+/// use sheets_diff::Limits;
+/// let _ = Limits { max_sheets: Some(50), ..Limits::default() };
+/// ```
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct Limits {
     pub max_sheets: Option<u32>,
     /// Bounds the number of **populated cells** retained, summed over every sheet and both
@@ -439,7 +458,18 @@ pub enum ExecutionMode {
 }
 
 /// Execution, progress, and cancellation options.
+///
+/// **Build it with [`DiffOptions::builder()`] or with `Default` and field assignment — not with a struct
+/// literal.** `ExecutionOptions` is `#[non_exhaustive]`: an option added to it later is **not** a breaking change,
+/// and in exchange a struct expression naming it does not compile outside this crate — not even with
+/// `..Default::default()`. Reading and assigning its fields works as always:
+///
+/// ```compile_fail,E0639
+/// use sheets_diff::{ExecutionMode, ExecutionOptions};
+/// let _ = ExecutionOptions { mode: ExecutionMode::Sequential, ..Default::default() };
+/// ```
 #[derive(Default)]
+#[non_exhaustive]
 pub struct ExecutionOptions {
     pub progress: Option<Box<dyn ProgressSink>>,
     pub cancellation: Option<Box<dyn Cancellation>>,
@@ -451,7 +481,17 @@ pub struct ExecutionOptions {
 // Diagnostic options
 // ---------------------------------------------------------------------------
 
+/// **Build it with [`DiffOptions::builder()`] or with `Default` and field assignment — not with a struct
+/// literal.** `DiagnosticOptions` is `#[non_exhaustive]`: an option added to it later is **not** a breaking change,
+/// and in exchange a struct expression naming it does not compile outside this crate — not even with
+/// `..Default::default()`. Reading and assigning its fields works as always:
+///
+/// ```compile_fail,E0639
+/// use sheets_diff::DiagnosticOptions;
+/// let _ = DiagnosticOptions { min_severity: None, ..Default::default() };
+/// ```
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct DiagnosticOptions {
     /// The lowest severity to **collect**.
     ///
@@ -489,7 +529,18 @@ pub struct DiagnosticOptions {
 // ---------------------------------------------------------------------------
 
 /// Output and presentation options.
+///
+/// **Build it with [`DiffOptions::builder()`] or with `Default` and field assignment — not with a struct
+/// literal.** `OutputOptions` is `#[non_exhaustive]`: an option added to it later is **not** a breaking change,
+/// and in exchange a struct expression naming it does not compile outside this crate — not even with
+/// `..Default::default()`. Reading and assigning its fields works as always:
+///
+/// ```compile_fail,E0639
+/// use sheets_diff::{ObjectCompareMode, OutputOptions};
+/// let _ = OutputOptions { objects: ObjectCompareMode::Ignore, ..Default::default() };
+/// ```
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct OutputOptions {
     /// How non-cell workbook objects are handled (RFC-023).
     pub objects: crate::objects::ObjectCompareMode,
@@ -512,7 +563,7 @@ impl Default for OutputOptions {
 /// Construct via `DiffOptions::default()` or `DiffOptions::builder()`. Every field
 /// is public, so an option can always be set by assigning it.
 ///
-/// **The builder covers every option.** Each of the twenty leaf options in the tree below
+/// **The builder covers every option.** Each of the nineteen leaf options in the tree below
 /// has a method of its own on [`DiffOptionsBuilder`], and none is reachable only by a
 /// whole-struct setter that would discard its siblings; `tests/builder_coverage.rs` sets
 /// each one through the builder, reads it back, and fails if an option is added without one.
@@ -523,7 +574,18 @@ impl Default for OutputOptions {
 /// [`numeric_type_policy`](DiffOptionsBuilder::numeric_type_policy),
 /// [`type_mismatch_policy`](DiffOptionsBuilder::type_mismatch_policy) and
 /// [`date_compare_policy`](DiffOptionsBuilder::date_compare_policy).
+///
+/// **Build it with [`DiffOptions::builder()`] or with `Default` and field assignment — not with a struct
+/// literal.** `DiffOptions` is `#[non_exhaustive]`: an option added to it later is **not** a breaking change,
+/// and in exchange a struct expression naming it does not compile outside this crate — not even with
+/// `..Default::default()`. Reading and assigning its fields works as always:
+///
+/// ```compile_fail,E0639
+/// use sheets_diff::{DiffOptions, Limits};
+/// let _ = DiffOptions { limits: Limits::default(), ..Default::default() };
+/// ```
 #[derive(Default)]
+#[non_exhaustive]
 pub struct DiffOptions {
     pub comparison: ComparisonOptions,
     pub matching: MatchingOptions,
@@ -539,25 +601,12 @@ impl DiffOptions {
     }
 
     /// Validate option combinations before I/O begins.
+    ///
+    /// **No combination of options is currently invalid**, so this always succeeds. It remains
+    /// the one place a future option that *can* be set to something unusable would be checked —
+    /// `build()` and every comparison entry point already call it, and
+    /// [`SheetsDiffError::InvalidOptions`] is what it would return.
     pub(crate) fn validate(&self) -> Result<(), SheetsDiffError> {
-        // NormalizedText requires a normaliser; none exists.
-        if self.comparison.formula == FormulaCompareMode::NormalizedText
-            || self.comparison.formula == FormulaCompareMode::RawAndNormalized
-        {
-            return Err(SheetsDiffError::InvalidOptions {
-                detail: "FormulaCompareMode::NormalizedText / RawAndNormalized is not \
-                         available; no formula normaliser is implemented yet"
-                    .into(),
-            });
-        }
-        // Style comparison requires a calamine style reader not yet available.
-        if self.comparison.format != FormatCompareMode::Ignore {
-            return Err(SheetsDiffError::InvalidOptions {
-                detail: "FormatCompareMode other than Ignore is not available in v2; \
-                         calamine 0.36 does not expose a cell-style API"
-                    .into(),
-            });
-        }
         Ok(())
     }
 }
@@ -585,11 +634,6 @@ impl DiffOptionsBuilder {
 
     pub fn formula_compare(mut self, mode: FormulaCompareMode) -> Self {
         self.opts.comparison.formula = mode;
-        self
-    }
-
-    pub fn format_compare(mut self, mode: FormatCompareMode) -> Self {
-        self.opts.comparison.format = mode;
         self
     }
 

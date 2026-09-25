@@ -111,13 +111,6 @@ pub fn compute_row_mapping(
             sample_columns.as_deref(),
             diagnostics,
         )),
-
-        AlignmentMode::HeaderColumn => Some(header_column_alignment(
-            old_cells,
-            new_cells,
-            sheet,
-            diagnostics,
-        )),
     }
 }
 
@@ -189,22 +182,6 @@ fn row_signature_alignment(
     let old_sigs = compute_row_signatures(old_cells, sample_cols);
     let new_sigs = compute_row_signatures(new_cells, sample_cols);
     lcs_match(old_sigs, new_sigs)
-}
-
-// ---------------------------------------------------------------------------
-// Header-column alignment
-// ---------------------------------------------------------------------------
-
-fn header_column_alignment(
-    old_cells: &CellMap,
-    new_cells: &CellMap,
-    sheet: &SheetRef,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> RowMapping {
-    // Treat row 1 as the header; use the header values as column identity.
-    // Fall back to RowSignature for data rows.
-    let key_col: Vec<u32> = vec![1]; // row-1 = header row; match data by that col
-    row_key_alignment(old_cells, new_cells, &key_col, sheet, diagnostics)
 }
 
 // ---------------------------------------------------------------------------

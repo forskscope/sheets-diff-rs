@@ -19,12 +19,14 @@ theme one release on: **a public value should describe what the engine does.**
 | 03 ✅ | [The builder's surface, settled once](./03-the-builder-settled-once.md) | §3.7 | Adds two, removes two |
 | 04 ✅ | [`DiagnosticLocation` is half-populated](./04-diagnosticlocation.md) | M9 O-A | Changes serialised output |
 | 05 ✅ | [What `cells_read` counts](./05-what-cells-read-counts.md) | §3.5 | **Public metric + a security limit; 3 of 80 goldens moved.** |
-| 06 | [Options a caller cannot usefully set](./06-options-a-caller-cannot-set.md) | §3.3, §3.6 | Removes settings, a field, a mode |
-| 07 | [Values that never arrive](./07-values-that-never-arrive.md) | §3.8 | **Removes a field from serialised output** |
-| 08 | [The options tree becomes extensible](./08-options-become-extensible.md) | §3.9 | **`#[non_exhaustive]`; every later option is additive** |
+| 06 ✅ | [Options a caller cannot usefully set](./06-options-a-caller-cannot-set.md) | §3.3, §3.6 | Removes settings, a field, a mode |
+| 07 ✅ | [Values that never arrive](./07-values-that-never-arrive.md) | §3.8 | **Removes a field from serialised output** |
+| 08 ✅ | [The options tree becomes extensible](./08-options-become-extensible.md) | §3.9 | **`#[non_exhaustive]`; every later option is additive** |
 | L | The v2→v3 migration guide | §5.6 | **Last. Every removal needs a row.** |
 
-**Order: 01–05 ✅, then 06 and 07 in either order, then 08, then the migration
+**All eight code units landed 2026-09-25. Only the migration guide remains.**
+
+**Order was: 01–05, then 06 and 07 in either order, then 08, then the migration
 guide.** 08 is last of the code units because it must see the final set of
 option fields, and the guide is last because it must describe what landed.
 

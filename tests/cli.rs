@@ -238,14 +238,14 @@ fn unified_output_shows_the_diagnostics_section_and_no_warnings_hides_it() {
 
 #[test]
 fn no_warnings_leaves_every_summary_count_unchanged() {
-    // The test that distinguishes this implementation from "--no-warnings is
-    // min_severity = Error", which would print `0 warning(s)` here.
+    // The test that distinguishes this implementation from "--no-warnings drops
+    // every warning from the collection", which would print no `warning(s)` here.
     let (old, new) = chart_sheet();
     let (_, with, _) = run_paths(&old, &new, &[]);
     let (_, without, _) = run_paths(&old, &new, &["--no-warnings"]);
 
     assert!(
-        with.contains("warning(s)") && !with.contains("0 error(s), 0 warning(s)"),
+        with.contains("diagnostics: 2 warning(s)"),
         "precondition — the workbook must actually have warnings: {with}"
     );
     assert_eq!(with, without, "--no-warnings changed the summary output");
@@ -587,4 +587,46 @@ fn the_installed_clis_json_populates_iso() {
             "{which}: `iso` must be a timestamp string, got {iso}"
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// M10 unit 07 — the summary line carries no error count, because there is no error severity
+// ---------------------------------------------------------------------------
+
+/// Through 2.6.0 the line read `diagnostics: N error(s), M warning(s)` and `N` could only ever be 0
+/// (no diagnostic is ever an error: a fatal condition is a `SheetsDiffError`, not a diagnostic). The line is
+/// now `diagnostics: M warning(s)`, and is absent when there are no warnings.
+#[test]
+fn the_summary_line_has_no_error_count() {
+    let (old, new) = chart_sheet();
+    let (code, out, _) = run_paths(&old, &new, &[]);
+    assert_eq!(code, Some(1));
+    let line = out
+        .lines()
+        .find(|l| l.contains("diagnostics:"))
+        .unwrap_or_else(|| panic!("no diagnostics line in: {out}"));
+    assert_eq!(line, "  diagnostics: 2 warning(s)", "full output: {out}");
+    assert!(!out.contains("error"), "an error count is back: {out}");
+
+    // No warnings, no line: `date_column` produces no warning-severity diagnostic.
+    let (o, n) = (
+        fixture("date_column", "old.xlsx"),
+        fixture("date_column", "new.xlsx"),
+    );
+    let (_, plain, _) = run_paths(&o, &n, &[]);
+    assert!(!plain.contains("diagnostics:"), "got: {plain}");
+}
+
+/// The serialised counts are `warnings` and `info` — the `errors` field is gone from `--format json`.
+#[test]
+fn json_summary_diagnostics_has_warnings_and_info_only() {
+    let (old, new) = chart_sheet();
+    let (_, stdout, _) = json_run(&old, &new, &[]);
+    let v = json_of(&stdout);
+    let counts = v["summary"]["diagnostics"].as_object().expect("an object");
+    let mut keys: Vec<&str> = counts.keys().map(|k| k.as_str()).collect();
+    keys.sort();
+    assert_eq!(keys, ["info", "warnings"], "{counts:?}");
+    assert_eq!(counts["warnings"], 2);
+    assert_eq!(counts["info"], 5);
 }

@@ -18,8 +18,6 @@ pub enum OpenErrorKind {
     NotXlsx,
     /// Structurally valid ZIP, but xlsx internals are corrupt.
     Corrupt,
-    /// File is locked or busy (OS-level).
-    Locked,
     Other,
 }
 
@@ -30,7 +28,6 @@ impl fmt::Display for OpenErrorKind {
             OpenErrorKind::PermissionDenied => f.write_str("permission denied"),
             OpenErrorKind::NotXlsx => f.write_str("not an xlsx file"),
             OpenErrorKind::Corrupt => f.write_str("file is corrupt"),
-            OpenErrorKind::Locked => f.write_str("file is locked"),
             OpenErrorKind::Other => f.write_str("open failed"),
         }
     }
@@ -147,8 +144,6 @@ pub enum SheetsDiffError {
         kind: ReadErrorKind,
         inner: Option<Box<CalamiLineError>>,
     },
-    /// The bytes/reader are a valid ZIP but not a recognised xlsx workbook.
-    UnsupportedFormat { side: Side, detail: String },
     /// The workbook is password-protected (calamine `XlsxError::Password`).
     EncryptedWorkbook { side: Side },
     /// A `DiffOptions` combination is invalid; detected before any I/O.
@@ -157,8 +152,6 @@ pub enum SheetsDiffError {
     Cancelled,
     /// A configured `Limits` bound was reached.
     LimitExceeded { limit: LimitKind, observed: u64 },
-    /// An internal programming error; indicates a bug in `sheets-diff`.
-    Internal { detail: String },
 }
 
 impl fmt::Display for SheetsDiffError {
@@ -179,12 +172,6 @@ impl fmt::Display for SheetsDiffError {
                     sheet.name
                 )
             }
-            SheetsDiffError::UnsupportedFormat { side, detail } => {
-                write!(
-                    f,
-                    "{side} workbook is not a supported xlsx format: {detail}"
-                )
-            }
             SheetsDiffError::EncryptedWorkbook { side } => {
                 write!(f, "{side} workbook is password-protected")
             }
@@ -194,9 +181,6 @@ impl fmt::Display for SheetsDiffError {
             SheetsDiffError::Cancelled => f.write_str("comparison was cancelled"),
             SheetsDiffError::LimitExceeded { limit, observed } => {
                 write!(f, "limit '{limit}' exceeded (observed {observed})")
-            }
-            SheetsDiffError::Internal { detail } => {
-                write!(f, "internal error: {detail}")
             }
         }
     }
