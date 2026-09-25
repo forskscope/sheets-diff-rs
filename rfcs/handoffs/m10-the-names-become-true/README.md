@@ -23,7 +23,7 @@ theme one release on: **a public value should describe what the engine does.**
 | 07 ✅ | [Values that never arrive](./07-values-that-never-arrive.md) | §3.8 | **Removes a field from serialised output** |
 | 08 ✅ | [The options tree becomes extensible](./08-options-become-extensible.md) | §3.9 | **`#[non_exhaustive]`; every later option is additive** |
 | 09 ✅ | [One error type, and two more structs](./09-one-error-type-and-two-more-structs.md) | §3.10, §3.11 | **Signature change; two more structs** |
-| L | The v2→v3 migration guide | §5.6 | **Last. Every removal needs a row.** |
+| 10 | [The v2→v3 migration guide](./10-the-v2-to-v3-migration-guide.md) | §5.6 | **Last. Every removal needs a row (criterion 2).** |
 
 **All nine code units landed 2026-09-25. Only the migration guide remains.**
 
