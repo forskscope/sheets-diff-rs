@@ -519,6 +519,44 @@ that reads `SheetDiff::diagnostics`, so it is *not* covered by M8's O3. Decide
 deliberately whether it is a supported projection or an accident, and say which
 in RFC-033. Found 2026-09-24 while scoping M8 unit 02.
 
+### M10 — "The names become true" — 🔄 **OPEN 2026-09-25** *(3.0.0)*
+
+**This is the next release, not M9.** M9 is authorized and unopened; six of its
+seven units are invisible and need no release, so it may run in parallel at any
+time. M10 carries 3.0.0.
+
+Executes [RFC-037](rfcs/accepted/037-v3-scope.md), accepted 2026-09-25.
+Handoffs: [`rfcs/handoffs/m10-the-names-become-true/`](rfcs/handoffs/m10-the-names-become-true/README.md).
+
+M8 documented the lies it could not remove without a major. This milestone
+removes them. **§3 of RFC-037 is a closed list** — nothing joins M10 without the
+owner reopening it.
+
+| Unit | Item | Nature |
+|---|---|---|
+| 01 | **§3.1 — `SheetMatchReason`.** Two of three variants never constructed, `ExactName` structurally impossible; the third is recorded on every rename and is wrong at all three sites, worst where the pair is formed by elimination. | Removes and replaces public variants |
+| 02 | **§3.2 + §3.4 — values nothing produces.** Four `DiagnosticKind` variants, all live in the stable `code()` table callers are told to match on; plus `SourceKind::Unknown`. | Removals + documentation |
+| 03 | **§3.7 — the builder's surface, settled once.** Adds `date_compare` and `max_cells_read`; removes `number_compare` (duplicate) and `build_with_matching` (discards `sheet_matching` silently). | Adds two, removes two |
+| 04 | **M9 O-A — `DiagnosticLocation` is half-populated.** Moved here 2026-09-25: it changes `location.sheet_name` in serialised output, which `--format json` now publishes. | Changes serialised output |
+| 05 | **§3.5 — `cells_read` means bounding-box area**, reporting 5,200 against 2 compared cells on `sparse_range`. | Public metric; every golden moves |
+| — | **§3.3 — options that can only fail.** Blocked on RFC-037 §7 Q2. | |
+| — | **§3.6 — `AlignmentMode::HeaderColumn`.** Blocked on §7 Q3. | |
+| L | **§5.6 — the v2→v3 migration guide.** Every removal needs a row. | Last |
+
+**§3.4's six values were decided 2026-09-25** and recorded in the milestone
+README, per RFC-037 criterion 1. **Only one is a removal** (`SourceKind::Unknown`).
+`DisplaySource::ReaderProvided` / `::ApplicationProvided` turned out **not to be
+dead**: `CellDisplay::new` is `pub` with a `pub source` field, so they are
+vocabulary for callers who supply their own display text. The rule that
+separates them: a value the *engine* would have to produce and never does is a
+dead arm; a value a *caller* may hand us is vocabulary, and vocabulary may be
+wider than today's usage.
+
+**Three questions remain open** (RFC-037 §7) and block the two units above:
+whether 2.x gets anything after 3.0.0; whether `FormatCompareMode` survives as a
+single-variant reservation; and whether `HeaderColumn` is implemented, renamed
+or removed.
+
 ### Release plan
 
 | Release | Contents | State |
