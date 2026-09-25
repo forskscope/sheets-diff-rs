@@ -160,8 +160,10 @@ against them; the values `hardened()` sets have not changed.
 
 Every other builder method configures comparison *behaviour*, not
 resource bounds — `.formula_compare`, `.format_compare`, `.number_compare`,
-`.sheet_matching`, and others; see [`DiffOptionsBuilder`]'s own
-documentation for the full list. `.limits(Limits { .. })` also accepts a
+`.sheet_matching`, `.alignment`, `.min_severity`, and others; see
+[`DiffOptionsBuilder`]'s own documentation for the full list. Two options have no
+method of their own: `comparison.value.date` (assign the field) and
+`limits.max_cells_read` (set it with `.limits(..)`). `.limits(Limits { .. })` also accepts a
 hand-built `Limits` value via struct-update syntax
 (`Limits { max_sheets: Some(50), ..Limits::default() }`) for bounding one
 dimension without adopting `hardened()`'s full preset.
@@ -219,17 +221,19 @@ well-formed result, but the `Result` is real and worth matching on rather
 than `unwrap()`ing in production code.
 
 **From the command line,** `sheets-diff --format json old.xlsx new.xlsx` prints the
-same pretty-printed JSON. The `cli` feature enables `serde`, so the binary always has
-this format, whichever way it was built. Exit codes are those of any format, and on an
+same pretty-printed JSON. (Install it with `cargo install sheets-diff --features cli`;
+the introduction page, *Installing the command-line tool*, says why the feature is needed.) The
+`cli` feature enables `serde` and `chrono`, so the binary always has this format and
+always populates `iso`, whichever way it was built. Exit codes are those of any format, and on an
 error stdout is empty and the message is on stderr. `--no-warnings` empties the
 `diagnostics` arrays; the counts in `summary` stay.
 
 **Stability.** The JSON shape is stable within 2.x. The model types are public and
 `#[non_exhaustive]`, so a minor release may add fields or enum variants — ignore what
 you do not recognise — and no existing field or variant name is renamed or removed
-within a major version. Values follow the model: `CellDateTime.iso`, for example, is
-`null` unless the crate was built with the `chrono` feature, which the command-line
-binary is not by default.
+within a major version. Values follow the model: `CellDateTime.iso`, for example, is a
+timestamp string in the installed command-line tool, but is `null` for a **library**
+consumer that has not enabled the `chrono` feature.
 
 ---
 

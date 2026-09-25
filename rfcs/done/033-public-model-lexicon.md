@@ -350,6 +350,24 @@ Constructed via `DiffOptions::default()` or `DiffOptions::builder()` →
 `DiffOptionsBuilder`, a consuming fluent builder whose `.build()` runs
 `DiffOptions::validate()` before returning.
 
+**Builder coverage (M8 unit 07, audited against `src/options.rs` by script, not
+counted by eye).** Of the 20 leaf options in the tree, 18 have a builder method of
+their own. Two do not:
+
+| Leaf | Reachable through the builder? |
+|---|---|
+| `comparison.value.date` (`DateComparePolicy`) | **No.** Assign the field. |
+| `limits.max_cells_read` | Only via `limits(Limits { .. })` — no individual method. |
+
+Counted before unit 07 the audit found 16 with a method of their own, `alignment` and
+`max_cells_read` reachable only through a whole-struct method, and `date` and
+`min_severity` reachable through none. `matching.alignment` and `diagnostics.min_severity` gained methods in unit 07
+(`DiffOptionsBuilder::alignment`, `::min_severity`); before it, `min_severity` was
+unreachable and `alignment` was reachable only through the whole-struct
+`build_with_matching(MatchingOptions { .. })`, which replaces `sheet_matching` too.
+Every field is `pub`, so any option can also be set by assignment. `DiffOptions`'s own
+documentation states the two exceptions above.
+
 `ComparisonOptions { value: ValueCompareOptions, formula:
 FormulaCompareMode, include_formula_cached_values: bool, format:
 FormatCompareMode }`. `ValueCompareOptions { number: NumberComparePolicy,
@@ -376,7 +394,9 @@ divergence.
 removed (RFC-025) and the type kept only so a future re-introduction needs
 no API break.
 
-`DiagnosticOptions { min_severity: Option<Severity> }`. **Note (M8 unit 02,
+`DiagnosticOptions { min_severity: Option<Severity> }`, set by
+`DiffOptionsBuilder::min_severity(Option<Severity>)` (M8 unit 07) or by assigning the field.
+**Note (M8 unit 02,
 unreleased):** until then nothing read this field; a caller who set it observed no
 change. It is a *collection* filter — a diagnostic below it is not kept, in the
 workbook's vector or any sheet's — applied once in `src/diff.rs`, and

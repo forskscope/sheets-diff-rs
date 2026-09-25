@@ -26,15 +26,18 @@ lto = false
 # RFC-026: feature flags
 # - "serde": optional Serialize derives on public model types (Deserialize deferred)
 # - "chrono": optional ISO string synthesis for DateTime values from calamine serials
-# - "cli": pulls in clap for the binary, and enables "serde": the binary's
-#   `--format json` needs it, and a CLI whose advertised formats depended on how it
-#   was compiled would be a surface a reader predicts wrongly. Not needed by
-#   library consumers.
+# - "cli": pulls in clap for the binary, and enables "serde" and "chrono". The
+#   binary's advertised *formats* (`--format json` needs serde) and its advertised
+#   *values* (`CellDateTime.iso`, which is null without chrono) must not depend on how
+#   it was compiled: `cargo install sheets-diff --features cli` is the documented
+#   install command, so `cli` alone has to be the whole, correct binary. It follows
+#   that `cli` implies every other feature, so there is exactly one binary
+#   configuration. Not needed by library consumers, and never a default.
 [features]
 default = []
 serde = ["dep:serde", "dep:serde_json"]
 chrono = ["dep:chrono", "calamine/chrono"]
-cli      = ["dep:clap", "serde"]
+cli      = ["dep:clap", "serde", "chrono"]
 
 [[bin]]
 name = "sheets-diff"

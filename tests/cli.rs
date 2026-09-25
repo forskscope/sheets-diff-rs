@@ -530,3 +530,61 @@ fn help_lists_json() {
         "--help must list the json format:\n{help}"
     );
 }
+
+// --- M8 unit 06: the binary a user installs ----------------------------------------
+//
+// `cargo install sheets-diff --features cli` is the documented install command, so
+// `--features cli` alone must yield a binary whose advertised *values*, not only its
+// advertised formats, do not depend on how it was compiled. `CellDateTime.iso` is
+// populated only under `chrono`; `cli` therefore has to enable it. The two guards
+// below make dropping either implied feature a build error rather than a silent
+// change to the installed tool's JSON.
+#[cfg(not(feature = "serde"))]
+compile_error!("the `cli` feature must enable `serde`: `--format json` needs it");
+#[cfg(not(feature = "chrono"))]
+compile_error!(
+    "the `cli` feature must enable `chrono`: the installed CLI's JSON must populate `iso`"
+);
+
+/// Every `DateTime` in a cell diff's `old` / `new`, as `(side, iso)`.
+fn iso_values(v: &Value) -> Vec<(String, Value)> {
+    let mut out = Vec::new();
+    for sheet in v["sheets"].as_array().unwrap() {
+        for cell in sheet["cell_diffs"].as_array().unwrap() {
+            for side in ["old", "new"] {
+                if let Some(dt) = cell["value"][side].get("DateTime") {
+                    out.push((
+                        format!("{} {side}", cell["address"]["a1"]),
+                        dt["iso"].clone(),
+                    ));
+                }
+            }
+        }
+    }
+    out
+}
+
+#[test]
+fn the_installed_clis_json_populates_iso() {
+    // The fixture changes a date cell, so both sides are `DateTime` values. Before
+    // `cli` enabled `chrono`, this printed `"iso": null` under
+    // `--no-default-features --features cli` — the very build the install command
+    // produces.
+    let (old, new) = (
+        fixture("date_column", "old.xlsx"),
+        fixture("date_column", "new.xlsx"),
+    );
+    let (code, stdout, _) = json_run(&old, &new, &[]);
+    assert_eq!(code, Some(1));
+    let isos = iso_values(&json_of(&stdout));
+    assert!(
+        isos.len() >= 2,
+        "precondition — the fixture must yield DateTime values: {stdout}"
+    );
+    for (which, iso) in isos {
+        assert!(
+            iso.is_string(),
+            "{which}: `iso` must be a timestamp string, got {iso}"
+        );
+    }
+}

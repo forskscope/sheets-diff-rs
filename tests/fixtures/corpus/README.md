@@ -46,9 +46,10 @@ BLESS=1 cargo test --features serde,chrono -- generated_fixtures_match_golden
 set goldens are blessed and compared under (RFC-036 Handoff 02 correction
 C-01): `CellDateTime.iso` is populated only when `chrono` is enabled, so a
 date-bearing fixture's exact JSON depends on it. Gating the exact-match
-check on both features together means exactly one CI leg (`serde,chrono,cli`)
-ever performs it, so no golden can be correct on one leg and wrong on
-another — the `serde`-only leg still runs the error-free comparison and
+check on both features together means it runs only on legs that have both:
+`serde,chrono,cli` and, since `cli` implies `serde` and `chrono`, `cli`. Those two
+are the same effective feature set, so no golden can be correct on one leg and
+wrong on another — the `serde`-only leg still runs the error-free comparison and
 every hand-written assertion in this file, which are feature-invariant by
 construction, but not the exact-JSON check.
 

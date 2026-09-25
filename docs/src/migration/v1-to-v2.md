@@ -232,6 +232,9 @@ let unified = render_unified(&diff);   // unified-style per-cell diff
 
 ## CLI exit codes
 
+The command is installed with `cargo install sheets-diff --features cli`. It is not built by
+default; the introduction page, *Installing the command-line tool*, says why.
+
 | Condition | v1 | v2 |
 |---|---|---|
 | No differences | 0 | 0 |

@@ -5,6 +5,23 @@ Structured diff engine for Microsoft Excel `.xlsx` workbooks.
 See the [README](../../README.md) for a quick start, feature table, and design
 notes.
 
+## Installing the command-line tool
+
+The crate ships a `sheets-diff` command. It is **not built by default**: the crate is a
+library first, so a library consumer does not pay for `clap`. The command is behind the
+`cli` feature, and `cargo install sheets-diff` without it installs **nothing** — cargo
+warns that no binary is available and still exits 0. Ask for the feature:
+
+```sh
+cargo install sheets-diff --features cli
+```
+
+`cli` also enables `serde` and `chrono`, on purpose: the installed tool's formats
+(`--format json` needs `serde`) and its values (`CellDateTime.iso` needs `chrono`) must not
+depend on how it was compiled, so `cli` alone is the whole, correct binary. Exit codes and
+`--format` are described in the [migration guide](migration/v1-to-v2.md#cli-exit-codes) and
+the [API guide](api-guide.md#json--serde-feature-only).
+
 ## Contents
 
 - **[API guide](api-guide.md)** — path, reader, and bytes input; the options

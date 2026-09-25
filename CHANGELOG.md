@@ -4,6 +4,21 @@
 
 ### Added
 
+- **`DiffOptionsBuilder::min_severity` and `DiffOptionsBuilder::alignment`.** The
+  `DiffOptions` documentation says to construct via `DiffOptions::builder()`, and the builder
+  had no method for the diagnostic filter or for the alignment mode. Both were settable — the
+  fields are public — but only by reaching past the advertised entry point. `min_severity`
+  takes an `Option<Severity>`, so `None` (the default) can be said; `alignment` takes an
+  `AlignmentMode` and leaves `sheet_matching` alone in either call order.
+  Purely additive: no existing method, field, default or behaviour changed, and field
+  assignment still works. **The builder still does not cover every option**, and its
+  documentation now says which: `comparison.value.date` (`DateComparePolicy`) has no
+  builder method at all, so assign the field, and `limits.max_cells_read` is set only through
+  `limits(Limits { .. })`. Earlier notes counted two options the builder could not reach;
+  the audit found one of them (`alignment`) was already settable through
+  `build_with_matching`, which replaces the whole `MatchingOptions` and so discards a
+  `sheet_matching` set earlier, and missed `date`.
+
 - **`DiagnosticOptions::min_severity` now works, and `--no-warnings` now does
   something.** Both were public and documented and read by nothing, from 2.0.0
   through 2.5.1; a caller who set either observed no change. They are two options
@@ -16,7 +31,8 @@
     everything). It is applied once, in `src/diff.rs`, after every vector is
     assembled. A caller who had set it and seen nothing will now see the filter — that
     is the fix, not new behaviour to opt into. Serialised output (`serde`) for such a
-    caller changes accordingly. There is still no builder method; set the field.
+    caller changes accordingly. It can be set with `DiffOptionsBuilder::min_severity`
+    (below) or by assigning the field.
   - **`--no-warnings` is a *display* control.** It omits the diagnostics section of
     the output and changes nothing else: the summary line's
     `diagnostics: N error(s), M warning(s)`, `summary.diagnostics`, and the exit code
@@ -33,11 +49,29 @@
   `diagnostics` arrays are emptied and the counts in `summary` stay. **The JSON shape is
   stable within 2.x**: minors may add fields or variants (the types are
   `#[non_exhaustive]`), and no existing field or variant name is renamed or removed
-  within a major version. The values follow the model — `CellDateTime.iso` is `null`
-  unless the crate was built with `chrono`, which the binary is not by default.
+  within a major version. The values follow the model — `CellDateTime.iso` is a
+  timestamp string in the installed binary, and `null` for a library consumer that has not
+  enabled `chrono`.
+
+- **Installing the command-line tool is documented.** The crate has shipped a `sheets-diff`
+  command since 2.0.0, with documented flags and an exit-code contract, and never said how to
+  get it. The obvious command, `cargo install sheets-diff`, installs **nothing** — `default`
+  is empty and the binary requires the `cli` feature, so cargo prints a warning and **exits
+  0**, which looks like success. The README and the docs now give the command that works,
+  `cargo install sheets-diff --features cli`, and say why the binary is not built by default
+  (the crate is a library first, so a library consumer does not pay for `clap`).
 
 ### Changed
 
+- **The `cli` feature now also enables `chrono` — fixed before release.** `--format json`
+  (new in this release) would otherwise have printed `"iso": null` for every date and time
+  in the build that `cargo install sheets-diff --features cli` produces, because
+  `CellDateTime.iso` is populated only under `chrono`. `cli` therefore enables both `serde`
+  and `chrono`, so `--features cli` alone is the whole, correct binary and there is exactly
+  one binary configuration. **No released behaviour changes:** `--format json` has not been
+  published, so nobody can have depended on a `null`. This is "fixed before release", not
+  "fixed". It adds `chrono` (and `calamine/chrono`) to what `--features cli` pulls in; it
+  does not change `default`, which stays empty, and `Cargo.lock` is unchanged.
 - **The `cli` feature now enables `serde`.** The binary's `--format json` needs it, and a
   CLI whose advertised formats depended on how it was compiled would list `json` in one
   build's `--help` and not in another's, at the same version. It is additive for a library

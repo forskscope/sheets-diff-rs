@@ -454,7 +454,7 @@ pub struct DiagnosticOptions {
     /// choose what to print (the unified renderer shows warnings and errors)
     /// from whatever was collected; they cannot show what this dropped.
     ///
-    /// There is no builder method for it; set the field:
+    /// Set it with [`DiffOptionsBuilder::min_severity`], or assign the field:
     ///
     /// ```
     /// use sheets_diff::{DiffOptions, Severity};
@@ -490,7 +490,22 @@ impl Default for OutputOptions {
 
 /// The top-level configuration entry point for a v2 comparison.
 ///
-/// Construct via `DiffOptions::default()` or `DiffOptions::builder()`.
+/// Construct via `DiffOptions::default()` or `DiffOptions::builder()`. Every field
+/// is public, so an option can always be set by assigning it.
+///
+/// **The builder does not have a method for every option.** Two are not settable
+/// through a method of their own:
+///
+/// * `comparison.value.date` ([`DateComparePolicy`]) has no builder method at all;
+///   assign the field.
+/// * `limits.max_cells_read` has no method of its own, but is set by
+///   [`DiffOptionsBuilder::limits`] with a whole [`Limits`] value.
+///
+/// Every other option has a builder method. (`matching.alignment` and
+/// `matching.sheet_matching` also have the whole-struct
+/// [`DiffOptionsBuilder::build_with_matching`], which replaces both at once and so
+/// discards either one set earlier; prefer [`DiffOptionsBuilder::alignment`] and
+/// [`DiffOptionsBuilder::sheet_matching`].)
 #[derive(Default)]
 pub struct DiffOptions {
     pub comparison: ComparisonOptions,
@@ -607,6 +622,29 @@ impl DiffOptionsBuilder {
         self
     }
 
+    /// Set how rows are aligned between the two sides of a matched sheet.
+    ///
+    /// The default is [`AlignmentMode::Positional`]. The other modes match rows by
+    /// content and may raise sheet-level diagnostics; see [`AlignmentMode`].
+    /// This sets only the alignment: it leaves [`sheet_matching`](Self::sheet_matching)
+    /// alone, in either call order, which
+    /// [`build_with_matching`](Self::build_with_matching) does not.
+    ///
+    /// ```
+    /// use sheets_diff::DiffOptions;
+    /// use sheets_diff::options::AlignmentMode;
+    ///
+    /// let opts = DiffOptions::builder()
+    ///     .alignment(AlignmentMode::RowKey { columns: vec![1] })
+    ///     .build()?;
+    /// # let _ = opts;
+    /// # Ok::<(), sheets_diff::SheetsDiffError>(())
+    /// ```
+    pub fn alignment(mut self, mode: AlignmentMode) -> Self {
+        self.opts.matching.alignment = mode;
+        self
+    }
+
     // Limits
 
     pub fn max_sheets(mut self, n: u32) -> Self {
@@ -643,6 +681,31 @@ impl DiffOptionsBuilder {
     /// Replace all limits at once, e.g. with [`Limits::hardened()`].
     pub fn limits(mut self, limits: Limits) -> Self {
         self.opts.limits = limits;
+        self
+    }
+
+    // Diagnostics
+
+    /// Set the lowest severity to **collect**; `None`, the default, collects
+    /// every diagnostic.
+    ///
+    /// This is a collection filter, not a display threshold. What it drops, and
+    /// what the counters then report, is defined once, on the field:
+    /// [`DiagnosticOptions::min_severity`].
+    ///
+    /// Takes an `Option` so that `None` can be said, not only omitted.
+    ///
+    /// ```
+    /// use sheets_diff::{DiffOptions, Severity};
+    ///
+    /// let opts = DiffOptions::builder()
+    ///     .min_severity(Some(Severity::Warning))
+    ///     .build()?;
+    /// # let _ = opts;
+    /// # Ok::<(), sheets_diff::SheetsDiffError>(())
+    /// ```
+    pub fn min_severity(mut self, severity: Option<crate::model::Severity>) -> Self {
+        self.opts.diagnostics.min_severity = severity;
         self
     }
 

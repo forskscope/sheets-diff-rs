@@ -123,6 +123,12 @@ v1 CLI users should receive similar basic behavior, but output wording may chang
   default):** the JSON shape is **stable within 2.x**. The model types are public and
   `#[non_exhaustive]`, so a minor release may **add** fields or enum variants, and a
   consumer must ignore what it does not know; no existing field or variant name is
-  renamed or removed within a major version. The *values* are the model's:
-  `CellDateTime.iso`, for instance, is populated only in a build with the `chrono`
-  feature, and is `null` otherwise.
+  renamed or removed within a major version. The *values* are the model's. For a
+  **library** consumer, `CellDateTime.iso` is populated only in a build with the
+  `chrono` feature and is `null` otherwise. For the **installed command-line tool** it
+  is always populated: `cli` enables `chrono`.
+  *(Corrected M8 unit 06, before `--format json` was published. Unit 03 first recorded
+  that the CLI's `iso` depended on how the binary was compiled — `null` under
+  `--features cli`, the documented install command's own build. That was the
+  surface this RFC's §5 example promised and could not deliver; `cli` now enables
+  `chrono`, and the exception is narrowed to the library, not deleted.)*

@@ -57,6 +57,21 @@ for sheet in &diff.sheets {
 }
 ```
 
+### Command-line tool
+
+The crate also ships a `sheets-diff` command. It is not built by default — the crate is a
+library first, so a library consumer does not pay for `clap` — and plain
+`cargo install sheets-diff` installs **nothing** (it warns and exits 0). Ask for it:
+
+```sh
+cargo install sheets-diff --features cli
+sheets-diff old.xlsx new.xlsx --format unified
+```
+
+`--format` is `summary` (default), `unified` or `json`. Exit codes: 0 no differences,
+1 differences, 2 operational error, 3 invalid input; see the
+[migration guide](docs/src/migration/v1-to-v2.md#cli-exit-codes).
+
 ## Features
 
 | Cargo feature | What it enables |
@@ -64,7 +79,7 @@ for sheet in &diff.sheets {
 | *(none)* | Core library — no extra deps |
 | `serde` | `Serialize` on all public model types; `output::json` helpers |
 | `chrono` | ISO-8601 string synthesis for `DateTime` values |
-| `cli` | Builds the `sheets-diff` binary (requires `clap`; enables `serde`, for `--format json`) |
+| `cli` | Builds the `sheets-diff` binary (requires `clap`; also enables `serde` and `chrono`, so the installed tool is complete: `--format json` with `iso` populated) |
 
 ## Design Notes
 
