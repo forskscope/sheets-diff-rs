@@ -1022,7 +1022,7 @@ fn json_valid_and_cells_changed_correct() {
     let old = wb_strings(&[(0, 0, "hello")]);
     let new = wb_strings(&[(0, 0, "world")]);
     let d = compare_bytes(&old, &new).unwrap();
-    let json = sheets_diff::output::json::to_json(&d).unwrap();
+    let json = sheets_diff::output::json::to_json(&d);
     let v: serde_json::Value = serde_json::from_str(&json).expect("invalid JSON");
     assert_eq!(v["summary"]["cells_changed"], 1);
 }
@@ -1032,7 +1032,7 @@ fn json_valid_and_cells_changed_correct() {
 fn json_pretty_is_multiline() {
     let b = wb_strings(&[(0, 0, "x")]);
     let d = compare_bytes(&b, &b).unwrap();
-    let json = sheets_diff::output::json::to_json_pretty(&d).unwrap();
+    let json = sheets_diff::output::json::to_json_pretty(&d);
     assert!(json.contains('\n'), "pretty JSON should be multiline");
 }
 
@@ -1041,7 +1041,7 @@ fn json_pretty_is_multiline() {
 fn json_includes_reserved_empty_arrays() {
     let b = wb_empty();
     let d = compare_bytes(&b, &b).unwrap();
-    let json = sheets_diff::output::json::to_json(&d).unwrap();
+    let json = sheets_diff::output::json::to_json(&d);
     let v: serde_json::Value = serde_json::from_str(&json).unwrap();
     assert_eq!(v["workbook_changes"], serde_json::json!([]));
     assert_eq!(v["object_changes"], serde_json::json!([]));
@@ -1745,7 +1745,7 @@ fn generated_fixtures_match_golden() {
 
         #[cfg(all(feature = "serde", feature = "chrono"))]
         {
-            let actual = sheets_diff::output::json::to_json_pretty(&diff).unwrap();
+            let actual = sheets_diff::output::json::to_json_pretty(&diff);
             let expected_path = dir.join("expected.json");
             if std::env::var("BLESS").as_deref() == Ok("1") {
                 std::fs::write(&expected_path, &actual).unwrap();

@@ -28,8 +28,27 @@ pub const MAX_COL_LABEL: &str = "XFD";
 /// - `row` and `col` are **1-based**.
 /// - `a1` is the canonical Excel A1 string (e.g. `"XFD1048576"`).
 /// - Sorting must use `(row, col)`, never lexicographic A1 order.
+///
+/// **Make one with [`CellAddress::new`], not a struct literal.** `CellAddress` is `#[non_exhaustive]`: a field added
+/// to it later is **not** a breaking change, and in exchange a struct expression naming it does not compile outside
+/// this crate. `new` is the public constructor and it validates: it returns `None` for a zero or out-of-range row or
+/// column, and derives `a1` so the three fields cannot disagree. Reading the fields works as always:
+///
+/// ```
+/// use sheets_diff::CellAddress;
+///
+/// let a = CellAddress::new(3, 28).expect("row 3, column 28 is in range");
+/// assert_eq!((a.row, a.col, a.a1.as_str()), (3, 28, "AB3"));
+/// assert!(CellAddress::new(0, 1).is_none());
+/// ```
+///
+/// ```compile_fail,E0639
+/// use sheets_diff::CellAddress;
+/// let _ = CellAddress { row: 1, col: 1, a1: "A1".to_string() };
+/// ```
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
 pub struct CellAddress {
     pub row: u32,
     pub col: u32,
@@ -72,9 +91,28 @@ impl fmt::Display for CellAddress {
 /// The bounding rectangle that was compared for a sheet pair.
 ///
 /// `None` on either side means that side was empty (no used range).
+///
+/// **Make one with [`ComparedRange::empty`] or [`ComparedRange::union`], not a struct literal.** `ComparedRange` is
+/// `#[non_exhaustive]` — it is a *result* type (`SheetDiff::compared_range`), and a field added to it later is not a
+/// breaking change — so a struct expression naming it does not compile outside this crate. Reading the fields works
+/// as always:
+///
+/// ```
+/// use sheets_diff::ComparedRange;
+///
+/// let r = ComparedRange::union(Some((1, 1)), Some((2, 3)), Some((2, 2)), Some((5, 4)));
+/// assert_eq!((r.start, r.end), (Some((1, 1)), Some((5, 4))));
+/// assert_eq!(ComparedRange::empty().start, None);
+/// ```
+///
+/// ```compile_fail,E0639
+/// use sheets_diff::ComparedRange;
+/// let _ = ComparedRange { start: None, end: None };
+/// ```
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 #[derive(PartialEq)]
+#[non_exhaustive]
 pub struct ComparedRange {
     /// Inclusive top-left, 1-based.
     pub start: Option<(u32, u32)>,

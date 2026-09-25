@@ -193,20 +193,15 @@ fn main() {
             let output = match cli.format {
                 OutputFormat::Summary => render_summary(&diff),
                 OutputFormat::Unified => render_unified(&diff),
-                // JSON is the library's own serialisation of the result, not
-                // formatting done here. Nothing but the JSON reaches stdout, and a
-                // failure to serialise is an internal fault: report it on stderr and
-                // exit 2 with stdout empty. It never falls back to another format.
-                OutputFormat::Json => match sheets_diff::output::json::to_json_pretty(&diff) {
-                    Ok(mut json) => {
-                        json.push('\n');
-                        json
-                    }
-                    Err(e) => {
-                        eprintln!("sheets-diff: could not serialise the result as JSON: {e}");
-                        process::exit(2);
-                    }
-                },
+                // JSON is the library's own serialisation of the result, not formatting
+                // done here. Nothing but the JSON reaches stdout. Serialisation cannot fail
+                // (`to_json_pretty` returns a `String`; see its docs for why), so there is
+                // no error branch and no exit code for one.
+                OutputFormat::Json => {
+                    let mut json = sheets_diff::output::json::to_json_pretty(&diff);
+                    json.push('\n');
+                    json
+                }
             };
             print!("{output}");
 

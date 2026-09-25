@@ -516,6 +516,13 @@ change. As of 2.3.0, RFC-021 and RFC-023 both surface their findings
 exclusively through `diagnostics` (§8); the structured variants these two
 types are reserved for have never been populated in any shipped version.
 
+**`address::CellAddress` and `address::ComparedRange` are `#[non_exhaustive]` (M10 unit 09, unreleased).** `ComparedRange` is a **result**
+field (`SheetDiff::compared_range`) and `CellAddress` is `CellDiff::address`; through 2.6.0 neither was marked, so this lexicon's
+statement above that the result types are `#[non_exhaustive]` was true of the structs in `model.rs` and not of every struct a result
+contains (RFC-037 §3.9 repeated the overstatement). Both are made by their public constructors — `CellAddress::new(row, col)`
+(bounds-checked, `Option`) and `ComparedRange::empty()` / `::union(..)` — not by literal; their fields stay public to read and assign.
+`output::json::to_json` / `to_json_pretty` return `String` (RFC-014).
+
 `SheetDiff { old_sheet, new_sheet, change: SheetChange, cell_diffs:
 Vec<CellDiff>, compared_range: ComparedRange, alignment_summary:
 Option<AlignmentSummary>, diagnostics: Vec<Diagnostic>, summary:

@@ -15,6 +15,12 @@ advertised formats do not depend on how it was compiled. §5's names and signatu
 unit 07 review request; the guard is `tests/cli.rs`). **Not touched here, and not made worse:** §5's exit-code list below
 (`4 = cancelled or limit exceeded`, `5 = internal error`) still names codes the CLI never emits — cancellation and limits exit
 2, and there is now no internal-error value at all (there never was a construction site); M8 unit 03 reported this as F-2.
+**Corrected M10 unit 09 (unreleased):** the CLI's `--format json` path can no longer fail, and the exit-2-on-serialisation-failure
+branch M8 unit 03 added — which could only be tested by fault injection in a scratch copy, because the failure it handled was
+unreachable — is gone. `to_json` / `to_json_pretty` return `String` (§5 below shows the 2.x `Result<String, String>` signatures as
+annotated history); serialising a `WorkbookDiff` cannot fail (no maps or sets in the shape, every `Serialize` derived, non-finite
+floats serialise as `null`). **No exit code changed**: the table in the M10 unit 09 review request compares 2.6.0 and now over eleven
+input classes with `--format json`, and the JSON bytes are identical on all 19 corpus scenarios.
 **Target:** v2.0.0  
 **Created:** 2026-06-11  
 **Category:** Output/CLI  
@@ -63,6 +69,9 @@ pub mod output {
 > drifted in name and in signature. The RFC now matches the code, not the reverse; the
 > error type is not changed here. (`render_unified` also differs from this sketch: it
 > takes no `UnifiedOutputOptions`.)
+>
+> **Corrected M10 unit 09 (unreleased):** the error type *was* changed, in 3.0.0: both functions now return `String`. The
+> `Result<String, String>` shown above is the 2.x signature, kept as history.
 
 CLI examples:
 

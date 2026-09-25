@@ -92,7 +92,7 @@ fn the_serialised_reason_is_the_new_name() {
     let old = wb_sheets(&[("A", CELL)]);
     let new = wb_sheets(&[("B", CELL)]);
     let diff = compare_bytes(&old, &new).unwrap();
-    let json = sheets_diff::output::json::to_json(&diff).unwrap();
+    let json = sheets_diff::output::json::to_json(&diff);
     assert!(json.contains(r#""reason":"SameIndex""#), "{json}");
     assert!(!json.contains("IndexAndContent"), "{json}");
 }

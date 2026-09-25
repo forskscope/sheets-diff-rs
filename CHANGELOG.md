@@ -120,6 +120,28 @@
   release anyway (see the format-option removal). Inside your own code nothing else changes: `Default`, every field, every
   setter and the builder are as they were.
 
+- **`to_json` and `to_json_pretty` return `String`, not `Result<String, String>`.** They were the only two public functions
+  that did not return `SheetsDiffError` — and the `Err` was unreachable: the serialised shape contains no maps or sets (so
+  `serde_json`'s one structural failure, a non-string map key, cannot arise), every `Serialize` in the model is derived (no custom
+  impl can error), non-finite floats serialise as `null` rather than failing (`CellValue::Number(f64)` is the only float), and the
+  output is built in memory. The cost of the `Result` was downstream: the CLI carried an error arm that exited 2 for a
+  serialisation failure, which could only be tested by injecting a fault into a scratch copy. That arm is gone; **the CLI's
+  `--format json` exit codes and output are unchanged** (compared over eleven input classes, and byte-for-byte on all 19 corpus
+  scenarios). **Migration — the rare break that makes your code shorter:** delete the `?` or `.unwrap()`:
+  ```rust
+  let json = to_json(&diff)?;   // 2.x
+  let json = to_json(&diff);    // 3.0
+  ```
+  Their docs state the four conditions, and that **a future model field that broke one of them — a `HashMap`, a custom `Serialize`
+  — would bring the `Result` back**, which is a break; `tests/json_infallible.rs` pins the runtime-checkable ones.
+- **`CellAddress` and `ComparedRange` are `#[non_exhaustive]`.** `ComparedRange` is a *result* field (`SheetDiff::compared_range`),
+  and `CellAddress` is `CellDiff::address`; neither was marked, so a field added to either would have been a break forever. The
+  same trade as the options structs: a struct expression naming either no longer compiles from outside the crate, and in exchange a
+  future field is additive. **Migration:** make a `CellAddress` with `CellAddress::new(row, col)` (1-based, returns `None` if out of
+  range, derives `a1` so the fields cannot disagree) and a `ComparedRange` with `ComparedRange::empty()` or
+  `ComparedRange::union(old_start, old_end, new_start, new_end)`. Reading their public fields, and assigning them on a value you own,
+  work as before. The six view types in `output::view` are **not** changed here.
+
 ### Removed
 
 - **`SheetMatchReason::ExactName`, `::ContentSimilarity` and `::IndexAndContent`.**

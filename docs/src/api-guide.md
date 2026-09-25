@@ -222,8 +222,8 @@ use sheets_diff::compare_paths;
 use sheets_diff::output::json::{to_json, to_json_pretty};
 
 let diff = compare_paths("old.xlsx", "new.xlsx")?;
-let compact = to_json(&diff).expect("serialisable result");
-let pretty = to_json_pretty(&diff).expect("serialisable result");
+let compact: String = to_json(&diff);
+let pretty: String = to_json_pretty(&diff);
 # let _ = (compact, pretty);
 # Ok(())
 # }
@@ -234,10 +234,12 @@ Requires the `serde` feature (`sheets-diff = { version = "…", features =
 and every public model type carries `Serialize` but not `Deserialize`
 (round-tripping a `WorkbookDiff` back into this crate's types is not
 supported; the JSON output is for consumption by other tools, not
-reconstruction). `to_json`/`to_json_pretty` return `Result<String, String>`
-— the error case is serialisation failure, which should not occur for a
-well-formed result, but the `Result` is real and worth matching on rather
-than `unwrap()`ing in production code.
+reconstruction). `to_json`/`to_json_pretty` return a plain `String`,
+**not** a `Result`: serialising a `WorkbookDiff` cannot fail (the shape has no
+maps, every `Serialize` is derived, non-finite floats become `null`, and it is built in
+memory), so there is nothing to match on and no `?` to write — if you are upgrading from 2.x,
+delete the `?` or `.unwrap()`. (A future model field that broke one of those
+would bring the `Result` back; the functions' docs say which conditions to keep.)
 
 **From the command line,** `sheets-diff --format json old.xlsx new.xlsx` prints the
 same pretty-printed JSON. (Install it with `cargo install sheets-diff --features cli`;

@@ -22,8 +22,19 @@ theme one release on: **a public value should describe what the engine does.**
 | 06 ✅ | [Options a caller cannot usefully set](./06-options-a-caller-cannot-set.md) | §3.3, §3.6 | Removes settings, a field, a mode |
 | 07 ✅ | [Values that never arrive](./07-values-that-never-arrive.md) | §3.8 | **Removes a field from serialised output** |
 | 08 ✅ | [The options tree becomes extensible](./08-options-become-extensible.md) | §3.9 | **`#[non_exhaustive]`; every later option is additive** |
-| 09 | [One error type, and two more structs](./09-one-error-type-and-two-more-structs.md) | §3.10, §3.11 | **Signature change; two more structs** |
+| 09 ✅ | [One error type, and two more structs](./09-one-error-type-and-two-more-structs.md) | §3.10, §3.11 | **Signature change; two more structs** |
 | L | The v2→v3 migration guide | §5.6 | **Last. Every removal needs a row.** |
+
+**All nine code units landed 2026-09-25. Only the migration guide remains.**
+
+**Two things it must carry, beyond a row per removal:**
+1. **`..Default::default()` does not work** on a `#[non_exhaustive]` struct from
+   another crate (`E0639`) — and the pattern that stopped compiling is one the
+   API guide documented and a compatibility test pinned. The migration path is
+   the builder, or `Default::default()` plus field assignment.
+2. **"New fields are additive" needs a qualification for types deriving `Ord`.**
+   `CellAddress` derives it over `row, col, a1`, so a future field extends that
+   lexicographic order — additive *for compilation*, not behaviourally neutral.
 
 **Units 01–08 landed 2026-09-25. Unit 09 was added the same day** by an API
 audit (`.git-exclude/decisions/002-v3-api-audit.md`), which found that
