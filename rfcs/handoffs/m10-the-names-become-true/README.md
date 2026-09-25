@@ -94,6 +94,10 @@ allowed to be wider than today's usage.
   rather than dressing it as a runtime failure.
 - Gates as always, plus `.git-exclude/rules/002-comparing-two-builds.md` for any
   before/after measurement.
+- **`fuzz/` is a separate crate that no local gate compiles.** Any removal must
+  sweep it and run `cargo check --manifest-path fuzz/Cargo.toml --bins` before
+  the push — `.git-exclude/rules/003-where-a-removal-must-be-swept.md`. Unit 06
+  did not, and `main` went red on CI's `fuzz-smoke` leg.
 
 ## What is deliberately not here
 
