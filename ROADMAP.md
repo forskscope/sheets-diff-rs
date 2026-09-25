@@ -491,6 +491,33 @@ production use, and this is the cheapest it will ever be.
   and the filter has to cover both vectors anyway.
 - **A6: decide, then build.** Counting populated cells is what the name promises.
 
+### f130 — "`RowKey` drops rows with a blank key" — 🔴 **OPEN 2026-09-26** *(3.0.1, patch)*
+
+**Ahead of M9.** Defect response, not a milestone unit. Handoff:
+[`rfcs/handoffs/f130-rowkey-drops-blank-key-rows/`](rfcs/handoffs/f130-rowkey-drops-blank-key-rows/01-blank-key-rows-are-never-compared.md).
+
+Reported by ForskScope 2026-09-26 and **reproduced here, worse than reported**.
+With `AlignmentMode::RowKey`, a row with no cell in the key column never enters
+`extract_row_keys`'s map, so `lcs_match` never sees it: it is in none of
+`matched`, `removed` or `inserted`, and **its cells are never compared**. A
+change in such a row is reported as no change.
+
+And the result does not merely omit it — `alignment_summary` reports
+`confidence: Exact` with no diagnostic, a positive claim of exact matching made
+about rows that were not looked at.
+
+Their shape is the ordinary one: 2,000 rows, a unique `ID` blank in ~5% of them
+(subtotals, spacers, notes); 1,901 of 2,001 rows matched and 100 silently
+absent. **Same class as M8's reorder defect** — the engine has the information,
+the answer says there is no difference, and nothing objects. ROADMAP §6 rates
+that with a crash.
+
+**The fix is to stop lying, not to align better:** keyless rows become
+`removed`/`inserted` so their cells reach the comparison, a `Warning` names the
+per-side count, and `confidence` stops claiming `Exact`. Pairing keyless rows
+positionally — ForskScope's suggestion, and better — is a quality change that
+needs a design and follows separately.
+
 ### M9 — "Reaching the code, and a record that agrees with itself" — 🔄 **OPEN 2026-09-26** *(no release)*
 
 Handoffs: [`rfcs/handoffs/m9-reaching-the-code/`](rfcs/handoffs/m9-reaching-the-code/README.md).
