@@ -22,11 +22,15 @@ implementer during unit 01 and folded into unit 04 on 2026-09-24.
 | 02 ✅ | [Two inert options, which are not the same option](./02-two-inert-options.md) | A2, A3, O3 | Behaviour where there was none |
 | 03 ✅ | [`--format json`](./03-format-json.md) | A5 | New CLI surface |
 | ~~04~~ | ~~Public values that describe what the engine does not do~~ — **withdrawn to [RFC-037](../../proposed/037-v3-scope.md)** | A4, O1 | — |
-| 06 | [The CLI you can actually install](./06-the-cli-you-can-install.md) | F-1 + `cargo install` | **Feature set of the shipped binary** |
-| 07 | [The builder omits two options](./07-the-builder-omits-two-options.md) | O-D | Additive API |
+| 06 ✅ | [The CLI you can actually install](./06-the-cli-you-can-install.md) | F-1 + `cargo install` | **Feature set of the shipped binary** |
+| 07 ✅ | [The builder omits two options](./07-the-builder-omits-two-options.md) | O-D | Additive API |
 | ~~05~~ | ~~What `cells_read` counts~~ — **withdrawn to [RFC-037](../../proposed/037-v3-scope.md)** | A6 | — |
 
-**Order: 00, then 01, then 06 and 07 in either order. M8 closes at 07.**
+**M8's implementation is complete** — all six units merged as of `beac0d8`,
+2026-09-25. What remains is the release: see
+[`rfcs/handoffs/release-2.6.0/01-release-preparation.md`](../release-2.6.0/01-release-preparation.md).
+
+**Order was: 00, then 01, then 06 and 07 in either order.**
 
 **Units 04 and 05 were withdrawn on 2026-09-25** to
 [RFC-037 (v3 scope)](../../proposed/037-v3-scope.md). Both are fixed by removing
