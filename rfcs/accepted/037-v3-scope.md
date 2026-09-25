@@ -136,6 +136,24 @@ metric counts is a semantic break, and doing it here means it stops being a
 golden-churning problem inside a minor. Every golden moves; each must be shown
 to differ only in `cells_read`.
 
+**Extended by the owner 2026-09-25, after the unit was scoped.** This section
+asked only that the *metric* change. It cannot: `DiffMetrics::cells_read` and
+`Limits::max_cells_read` are one accumulator in `src/diff.rs`, so the metric's
+meaning and a documented security preset's bound are the same number.
+**Both now count populated cells** (option (a) of three put to the owner).
+
+The reason the alternatives lost is worth keeping: before f123,
+`worksheet_range` allocated a dense `Range` whose size *was* the bounding-box
+area, so bounding the area bounded the memory. Streaming removed that
+allocation — `src/diff.rs` records it as *"memory no longer tracks it"* — and
+the bound has guarded nothing since. Keeping it (options (b) and (c)) would
+preserve exactly the kind of value this milestone exists to remove.
+
+**Consequence to be stated, not discovered:** a workbook with a vast box and few
+populated cells is no longer rejected by `max_cells_read`. It is cheap to read,
+so this is a correction; the threat model must say so rather than let the case
+drop quietly.
+
 ### 3.6 `AlignmentMode::HeaderColumn` — the name describes something else (new)
 
 Found during this sweep. Its doc says *"Match rows using the first row as a

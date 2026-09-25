@@ -18,7 +18,7 @@ theme one release on: **a public value should describe what the engine does.**
 | 02 ✅ | [Values nothing produces](./02-values-nothing-produces.md) | §3.2, §3.4 | Removals + documentation |
 | 03 ✅ | [The builder's surface, settled once](./03-the-builder-settled-once.md) | §3.7 | Adds two, removes two |
 | 04 ✅ | [`DiagnosticLocation` is half-populated](./04-diagnosticlocation.md) | M9 O-A | Changes serialised output |
-| 05 ⚠ | [What `cells_read` counts](./05-what-cells-read-counts.md) | §3.5 | **Public metric + a security limit; every golden moves. Written, gated on the owner.** |
+| 05 | [What `cells_read` counts](./05-what-cells-read-counts.md) | §3.5 | **Public metric + a security limit; every golden moves.** |
 | — | *blocked* — options that can only fail | §3.3 | needs §7 Q2 |
 | — | *blocked* — `AlignmentMode::HeaderColumn` | §3.6 | needs §7 Q3 |
 | L | The v2→v3 migration guide | §5.6 | **Last. Every removal needs a row.** |
@@ -26,11 +26,11 @@ theme one release on: **a public value should describe what the engine does.**
 **Order: 01 ✅, then 02, 03, 04 in any order; 05 before the migration guide;
 the migration guide last.**
 
-**Units 01–04 landed 2026-09-25.** Unit 05 is written and **gated**: §3.5
-cannot be implemented as written, because `DiffMetrics::cells_read` and
-`Limits::max_cells_read` are the same accumulator, so changing the metric
-changes what `hardened()` bounds. That is a §6.7 escalation and it is with the
-owner.
+**Units 01–04 landed 2026-09-25; unit 05 is released.** §3.5 could not be
+implemented as written — `DiffMetrics::cells_read` and `Limits::max_cells_read`
+are one accumulator, so changing the metric changes what `hardened()` bounds.
+The owner settled it on 2026-09-25: **both count populated cells.** RFC-037
+§3.5 carries the decision and the two options that lost.
 
 **Unit 01 landed 2026-09-25** and found the cause of the whole milestone:
 RFC-009 §6 specified a scoring matcher with `sampled_content_similarity` that

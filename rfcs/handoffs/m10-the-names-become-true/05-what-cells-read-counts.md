@@ -5,10 +5,13 @@
 **Roadmap.** M10 — unit 05
 **Sequence.** **After 01–04 (all landed).** Before the migration guide. Last of
 the code units, because it moves every golden.
+**Released 2026-09-25**, once the owner settled the question in the next section.
 
-## ⚠ Gate — do not start until the owner has answered
+## The decision that shapes this unit
 
-**§3.5 is not implementable as written, and the reason is not cosmetic.**
+**Settled by the owner 2026-09-25: option (a). Both quantities count populated
+cells.** This section records why it needed deciding, because the reason
+constrains the work.
 
 `DiffMetrics::cells_read` and `Limits::max_cells_read` are **the same number**.
 `src/diff.rs` accumulates one variable:
@@ -19,15 +22,26 @@ if let Some(max) = opts.limits.max_cells_read
     && *total_cells_read > max { … }             // the limit, same value
 ```
 
-So changing what the metric counts changes what a documented **security preset**
-bounds. `Limits::hardened()` sets `max_cells_read: Some(5_000_000)`. That is a
-§6.7 escalation — significant risk acceptance — and it is the owner's, not this
-unit's. The three options and the architect's recommendation are in the review
-package; **the answer will be written into this section before the unit is
-released.**
+So RFC-037 §3.5 — which asks only that the *metric* change — cannot be done
+without changing what a documented security preset bounds. `Limits::hardened()`
+sets `max_cells_read: Some(5_000_000)`.
 
-Everything below assumes the recommended option. If the owner chooses
-differently the handoff is **reissued**, not amended.
+**Both change together.** The metric counts populated cells; the bound fires on
+that same count. The consequences, which the unit must state rather than
+discover:
+
+- A workbook with a **vast bounding box and few populated cells** is no longer
+  rejected by `max_cells_read`. Post-streaming it is cheap to read, so this is a
+  correction, not a regression — but it is a change to what `hardened()` rejects
+  and the threat model must say so plainly.
+- A workbook with **many populated cells in a small box** is now bounded, where
+  before it was bounded only incidentally.
+
+**The options not taken**, so nobody reopens this: (b) split the two and rename
+the limit `max_bounding_box_area`; (c) rename only the metric to
+`bounding_box_area`. Both were rejected for the same reason — they keep a bound
+on a quantity nothing has spent since the streaming change, which is the defect
+this milestone exists to remove.
 
 ## Background
 
