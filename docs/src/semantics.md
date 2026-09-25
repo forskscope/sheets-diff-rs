@@ -90,8 +90,9 @@ let sheet = &diff.sheets[0];
 assert_eq!(sheet.old_sheet.as_ref().unwrap().name, "OldName");
 assert_eq!(sheet.new_sheet.as_ref().unwrap().name, "NewName");
 match &sheet.change {
-    sheets_diff::SheetChange::Renamed { confidence, .. } => {
+    sheets_diff::SheetChange::Renamed { confidence, reason } => {
         assert_eq!(*confidence, sheets_diff::MatchConfidence::Medium);
+        assert_eq!(*reason, sheets_diff::SheetMatchReason::SameIndex);
     }
     other => panic!("expected Renamed, got {other:?}"),
 }
@@ -101,7 +102,11 @@ match &sheet.change {
 `SheetChange::Renamed { confidence, reason }` — rename detection is
 conservative and heuristic (this project's design note: "only fires when
 exactly one old and one new sheet are unmatched"), so `confidence` is worth
-checking before treating a rename as certain in a UI. `old_sheet`/
+checking before treating a rename as certain in a UI. `reason` says what the pairing
+rested on, and it is never cell content, which the matcher does not inspect:
+`SameIndex` (the two sheets sit at the same tab position — the case above) or
+`SoleRemainingPair` (the names and positions both differ, and the two were paired only
+because each was the sole unmatched sheet on its side — the weakest kind). `old_sheet`/
 `new_sheet` still carry both names, and the sheet's own `cell_diffs` are
 unaffected by the rename — a renamed sheet's cell changes are reported
 exactly as an unrenamed sheet's would be.

@@ -28,7 +28,7 @@
       "change": {
         "Renamed": {
           "confidence": "Medium",
-          "reason": "IndexAndContent"
+          "reason": "SameIndex"
         }
       },
       "cell_diffs": [

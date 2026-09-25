@@ -140,15 +140,20 @@ fn conservative_rename(
                 (
                     SheetChange::Renamed {
                         confidence: MatchConfidence::Medium,
-                        reason: SheetMatchReason::IndexAndContent,
+                        reason: SheetMatchReason::SameIndex,
                     },
                     MatchConfidence::Medium,
                 )
             } else {
+                // Formed by elimination: the names differ, the indices differ, and
+                // the two sheets are paired only because each is the sole unmatched
+                // sheet on its side. No content is compared and no index matched, so
+                // this is the weakest pairing the matcher makes — do not read it as
+                // "the index matched" (the arm above) or as anything about content.
                 (
                     SheetChange::RenamedAndMoved {
                         confidence: MatchConfidence::Low,
-                        reason: SheetMatchReason::IndexAndContent,
+                        reason: SheetMatchReason::SoleRemainingPair,
                     },
                     MatchConfidence::Low,
                 )
@@ -209,7 +214,7 @@ fn index_match(
                 new_sheet: Some(new_remaining[ni].clone()),
                 change: SheetChange::Renamed {
                     confidence: MatchConfidence::Low,
-                    reason: SheetMatchReason::IndexAndContent,
+                    reason: SheetMatchReason::SameIndex,
                 },
             });
         }
@@ -302,6 +307,68 @@ mod tests {
         );
         assert_eq!(pairs.len(), 1);
         assert!(matches!(pairs[0].change, SheetChange::Removed));
+    }
+
+    /// The reason a pair carries, or panics if the pair is not a rename.
+    fn reason_of(pair: &MatchedPair) -> &SheetMatchReason {
+        match &pair.change {
+            SheetChange::Renamed { reason, .. } | SheetChange::RenamedAndMoved { reason, .. } => {
+                reason
+            }
+            other => panic!("not a rename: {other:?}"),
+        }
+    }
+
+    // One test per site that constructs a reason (M10 unit 01). The three tests
+    // below are the only places the matcher forms a rename.
+
+    /// `conservative_rename`, one unmatched sheet a side, **equal** indices.
+    #[test]
+    fn reason_site_conservative_equal_index_is_same_index() {
+        let pairs = match_sheets(
+            &[sref("Old", 2)],
+            &[sref("New", 2)],
+            SheetMatchingMode::ExactNameThenConservativeRename,
+            &mut vec![],
+        );
+        assert!(matches!(pairs[0].change, SheetChange::Renamed { .. }));
+        assert_eq!(*reason_of(&pairs[0]), SheetMatchReason::SameIndex);
+    }
+
+    /// `conservative_rename`, one unmatched sheet a side, **unequal** indices: paired
+    /// by elimination, the case that had no true reason before.
+    #[test]
+    fn reason_site_conservative_unequal_index_is_sole_remaining_pair() {
+        let pairs = match_sheets(
+            &[sref("Old", 0)],
+            &[sref("New", 3)],
+            SheetMatchingMode::ExactNameThenConservativeRename,
+            &mut vec![],
+        );
+        assert!(matches!(
+            pairs[0].change,
+            SheetChange::RenamedAndMoved { .. }
+        ));
+        assert_eq!(*reason_of(&pairs[0]), SheetMatchReason::SoleRemainingPair);
+    }
+
+    /// `index_match` (`ExactNameThenIndex`): paired on `n.index == old.index`.
+    #[test]
+    fn reason_site_index_mode_is_same_index() {
+        let pairs = match_sheets(
+            &[sref("A", 0), sref("B", 1)],
+            &[sref("X", 0), sref("Y", 1)],
+            SheetMatchingMode::ExactNameThenIndex,
+            &mut vec![],
+        );
+        let renames: Vec<_> = pairs
+            .iter()
+            .filter(|p| matches!(p.change, SheetChange::Renamed { .. }))
+            .collect();
+        assert_eq!(renames.len(), 2);
+        for p in renames {
+            assert_eq!(*reason_of(p), SheetMatchReason::SameIndex);
+        }
     }
 
     #[test]

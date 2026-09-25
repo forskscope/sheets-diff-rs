@@ -1,5 +1,45 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **`SheetMatchReason` now says what the matcher did — breaking.** Every rename this
+  crate reported carried `SheetMatchReason::IndexAndContent`, which asserts that cell
+  content was compared. No cell content is ever compared: the matcher considers sheet
+  names, tab positions, and which sheets are left over. The one value that was ever
+  produced was wrong at all three sites that produced it, and at one of them
+  (`RenamedAndMoved`, two sheets that were paired only because each was the last
+  unmatched one on its side) neither half of the name was true. The enum is now
+  `SheetMatchReason { SameIndex, SoleRemainingPair }`:
+  - **`SameIndex`** — the two sheets sit at the same tab position and were paired on that
+    (under the default mode they were also the only unmatched sheet on each side).
+  - **`SoleRemainingPair`** — the names and the positions both differ, and the pair was
+    formed by elimination: each was the only unmatched sheet left. The weakest pairing the
+    matcher makes, and now distinguishable from the other.
+
+  **What a caller writes instead.** `IndexAndContent` was produced for *every* rename, so
+  an arm on it meant "this is a rename": match `SheetChange::Renamed { .. }` /
+  `RenamedAndMoved { .. }` for that, and use `reason` only when you want to weigh how far to
+  trust the pairing. Code that did `SheetMatchReason::IndexAndContent => …` no longer
+  compiles, which is the intended signal; a wildcard arm would have kept acting on a false
+  premise. **Serialised output changes:** `"reason": "IndexAndContent"` becomes
+  `"reason": "SameIndex"` (same index, in either matching mode) or
+  `"reason": "SoleRemainingPair"`. `--format json` shipped in 2.6.0, so this string is a
+  machine-readable surface. **Matching itself is unchanged** — which sheets pair with which,
+  as which `SheetChange`, at which `confidence`: 22 sheets in the 19 corpus scenarios,
+  identical to 2.6.0 apart from that one field, and the same for the synthetic
+  rename cases in every matching mode.
+
+### Removed
+
+- **`SheetMatchReason::ExactName`, `::ContentSimilarity` and `::IndexAndContent`.**
+  `ExactName` and `ContentSimilarity` were never constructed by anything, and `ExactName`
+  could not have been: the enum appears only inside `Renamed` and `RenamedAndMoved`, and a
+  rename is not an exact-name match. `IndexAndContent` is replaced, not aliased — a
+  deprecated alias for a false statement is still a false statement. Migration is under
+  Changed above.
+
 ## [2.6.0] - 2026-09-25
 
 **Minor release: the command-line tool no longer misses a difference it used to miss,

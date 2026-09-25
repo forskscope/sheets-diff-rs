@@ -103,14 +103,29 @@ pub enum MatchConfidence {
     Low,
 }
 
-/// The reason a non-exact sheet pair was formed.
+/// Why two sheets with **different names** were paired as a rename.
+///
+/// The matcher considers exactly three things: sheet names, tab positions (indices),
+/// and which sheets are left over once the names that agree have been paired. **It
+/// never inspects cell content**, so no value here says anything about content. A
+/// pair whose names agree is not a rename and carries no reason.
+///
+/// The variants differ in how much the pairing is worth trusting: see
+/// [`MatchConfidence`], which is set alongside.
 #[non_exhaustive]
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 pub enum SheetMatchReason {
-    ExactName,
-    IndexAndContent,
-    ContentSimilarity,
+    /// The two sheets sit at the same tab position, and the matcher paired them on
+    /// that. Under the default sheet-matching mode they were also the only unmatched
+    /// sheet on each side; under `ExactNameThenIndex` the position was the only
+    /// criterion. No cell content was compared.
+    SameIndex,
+    /// Neither the names nor the tab positions agree: the pair was formed because it
+    /// was the only unmatched sheet left on each side, by elimination. Nothing
+    /// positive links the two sheets, and no cell content was compared — treat it as
+    /// the weakest kind of rename.
+    SoleRemainingPair,
 }
 
 /// How a sheet pair was classified.

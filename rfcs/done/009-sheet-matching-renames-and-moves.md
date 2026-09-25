@@ -1,6 +1,18 @@
 # RFC-009: Sheet Matching, Renames, and Moves
 
 **Status.** Implemented (2.0.0–2.2.3) — verified 2026-08-16 against the implementation.
+
+**Corrected M10 unit 01 (unreleased):** §6 describes a matcher that, for the one-removed /
+one-added case, "compare[s] metadata and optionally sample[s] content" and scores
+`index_similarity + dimension_similarity + sampled_content_similarity`. **None of that was
+implemented, and the Status above does not say so.** The matcher inspects no cell content and
+no sheet dimensions. It pairs on name; then, in the default mode, pairs the single unmatched
+sheet on each side (`Medium` confidence if their tab positions agree, `Low` and
+`RenamedAndMoved` if not); and under `ExactNameThenIndex` pairs on tab position (`Low`).
+`SheetMatchReason` used to claim otherwise and now names those causes. §9's acceptance line
+"one renamed sheet with the same content is detected as renamed" passes because *any* sole
+leftover pair is a rename, not because content was compared. Content comparison remains an
+open proposal, not a shipped behaviour.
 **Target:** v2.0.0 conservative, v2.x extensible  
 **Created:** 2026-06-11  
 **Category:** Sheet comparison  
@@ -53,6 +65,35 @@ pub enum SheetMatchingMode {
 
 ## 6. Internal design
 
+> **Corrected M10 unit 01 (3.0.0, unreleased): this section describes an
+> approach that was never built.** No scoring function exists; `grep` across
+> `src/` finds zero occurrences of `index_similarity`, `dimension_similarity`
+> or `sampled_content_similarity`, and `src/matcher.rs` mentions neither
+> dimensions nor sampling. Step 3's "compare metadata and optionally sample
+> content" does not happen either.
+>
+> **What the matcher actually does:** exact-name pairing first; then, in the
+> default mode, if exactly one unmatched sheet remains on each side it is paired
+> by elimination — `Renamed` at `Medium` when the tab positions agree,
+> `RenamedAndMoved` at `Low` when they do not. `ExactNameThenIndex` pairs the
+> remainder on equal tab position. Nothing else is consulted, and **no cell
+> content is read at any point**: `match_sheets` is called at `src/diff.rs:220`
+> and the first `read_sheet_cells` at `:359`, so matching decides before any
+> sheet has been read.
+>
+> The last line below — "for v2.0, exact single add/remove should be enough" —
+> is what shipped, and it shipped alone.
+>
+> **This paragraph is the origin of a defect that took three milestones to
+> find.** `SheetMatchReason::ContentSimilarity` and `::IndexAndContent` were
+> named after this design rather than after the code, so every rename the engine
+> reported claimed a content check that never existed. The enum was corrected in
+> M10 unit 01; this section is corrected here so the belief has no source left.
+>
+> Reintroducing content comparison is a **feature**, not a correction, and would
+> have to be a new opt-in `SheetMatchingMode` — the default must not start
+> reading sheets before the limits that bound reading have been applied.
+
 Matching phases:
 
 1. Exact name match.
@@ -91,6 +132,12 @@ Acceptance criteria:
 
 - Exact same-name sheets match.
 - One renamed sheet with same content is detected as renamed.
+  - **Annotated M10 unit 01 (3.0.0, unreleased): this passes, and it does not
+    test what it reads as testing.** The matcher pairs **any** sole remaining
+    unmatched sheet on each side as a rename, whether or not the content
+    matches — see §6's correction. A fixture whose content *differs* would
+    satisfy this criterion equally. It is met; it is not evidence that content
+    is compared, because nothing compares content.
 - One renamed sheet with cell changes still produces cell diffs.
 - Multiple ambiguous rename candidates do not produce arbitrary confident matches.
 - Added and removed sheets remain correctly represented.

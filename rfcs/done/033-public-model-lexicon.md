@@ -239,8 +239,17 @@ pub enum SheetChange {
 
 Names and indices live on `SheetDiff.old_sheet` / `.new_sheet`, not
 duplicated inside the variant payloads. `MatchConfidence { Exact, High,
-Medium, Low }`; `SheetMatchReason { ExactName, IndexAndContent,
-ContentSimilarity }`.
+Medium, Low }`; `SheetMatchReason { SameIndex, SoleRemainingPair }`.
+
+**Corrected M10 unit 01 (unreleased):** this lexicon recorded `SheetMatchReason {
+ExactName, IndexAndContent, ContentSimilarity }`. Two of the three were never
+constructed — `ExactName` could not be, since the enum appears only inside `Renamed` and
+`RenamedAndMoved` and a rename is not an exact-name match — and the third,
+`IndexAndContent`, asserted that cell content had been compared at all three sites that
+built it, when the matcher inspects no cell content anywhere. The enum is now
+`{ SameIndex, SoleRemainingPair }`: the two things that actually happen (the sheets sat
+at the same tab position; or they were the only unmatched sheets left, with different
+positions). Classification, confidence and matching are unchanged.
 
 `Moved` — name-matched, cell-identical, but the tab index differs between
 workbooks — was, until RFC-036 (M3 track A), never distinguished from
