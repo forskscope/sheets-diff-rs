@@ -23,10 +23,10 @@ implementer during unit 01 and folded into unit 04 on 2026-09-24.
 | 01 ✅ | [A reorder reports no difference](./01-moved-and-renamed-sheets.md) | A1 | **CLI exit contract** |
 | 02 ✅ | [Two inert options, which are not the same option](./02-two-inert-options.md) | A2, A3, O3 | Behaviour where there was none |
 | 03 ✅ | [`--format json`](./03-format-json.md) | A5 | New CLI surface |
-| ~~04~~ | ~~Public values that describe what the engine does not do~~ — **withdrawn to [RFC-037](../../proposed/037-v3-scope.md)** | A4, O1 | — |
+| ~~04~~ | ~~Public values that describe what the engine does not do~~ — **withdrawn to [RFC-037](../../accepted/037-v3-scope.md)** | A4, O1 | — |
 | 06 ✅ | [The CLI you can actually install](./06-the-cli-you-can-install.md) | F-1 + `cargo install` | **Feature set of the shipped binary** |
 | 07 ✅ | [The builder omits two options](./07-the-builder-omits-two-options.md) | O-D | Additive API |
-| ~~05~~ | ~~What `cells_read` counts~~ — **withdrawn to [RFC-037](../../proposed/037-v3-scope.md)** | A6 | — |
+| ~~05~~ | ~~What `cells_read` counts~~ — **withdrawn to [RFC-037](../../accepted/037-v3-scope.md)** | A6 | — |
 
 **M8's implementation is complete** — all six units merged as of `beac0d8`,
 2026-09-25. What remains is the release: see
@@ -35,7 +35,7 @@ implementer during unit 01 and folded into unit 04 on 2026-09-24.
 **Order was: 00, then 01, then 06 and 07 in either order.**
 
 **Units 04 and 05 were withdrawn on 2026-09-25** to
-[RFC-037 (v3 scope)](../../proposed/037-v3-scope.md). Both are fixed by removing
+[RFC-037 (v3 scope)](../../accepted/037-v3-scope.md). Both are fixed by removing
 or renaming public items, and cargo hands `^2` users a new minor automatically,
 so a deleted name is a build failure they did not ask for. The owner's decision
 was to stop paying for that with documentation workarounds and take the major

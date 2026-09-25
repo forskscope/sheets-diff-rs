@@ -448,7 +448,7 @@ shipped as 2.4.0 rather than 2.3.1) and A6 changes a public metric.
 | ~~05~~ | **WITHDRAWN to RFC-037 (v3) 2026-09-25.** **A6 — `cells_read` means bounding-box area**, reporting 5,200 against 2 compared cells on `sparse_range`. | Public metric moves; every golden moves |
 
 **M8 now closes at unit 07.** Units 04 and 05 moved to
-[RFC-037](rfcs/proposed/037-v3-scope.md) on 2026-09-25: both are fixed by
+[RFC-037](rfcs/accepted/037-v3-scope.md) on 2026-09-25: both are fixed by
 *removing or renaming* public items, which cargo's resolver makes a major-version
 change, and the owner's decision was to stop deferring those behind a
 documentation workaround. A major costs almost nothing while there is no
@@ -525,7 +525,7 @@ in RFC-033. Found 2026-09-24 while scoping M8 unit 02.
 |---|---|---|
 | **2.5.1** (patch) | The streaming read (merged, `8fe7c2c`) + f123 unit 01: the cancellation test that does not test, the threat-model surface, and the record sweep | **Dev team is on it.** Cut and publish on completion, then file the advisory |
 | **2.6.0** (minor) ✅ | M8 — all six units (00, 01, 02, 03, 06, 07) merged. Units 04 and 05 withdrawn to v3. **This is the release ForskScope adopts.** | **PUBLISHED 2026-09-25**, crates.io, tag `2.6.0`, MSRV 1.88.0. `cargo install sheets-diff --features cli` verified live: 2.6.0, `json` in `--help`, `iso` populated, reorder exits 1. |
-| **3.0.0** (major) | [RFC-037](rfcs/proposed/037-v3-scope.md) — a **closed list** of removals and renames: `SheetMatchReason`, four unreachable `DiagnosticKind` variants, four always-failing options, `cells_read`'s meaning, `AlignmentMode::HeaderColumn`. **No new features.** Requires a `v2-to-v3` migration guide. | **RFC proposed 2026-09-25**, awaiting acceptance |
+| **3.0.0** (major) | [RFC-037](rfcs/accepted/037-v3-scope.md) — a **closed list** of removals and renames: `SheetMatchReason`, four unreachable `DiagnosticKind` variants, four always-failing options, `cells_read`'s meaning, `AlignmentMode::HeaderColumn`. **No new features.** Requires a `v2-to-v3` migration guide. | **RFC-037 ACCEPTED 2026-09-25.** §3 is closed. Three questions in its §7 remain open and block the handoffs that depend on them. |
 | — | **M9** — fuzzing, rule deviations, record corrections, measurement. Six of its seven units are invisible; they land on `main` as they are done and need no release. Its one observable unit (O-A) moves into v3. | No release; may run in parallel |
 
 **There is no planned 2.7.0.** *(Corrected 2026-09-25.)* One was scheduled in

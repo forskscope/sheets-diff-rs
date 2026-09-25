@@ -1,6 +1,10 @@
 # RFC-037: v3 Scope — the breaks, and the closed list
 
-**Status.** **Proposed** 2026-09-25. Awaiting the owner's acceptance. Scope widened the same day (§3.7, §5) after 2.6.0 shipped and a planned 2.7.0 was dropped.
+**Status.** **Accepted** by the owner 2026-09-25. Scope was widened the same day
+(§3.7, §5) before acceptance, after 2.6.0 shipped and a planned 2.7.0 was
+dropped. **§3 is now closed** — nothing joins it without the owner reopening it.
+The three questions in §7 remain open and block the handoffs that depend on them,
+not the RFC.
 **Target:** 3.0.0
 **Created:** 2026-09-25
 **Author:** high-capability model (architect / design authority)
@@ -211,11 +215,21 @@ Stating these closes the list, which is the point of writing it down.
 1. Every item in §3 has a decision recorded before a handoff is written.
 2. The migration guide covers every removal.
 3. No item is added to §3 after acceptance without the owner reopening it.
-4. ForskScope is told before 3.0.0 is cut, not at it.
+4. ~~ForskScope is told before 3.0.0 is cut, not at it.~~ **Superseded by the
+   owner, 2026-09-25:** the letter goes **after** the final stable release, not
+   before the cut. One letter covering 2.6.0 and 3.0.0 together, rather than a
+   notice per release — their adoption target has already moved three times and
+   a fourth pre-announcement buys them nothing they can act on. The draft is
+   held at `.git-exclude/tmp/sheets-diff-to-forskscope-v3-notice.md` and must be
+   rewritten in the past tense before it goes.
 
 ## 7. Open questions for the owner
 
+**These do not block acceptance; each blocks the handoff that depends on it.**
+
 1. **Does 2.x get anything after 3.0.0?** Security-only, or nothing? ForskScope
-   will likely be on 2.6.x. Cheaper to decide now than at the cut.
+   will likely be on 2.6.x. Cheaper to decide now than at the cut — and now
+   more so, since the letter arrives *after* 3.0.0 and will have to state the
+   answer rather than ask it.
 2. **§3.3** — does `FormatCompareMode` survive as a single-variant reservation?
 3. **§3.6** — implement, rename, or remove `HeaderColumn`?
