@@ -1,6 +1,6 @@
 # RFC-037: v3 Scope — the breaks, and the closed list
 
-**Status.** **Proposed** 2026-09-25. Awaiting the owner's acceptance.
+**Status.** **Proposed** 2026-09-25. Awaiting the owner's acceptance. Scope widened the same day (§3.7, §5) after 2.6.0 shipped and a planned 2.7.0 was dropped.
 **Target:** 3.0.0
 **Created:** 2026-09-25
 **Author:** high-capability model (architect / design authority)
@@ -138,11 +138,39 @@ name and documentation describe a third thing. Same family as §3.1.
 remove it. Not a documentation fix — the doc would have to say "despite the
 name, this is `RowKey` on column 1", which is an admission, not an API.
 
-### 3.7 Builder duplication — decide (M8 unit 07's known risk)
+### 3.7 The builder's surface, settled once (M8 unit 07 + unit 08, folded in 2026-09-25)
 
-`DiffOptionsBuilder` has both `number_compare` and `number_compare_policy`,
-taking the same `NumberComparePolicy` and setting the same field. One should go;
-removing a public method is a break.
+**Additions and removals here are one decision, not two.** M8 unit 08 was
+scheduled to *add* two setters in a 2.x minor while this section *removed* two;
+that would have settled the builder's naming rule twice. Unit 08 is withdrawn
+into this section.
+
+**Remove** (each a break):
+
+- `number_compare` — identical to `number_compare_policy`, same argument type,
+  same field. The implementer's view, recorded: keep `number_compare_policy`,
+  which matches its siblings `numeric_type_policy` and `type_mismatch_policy`;
+  `number_compare` matches `formula_compare` / `format_compare`. **Settle the
+  rule for the whole builder, then apply it**, rather than choosing per method.
+- `build_with_matching` — it assigns the whole `MatchingOptions`, so it silently
+  discards a `sheet_matching` set earlier in the chain. With `.alignment()` and
+  `.sheet_matching()` (M8 unit 07) it has no remaining use a chain does not
+  cover. Demonstrated, not asserted: `.sheet_matching(ExactNameOnly)` followed by
+  `build_with_matching(..)` ends with the default.
+
+**Add**, so the builder covers every leaf option and `DiffOptions`'s doc comment
+needs no "except":
+
+- `date_compare(DateComparePolicy)` — `comparison.value.date` is reachable
+  through no builder method at all. Found by the implementer's audit; the
+  architect's list had named the wrong two options.
+- `max_cells_read(Option<u64>)` — its five `Limits` siblings each have a setter
+  and it does not.
+
+**Also**: remove `#[allow(dead_code)]` from `AlignmentMode` and its
+`HeaderColumn` variant. Verified redundant — rustc never reports a `pub` variant
+of a public enum as dead, and clippy stays clean without them on the pre-unit-07
+source as well. Two lines, no risk, and it interacts with §3.6.
 
 ## 4. Explicitly **not** in scope
 
@@ -165,10 +193,16 @@ Stating these closes the list, which is the point of writing it down.
 
 1. **2.6.0 ships first**, carrying M8 units 00–03 (done), 06 and 07. It is the
    release ForskScope adopts. It must not wait for v3.
-2. **M8 units 04 and 05 are withdrawn** into this RFC — 04 becomes §3.1/§3.2,
-   05 becomes §3.5. M8 closes at unit 07.
-3. **v3 handoffs are written against the 2.6.0 tree**, not this one.
-4. **A `v2-to-v3` migration guide** is required, matching
+2. **M8 units 04, 05 and 08 are withdrawn** into this RFC — 04 becomes
+   §3.1/§3.2, 05 becomes §3.5, 08 becomes part of §3.7. **M8 closed at unit 07,
+   published as 2.6.0 on 2026-09-25.**
+3. **M9's one observable unit (O-A) moves here** — populating
+   `DiagnosticLocation` at the push sites changes `location.sheet_name` in
+   serialised output, which `--format json` now publishes. M9's other six units
+   are invisible and need no release.
+4. **3.0.0 is the next release.** There is no planned 2.7.0; see `ROADMAP.md`.
+5. **v3 handoffs are written against the 2.6.0 tree**, not this one.
+6. **A `v2-to-v3` migration guide** is required, matching
    `docs/src/migration/v1-to-v2.md` in form, and every removal here needs a row
    in it saying what to use instead.
 

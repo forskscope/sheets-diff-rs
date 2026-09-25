@@ -506,7 +506,7 @@ at the cut.
 | 03 | **C4, C6, C7, C8, C9, E, and F-2 — the remaining record corrections.** **F-2:** RFC-013 has more drift than M8 unit 03's three corrections covered — its §5 exit-code table says `2 = usage, 3 = input/open/read, 4 = cancelled or limit, 5 = internal` when `4` and `5` are never emitted, and it places the CLI at `src/bin/sheets-diff.rs` when it is `src/main.rs`. Found by the implementer 2026-09-25 and correctly left alone as out of scope. Original items: `fuzz/README.md` says CI does not run the fuzz targets (it does); RFC-035 and RFC-036 are still in `accepted/` while the README calls 035 delivered; `performance.md`'s figures were measured on the dense read PR #28 replaced and nothing says whether they were re-measured; handoff directories are not `NNN-slug/`; `README.md` says calamine is "pinned" where `Cargo.toml` has a caret range. |
 | 04 | **O4 — `FormulaUnavailable` is pushed once per cell** (`src/diff.rs:747`), each carrying a cloned sheet-name `String` and a `CellAddress`, for every numeric cell with no formula. On a dense numeric sheet the diagnostics vector grows proportional to cells read, at a much larger per-item cost than a cell. Bounded by `max_cells_read`, so not a hole — but the constant factor is unmeasured and the threat model does not mention it. **Measure before deciding**; M7 established that this project does not act on a memory hypothesis it has not measured. Found 2026-09-24 while scoping M8 unit 02. |
 | 05 | **O-B — the corpus cannot reach the warnings M8 unit 02 exists to surface.** Swept independently at review time: 19 scenarios × 4 alignment modes = **76 runs, zero sheet-level warnings**. No fixture trips `AlignmentBoundExceeded` or `DuplicateAlignmentKey`, and RFC-036's coverage matrix has no row for either. **This is D1's shape again** — a corpus that cannot reach the code it exists to guard — and it should be worked beside D1, not apart from it. Found by the implementer 2026-09-25. |
-| 06 | **O-A / F-4 — `DiagnosticLocation` is populated inconsistently.** `align.rs`'s two sites and most of `meta.rs`/`objects.rs`/`matcher.rs` leave `sheet_name` and `sheet_order` `None`; only `FormulaUnavailable` and two others fill them. M8 unit 02 worked around it by naming the sheet from the owning `SheetDiff`, which is right for the renderer — but **a JSON consumer now sees those diagnostics with `"sheet_name": null`**, inside the right sheet's array and unable to say so from the location alone. Fix the push sites. |
+| ~~06~~ | **MOVED to RFC-037 (v3) 2026-09-25** — it changes serialised output, which a major covers. **O-A / F-4 — `DiagnosticLocation` is populated inconsistently.** `align.rs`'s two sites and most of `meta.rs`/`objects.rs`/`matcher.rs` leave `sheet_name` and `sheet_order` `None`; only `FormulaUnavailable` and two others fill them. M8 unit 02 worked around it by naming the sheet from the owning `SheetDiff`, which is right for the renderer — but **a JSON consumer now sees those diagnostics with `"sheet_name": null`**, inside the right sheet's array and unable to say so from the location alone. Fix the push sites. |
 | 07 | **F-3 — the CLI applies no `Limits` at all**, and `--format json` builds the entire result as one in-memory `String`. Not new (every format has the shape), but JSON makes output size track result size exactly. **Measure before deciding**, with O4. |
 
 **D1 is the substantive one.** This crate has fuzzing that cannot reach the code
@@ -524,10 +524,27 @@ in RFC-033. Found 2026-09-24 while scoping M8 unit 02.
 | Release | Contents | State |
 |---|---|---|
 | **2.5.1** (patch) | The streaming read (merged, `8fe7c2c`) + f123 unit 01: the cancellation test that does not test, the threat-model surface, and the record sweep | **Dev team is on it.** Cut and publish on completion, then file the advisory |
-| **2.6.0** (minor) | M8 — all six units (00, 01, 02, 03, 06, 07) merged. Units 04 and 05 withdrawn to v3. **This is the release ForskScope adopts.** | **Prepared, awaiting the cut** — version stamped, `publish --dry-run` clean without `--allow-dirty`, CI green at `ab298df` |
-| **2.7.0** (minor) | M9's observable half — O-A/F-4 changes `location.sheet_name` in serialised output | After 2.6.0 |
+| **2.6.0** (minor) ✅ | M8 — all six units (00, 01, 02, 03, 06, 07) merged. Units 04 and 05 withdrawn to v3. **This is the release ForskScope adopts.** | **PUBLISHED 2026-09-25**, crates.io, tag `2.6.0`, MSRV 1.88.0. `cargo install sheets-diff --features cli` verified live: 2.6.0, `json` in `--help`, `iso` populated, reorder exits 1. |
 | **3.0.0** (major) | [RFC-037](rfcs/proposed/037-v3-scope.md) — a **closed list** of removals and renames: `SheetMatchReason`, four unreachable `DiagnosticKind` variants, four always-failing options, `cells_read`'s meaning, `AlignmentMode::HeaderColumn`. **No new features.** Requires a `v2-to-v3` migration guide. | **RFC proposed 2026-09-25**, awaiting acceptance |
-| — | M9's rest (fuzzing, rule deviations, record corrections) | No release; may run in parallel |
+| — | **M9** — fuzzing, rule deviations, record corrections, measurement. Six of its seven units are invisible; they land on `main` as they are done and need no release. Its one observable unit (O-A) moves into v3. | No release; may run in parallel |
+
+**There is no planned 2.7.0.** *(Corrected 2026-09-25.)* One was scheduled in
+`01b0579` — the commit *before* RFC-037 — for "M9's observable half", and then
+carried forward unexamined once the owner decided to go straight to a major. The
+owner caught it. **3.0.0 is the next release.**
+
+Two reasons, and the second is the better one:
+
+- **Nothing in it needed a minor.** Six of M9's seven units are invisible.
+  The seventh (O-A) changes serialised output, which a major covers anyway.
+  Unit 08's two builder setters are additive and can wait.
+- **Unit 08 and RFC-037 §3.7 are one decision.** Unit 08 *adds*
+  `date_compare` and `max_cells_read`; §3.7 *removes* `number_compare` and
+  `build_with_matching`. Splitting them across two releases means settling the
+  builder's naming rule twice — which the implementer flagged before I did.
+
+A **patch** release stays available reactively if a defect is found in 2.6.x.
+That is different from planning a minor with nothing in it.
 
 **2.5.1 is published** (2026-09-24, crates.io, MSRV 1.88.0).
 
