@@ -4,7 +4,8 @@
 //! Default mode is `Positional` (existing behaviour, unchanged).
 //! `RowKey` and `RowSignature` modes are opt-in via `DiffOptions.matching.alignment`.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+use std::fmt::Write as _;
 
 use crate::diff::CellMap;
 use crate::model::{
@@ -166,7 +167,75 @@ fn row_key_alignment(
         });
     }
 
-    lcs_match(old_keys, new_keys)
+    // A row with no cell in any key column has no key, so it cannot be matched *by key*. What it
+    // must not do is disappear: `extract_row_keys` never sees it, so without this it would be in
+    // none of `matched`, `removed` or `inserted`, its cells would never be compared, and the
+    // summary would call the alignment exact (f130).
+    //
+    // Two things happen to such rows instead. **Rows whose cells hold the same values in the same
+    // columns on both sides are paired with one another, in row order** — a subtotal or spacer line
+    // that did not change must not become a removal plus an insertion, or the noise would scale with
+    // how many blank keys the sheet has (2,200 cell diffs for one changed cell on a 2,000-row sheet
+    // with a blank key every twentieth row). Which of several identical rows pairs with which has no
+    // observable effect: identical rows compare identically whichever way they are paired. **The rest
+    // are unmatched** — removed on the old side, inserted on the new — so a keyless row that changed
+    // reaches the comparison as a whole-row change and is not lost. Pairing a *changed* keyless row
+    // with its counterpart would be better still and needs a design (which neighbour; what when the
+    // counts differ between sides); it is not done here.
+    let old_keyless = keyless_rows(old_cells, &old_keys);
+    let new_keyless = keyless_rows(new_cells, &new_keys);
+
+    let mut mapping = lcs_match(old_keys, new_keys);
+
+    if !old_keyless.is_empty() || !new_keyless.is_empty() {
+        let (old_count, new_count) = (old_keyless.len(), new_keyless.len());
+        let (paired, old_rest, new_rest) =
+            pair_identical_rows(old_cells, new_cells, old_keyless, new_keyless);
+        let n_paired = paired.len();
+
+        diagnostics.push(Diagnostic {
+            severity: Severity::Warning,
+            kind: DiagnosticKind::MissingAlignmentKey {
+                old_count,
+                new_count,
+            },
+            location: sheet_location(sheet),
+            message: format!(
+                "{old_count} row(s) in old and {new_count} in new have no cell in any alignment key \
+                 column and cannot be matched by key; {n_paired} pair(s) of rows with identical \
+                 values were matched to each other, and the other {} old / {} new row(s) are reported \
+                 as removed / inserted rather than compared with a counterpart",
+                old_rest.len(),
+                new_rest.len()
+            ),
+        });
+
+        mapping.matched.extend(paired);
+        mapping.removed.extend(old_rest);
+        mapping.removed.sort_unstable();
+        mapping.inserted.extend(new_rest);
+        mapping.inserted.sort_unstable();
+
+        let (n_matched, n_removed, n_inserted) = (
+            mapping.matched.len(),
+            mapping.removed.len(),
+            mapping.inserted.len(),
+        );
+        mapping.summary = AlignmentSummaryData {
+            inserted_rows: n_inserted,
+            removed_rows: n_removed,
+            matched_rows: n_matched,
+            // `High` says the pairing is reliable apart from a few real insertions and removals.
+            // Rows placed by their content alone, or not at all, are neither — so a sheet with any
+            // keyless row is at most `Medium`, however many of them paired.
+            confidence: match confidence_for(n_matched, n_removed, n_inserted) {
+                MatchConfidence::Exact | MatchConfidence::High => MatchConfidence::Medium,
+                lower => lower,
+            },
+        };
+    }
+
+    mapping
 }
 
 // ---------------------------------------------------------------------------
@@ -241,13 +310,7 @@ fn lcs_match(old_seq: BTreeMap<u32, RowKey>, new_seq: BTreeMap<u32, RowKey>) -> 
         .collect();
 
     let n_matched = matched.len();
-    let confidence = if removed.is_empty() && inserted.is_empty() {
-        MatchConfidence::Exact
-    } else if n_matched > removed.len() + inserted.len() {
-        MatchConfidence::High
-    } else {
-        MatchConfidence::Medium
-    };
+    let confidence = confidence_for(n_matched, removed.len(), inserted.len());
 
     let n_removed = removed.len();
     let n_inserted = inserted.len();
@@ -261,6 +324,18 @@ fn lcs_match(old_seq: BTreeMap<u32, RowKey>, new_seq: BTreeMap<u32, RowKey>) -> 
             matched_rows: n_matched,
             confidence,
         },
+    }
+}
+
+/// `Exact` when every row on both sides was matched; `High` when matched rows outnumber the rest;
+/// `Medium` otherwise.
+fn confidence_for(n_matched: usize, n_removed: usize, n_inserted: usize) -> MatchConfidence {
+    if n_removed == 0 && n_inserted == 0 {
+        MatchConfidence::Exact
+    } else if n_matched > n_removed + n_inserted {
+        MatchConfidence::High
+    } else {
+        MatchConfidence::Medium
     }
 }
 
@@ -282,6 +357,64 @@ fn extract_row_keys(cells: &CellMap, key_cols: &[u32]) -> BTreeMap<u32, RowKey> 
         }
     }
     rows
+}
+
+/// The rows of `cells` that `extract_row_keys` did not key: those with a cell, but none in any key
+/// column. In ascending row order. (A row with no cell at all is not in `cells` and is not a row
+/// of this sheet as far as any comparison is concerned.)
+fn keyless_rows(cells: &CellMap, keyed: &BTreeMap<u32, RowKey>) -> Vec<u32> {
+    let mut rows: Vec<u32> = Vec::new();
+    for (r, _) in cells.keys() {
+        if !keyed.contains_key(r) && rows.last() != Some(r) {
+            rows.push(*r);
+        }
+    }
+    rows
+}
+
+/// What a row holds, for pairing keyless rows: each cell's column and value, in column order. Rows
+/// with equal strings hold the same values in the same columns. (`Debug`, not `display_string()`,
+/// so the number `1` and the text `"1"` are different; formulas are not part of it — a paired row is
+/// still compared cell by cell, formulas included, so pairing never hides a difference.)
+fn row_content(cells: &CellMap, row: u32) -> String {
+    let mut s = String::new();
+    for ((_, col), cell) in cells.range((row, 0)..=(row, u32::MAX)) {
+        let _ = write!(s, "{col}={:?};", cell.value);
+    }
+    s
+}
+
+/// Pair keyless rows whose content is identical, the k-th such row on the old side with the k-th on
+/// the new, in row order. Returns the pairs (old row -> new row) and the rows left over on each side.
+fn pair_identical_rows(
+    old_cells: &CellMap,
+    new_cells: &CellMap,
+    old_keyless: Vec<u32>,
+    new_keyless: Vec<u32>,
+) -> (BTreeMap<u32, u32>, Vec<u32>, Vec<u32>) {
+    let mut available: HashMap<String, VecDeque<u32>> = HashMap::new();
+    for r in new_keyless {
+        available
+            .entry(row_content(new_cells, r))
+            .or_default()
+            .push_back(r);
+    }
+    let mut paired = BTreeMap::new();
+    let mut old_rest = Vec::new();
+    for r in old_keyless {
+        match available
+            .get_mut(&row_content(old_cells, r))
+            .and_then(VecDeque::pop_front)
+        {
+            Some(n) => {
+                paired.insert(r, n);
+            }
+            None => old_rest.push(r),
+        }
+    }
+    let mut new_rest: Vec<u32> = available.into_values().flatten().collect();
+    new_rest.sort_unstable();
+    (paired, old_rest, new_rest)
 }
 
 fn compute_row_signatures(cells: &CellMap, sample_cols: Option<&[u32]>) -> BTreeMap<u32, RowKey> {

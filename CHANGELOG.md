@@ -1,5 +1,50 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **`DiagnosticKind::MissingAlignmentKey { old_count, new_count }` and its code `missing_alignment_key`**, raised
+  by `AlignmentMode::RowKey` when rows have no cell in any key column (see *Fixed*). A new variant of a
+  `#[non_exhaustive]` enum and a new row in the `code()` table: additive, and the reason this is a minor release.
+
+### Fixed
+
+- **`AlignmentMode::RowKey` no longer drops rows that have no key: a change in such a row was
+  reported as no change, under an alignment summary that said `Exact`.** A row with no cell in any
+  key column — a subtotal line, a spacer, a note — was excluded from alignment and then never
+  compared: it was in none of the matched, removed or inserted rows, so its cells reached no
+  comparison, `cell_diffs` said nothing, and `alignment_summary` reported `confidence: Exact`
+  with no diagnostic. Four rows, one with a blank key and one cell changed in it: `Positional`
+  reports the change, `RowKey` on that column reported none. **Every release from 2.1.0, which
+  introduced `RowKey`, through 3.0.0 is affected** — twelve releases, established by running the
+  same comparison against each tag's own source; 2.0.x has no `RowKey`. (`AlignmentMode::HeaderColumn`,
+  removed in 3.0.0, was `RowKey` on column 1 and had the same defect.) It was reported by ForskScope,
+  who measured the alignment modes' failure cases: 2,000 rows with a unique ID blank in about 5% of
+  them matched 1,901 rows and silently omitted the rest.
+  **Now, under `RowKey`:**
+  - **A row with no cell in any key column is never absent.** Rows with the same values in the same
+    columns on both sides are **paired with one another**, in row order, and compared like any other
+    matched pair — an unchanged subtotal or spacer line is silent. The rest are **unmatched**: removed
+    (old side) or inserted (new side), so a change in a keyless row reaches the comparison as a
+    whole-row change, and the alignment summary's `removed_rows` / `inserted_rows` count it. A key
+    column that no row populates, or an empty `columns` list — which compared nothing at all before —
+    is the same rule applied to every row. On the reporter's shape (2,000 rows, 12 columns, a blank ID
+    in every twentieth row, one cell changed in a blank-key row) `Positional` reports 1 cell diff and
+    `RowKey` now reports 22, all in the changed row; a first version of this fix, which reported every
+    keyless row as removed and inserted, reported 2,200. A workbook compared with itself reports none.
+  - **A `Warning`, `missing_alignment_key`** (`DiagnosticKind::MissingAlignmentKey { old_count,
+    new_count }`), on the sheet, names how many rows each side had without a key, and is raised
+    whenever there is one, however few and however many of them paired.
+  - **`confidence` is at most `Medium` when any row had no key**, never `Exact` and never `High`: a
+    row placed by its content, or not at all, is not one placed by a key.
+  **What is not done.** A keyless row that *changed* is not paired with its counterpart: it is
+  reported as a removal plus an insertion, which is more than `Positional`'s single changed cell.
+  Pairing it needs a design (which neighbour; what happens when the counts differ between sides) and
+  is a separate change. Rows that have *some* of several key columns are keyed by the values they
+  have, as before. `Positional` and `RowSignature`, and what `RowKey` does with rows that have a key,
+  are unchanged; a sheet whose rows are all keyed gets the same result, byte for byte, as in 3.0.0.
+
 ## [3.0.0] - 2026-09-26
 
 **Major release: a correction, not new capability. 3.0.0 removes and renames API that

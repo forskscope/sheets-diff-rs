@@ -14,6 +14,24 @@ Why the Status word is unchanged: the unit-01 distinction applies. Column alignm
 keys detected; positional unchanged; cancellable) and pass. An RFC whose acceptance criteria are met is
 implemented; a goal never built is a stale paragraph, not a broken promise. Column alignment remains open
 work, and adding it later is an added variant on a `#[non_exhaustive]` enum.
+**Corrected f130 (3.1.0): `RowKey` requires a key, and now says what it does when a row has none.** §8 says
+"missing keys … should produce warnings and fall back to positional comparison". The implementation did neither:
+`extract_row_keys` put a row in its map only if the row had a cell in a key column, so a row with none was in none of
+`matched`, `removed` or `inserted` — **never compared, a change in it reported as no change, and the sheet's
+`alignment_summary` said `confidence: Exact`.** That is not a missing feature: it is a wrong answer, in every release
+from 2.1.0 (which introduced `RowKey`) through 3.0.0. **Now:** a row with no cell in any key column is *unmatched, not
+absent*: rows with the same values in the same columns on both sides are paired with one another, in row order, and
+compared like any matched pair (an unchanged subtotal or spacer line is silent); the rest are reported as removed (old
+side) or inserted (new side), so a changed keyless row reaches the comparison as a whole-row change; a `Warning` `missing_alignment_key` (`DiagnosticKind::MissingAlignmentKey { old_count, new_count }`) names how many
+rows each side had, on the sheet; and `confidence` is at most `Medium`, since `Exact` and `High` claim a reliability the
+alignment does not have. A key column that no row populates (or an empty `columns` list) is the same rule applied to every
+row. **Not done, and deliberate:** the "fall back to positional" half of §8 — comparing keyless rows against their
+neighbours, which would be better than removed + inserted — needs a design (which neighbour; what when the counts differ
+between sides) and is a separate unit. Until then a keyless row that *changed* is reported as a removal plus an
+insertion. (A first version of this fix reported *every* keyless row that way and measured 2,200 cell diffs for one
+changed cell on a 2,000-row sheet with a blank key every twentieth row; identical-row pairing brings it to 22, against
+`Positional`'s 1, and a workbook compared with itself to 0.) Rows with *some* but not all of several
+key columns are keyed by the values they have; that is unchanged and is not addressed here.
 **Target:** v2.1 candidate, optional v2.0 if ready  
 **Created:** 2026-06-11  
 **Category:** Diff quality  
@@ -88,7 +106,7 @@ For row-signature mode, compute a stable hash/signature from selected normalized
 
 ## 8. Error, diagnostic, and edge-case behavior
 
-Duplicate keys, missing keys, and unstable signatures should produce warnings and fall back to positional comparison for ambiguous sections.
+Duplicate keys, missing keys, and unstable signatures should produce warnings and fall back to positional comparison for ambiguous sections. *(Annotated f130, 3.1.0: duplicate keys warn and do **not** fall back — the LCS runs on the full sequences; missing keys warn and are reported removed / inserted, with no positional fallback. See the correction at the top.)*
 
 Large sheets must respect max row/cell bounds. Alignment cancellation points are mandatory.
 

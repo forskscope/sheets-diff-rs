@@ -36,6 +36,7 @@ const TABLE: &[&str] = &[
     "defined_name_scope_unknown",
     "alignment_bound_exceeded",
     "duplicate_alignment_key",
+    "missing_alignment_key",
 ];
 
 // ---------------------------------------------------------------------------
@@ -168,6 +169,16 @@ fn synthetic() -> Vec<(&'static str, WorkbookDiff)> {
             compare_bytes_with_options(
                 wb_strings(&[(0, 0, "dup"), (1, 0, "dup"), (2, 0, "unique")]),
                 wb_strings(&[(0, 0, "dup"), (1, 0, "unique")]),
+                row_key_opts(None),
+            )
+            .unwrap(),
+        ),
+        (
+            "missing_alignment_key",
+            // Row 2 has no cell in the key column (A): unmatched, not absent.
+            compare_bytes_with_options(
+                wb_strings(&[(0, 0, "id1"), (1, 1, "note"), (2, 0, "id3")]),
+                wb_strings(&[(0, 0, "id1"), (1, 1, "note"), (2, 0, "id3")]),
                 row_key_opts(None),
             )
             .unwrap(),

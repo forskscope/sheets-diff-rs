@@ -147,6 +147,14 @@ pub enum AlignmentMode {
     Positional,
     /// Match rows by the values in the specified key columns (1-based).
     /// Reduces cascades after row insertion/deletion.
+    ///
+    /// **This mode needs a key.** A row with no cell in any key column cannot be matched by key. It is
+    /// not skipped. Rows with the same values in the same columns on both sides are paired with one
+    /// another, in row order, and compared like any matched pair; the rest are reported as removed (old
+    /// side) or inserted (new side), so a change in such a row is still seen, as a whole-row change. A
+    /// `missing_alignment_key` warning gives the count per side, and the sheet's alignment confidence is
+    /// at most `Medium`. A key column that no row populates therefore matches nothing and reports every
+    /// row that differs. Duplicate keys warn too (`duplicate_alignment_key`).
     RowKey { columns: Vec<u32> },
     /// Match rows by a hash of selected cell values (content similarity).
     /// `sample_columns` limits which columns contribute to the signature;

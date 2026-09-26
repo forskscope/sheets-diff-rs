@@ -681,6 +681,15 @@ pub enum DiagnosticKind {
         old_count: usize,
         new_count: usize,
     },
+    /// Under `AlignmentMode::RowKey`, rows that have no cell in any key column cannot be matched by
+    /// key. They are not dropped: rows with the same values in the same columns on both sides are paired
+    /// with one another, and the rest are reported as removed (old side) or inserted (new side), so a
+    /// changed row reaches the comparison as a whole-row change. The sheet's alignment confidence is at
+    /// most `Medium`. The counts are of keyless rows per side, before pairing.
+    MissingAlignmentKey {
+        old_count: usize,
+        new_count: usize,
+    },
 }
 
 impl DiagnosticKind {
@@ -706,6 +715,7 @@ impl DiagnosticKind {
     /// | `defined_name_scope_unknown` | Defined-name scope is unavailable from the reader |
     /// | `alignment_bound_exceeded` | The alignment row-product bound was exceeded; fell back to positional |
     /// | `duplicate_alignment_key` | Two or more rows shared the same alignment key |
+    /// | `missing_alignment_key` | Rows with no cell in any key column could not be matched by key; reported as removed / inserted |
     ///
     /// New codes added in later minor versions will extend this table; existing
     /// rows are stable.
@@ -718,6 +728,7 @@ impl DiagnosticKind {
             DiagnosticKind::DefinedNameScopeUnknown => "defined_name_scope_unknown",
             DiagnosticKind::AlignmentBoundExceeded { .. } => "alignment_bound_exceeded",
             DiagnosticKind::DuplicateAlignmentKey { .. } => "duplicate_alignment_key",
+            DiagnosticKind::MissingAlignmentKey { .. } => "missing_alignment_key",
         }
     }
 }

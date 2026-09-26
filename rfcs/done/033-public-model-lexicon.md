@@ -291,6 +291,10 @@ diagnostic is attributed (documented in `model.rs` as *cannot occur*; guarded by
 `DuplicateAlignmentKey { old_count, new_count }` (RFC-035). **All seven are live** — the engine
 produces each — which is asserted by `tests/diagnostic_codes.rs`.
 
+**Extended f130 (3.1.0):** an eighth, `MissingAlignmentKey { old_count, new_count }` (code `missing_alignment_key`), is
+raised under `RowKey` alignment when rows have no cell in any key column (RFC-011's f130 correction). **All eight are
+live**, asserted by the same test.
+
 **Corrected M10 unit 02 (3.0.0):** this lexicon listed four more, none of which any code
 path could construct: `FormulaCachedValueUnverified`, `UnsupportedCellValue { detail }` (its one
 use, the duplicate-alignment-key condition, moved to `DuplicateAlignmentKey` in RFC-035 and
