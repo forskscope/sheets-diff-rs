@@ -521,14 +521,21 @@ per-side count, and `confidence` stops claiming `Exact`. Pairing keyless rows
 positionally — ForskScope's suggestion, and better — is a quality change that
 needs a design and follows separately.
 
-### Alignment follow-ups — 🔄 **RECORDED 2026-09-26** *(no release yet)*
+### Alignment follow-ups — 🔄 **UNIT 01 OPEN 2026-09-26** *(next minor)*
 
-From ForskScope's measurements of 2026-09-26. Recorded so the answers given in
-our reply are scheduled rather than promised.
+From ForskScope's measurements of 2026-09-26. Handoff:
+[`rfcs/handoffs/alignment-followups/`](rfcs/handoffs/alignment-followups/01-cancellable-alignment-and-two-measurements.md).
+
+**Unit 01 takes the first row plus two loose ends** — `benches/memory.rs` still
+keys `RowKey` on column 0 (M9 unit 00's finding, and wrong a second way after
+f130), and `missing_alignment_key`'s location is not asserted for a renamed
+sheet (3.1.0 prep's finding; the behaviour is correct, the test does not reach
+it). **Cancellable alignment is a commitment in writing** — our letter of
+2026-09-26 says it is scheduled — which is why it goes before M9's units 01–06.
 
 | Item | State |
 |---|---|
-| **Alignment is not cancellable.** `grep -c check_cancel src/align.rs` → 0. 2.5.1 made the *read* cancellable and left this phase; a cancel requested 100 ms into a 1.2 s alignment is observed at 1,208 ms. **Accepted** in the reply; the LCS loop is the natural place. | To schedule |
+| **Alignment is not cancellable.** `grep -c check_cancel src/align.rs` → 0. 2.5.1 made the *read* cancellable and left this phase; a cancel requested 100 ms into a 1.2 s alignment is observed at 1,208 ms. The poll point is the DP fill's **outer** loop — one check per table row, ~0.25 ms granularity at 4,900 rows, one atomic load per `n` cell operations. | **Unit 01, open** |
 | **Keyless rows compared positionally against their neighbours**, rather than reported as removed/inserted. ForskScope's suggestion; the quality half of f130, which ships correctness only. Needs a design: which neighbour, and what happens when the per-side counts differ. | To design |
 | **O((m+n)·D) alignment** in place of O(m·n) LCS. Internal only — same `RowMapping` out, no API surface. Their figures: 3.7 bytes and 48 ns per `m × n` cell; `max_alignment_product` (25M) bites at ~5,000 rows; 10,000 rows is 4.9 s and 465 MB. **Direction accepted, RFC-gated, no date** — degenerates toward O(m·n) at large D, so the bound stays as a guard. | RFC first |
 | **Row space on `CellDiff`.** A matched or removed row is numbered in the old sheet's space, an inserted one in the new; `CellDiff` carries an address and nothing saying which. Additive (`#[non_exhaustive]`), so a minor. **The naming is the hard part** — the field means *which file's row numbering this address uses*, not *which file the cell is in*. | RFC first |
