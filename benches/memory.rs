@@ -161,6 +161,25 @@ fn make_keyed(rows: u32, changed: bool) -> Vec<u8> {
     wb.save_to_buffer().unwrap()
 }
 
+/// `make_keyed`, but the id is blank in every 20th row (a subtotal or spacer line), which is what makes those rows
+/// keyless under `RowKey` on column 1.
+fn make_keyed_with_blank_ids(rows: u32, changed: bool) -> Vec<u8> {
+    let mut wb = Workbook::new();
+    let ws = wb.add_worksheet();
+    for r in 0..rows {
+        if r % 20 != 19 {
+            ws.write_string(r, 0, format!("id_{r}")).unwrap();
+        }
+        let val = if changed && r == 3 {
+            "changed".to_string()
+        } else {
+            format!("val_{r}")
+        };
+        ws.write_string(r, 1, &val).unwrap();
+    }
+    wb.save_to_buffer().unwrap()
+}
+
 fn make_empty() -> Vec<u8> {
     let mut wb = Workbook::new();
     wb.add_worksheet();
@@ -360,15 +379,18 @@ fn run_ladder_variance_check(temp_dir: &std::path::Path) {
 fn q2_attribution() {
     println!("== Q2: attribution ==");
 
-    // --- Suspect: cell_map_to_align's clone (diff.rs:42) ---
-    // Positional (default) never calls cell_map_to_align at all -- only
-    // non-Positional modes do. Same fixture, two alignment modes: the
-    // difference isolates roughly what the align-map clone (plus whatever
-    // the alignment computation itself allocates) costs. Measured at two
-    // row counts (10x apart) to see whether the ratio is roughly constant
-    // (a high but linear constant) or grows with n (superlinear -- would be
-    // a separate, more urgent finding than "cloning costs something").
-    for rows in [500u32, 5_000u32] {
+    // --- What choosing an alignment mode costs: the LCS table (M9 unit 00; re-keyed by the alignment follow-ups) ---
+    // Positional (default) never aligns. `RowKey` on the id column runs an LCS over the two row sequences, which
+    // allocates a (rows + 1)^2 table of `u32`: that is the cost, it is quadratic, and it is what
+    // `max_alignment_product` bounds. (Through M7 Handoff 04 there was a second cost, `cell_map_to_align`'s clone of
+    // every cell value; it was deleted, and `tests/memory_relationships.rs` guards against its return.)
+    //
+    // **Key columns are 1-based**, and the id column here is column 1 (`make_keyed` writes it at 0-based column 0).
+    // This line used to say `columns: vec![0]`, which selects no cell: no row had a key, the LCS ran on two empty
+    // sequences, and the "delta" it printed was for an alignment that did not happen -- and, after f130, for every
+    // row being keyless. So the measurement is now checked against itself: it asserts the alignment matched every
+    // row, and prints the analytic table size beside the measured delta so a disagreement is visible.
+    for rows in [500u32, 2_000u32, 5_000u32] {
         let old = make_keyed(rows, false);
         let new = make_keyed(rows, true);
 
@@ -379,20 +401,70 @@ fn q2_attribution() {
         });
 
         let opts = DiffOptions::builder()
-            .alignment(AlignmentMode::RowKey { columns: vec![0] }) // the stable "id_N" column, not the changing value column
+            .alignment(AlignmentMode::RowKey { columns: vec![1] }) // 1-based: the "id_N" column
             .build()
             .unwrap();
-        let (_, aligned_peak) = measure_peak(|| {
+        let (aligned, aligned_peak) = measure_peak(|| {
             let d = compare_bytes_with_options(black_box(&old), black_box(&new), opts).unwrap();
             black_box(&d);
             d
         });
+        let summary = aligned.sheets[0]
+            .alignment_summary
+            .as_ref()
+            .expect("a RowKey comparison has an alignment summary");
+        assert_eq!(
+            summary.matched_rows, rows as usize,
+            "the alignment did not run on the id column: every row must match (matched_rows = {})",
+            summary.matched_rows
+        );
 
+        let table = (rows as usize + 1).pow(2) * 4;
         let align_cost = aligned_peak.saturating_sub(positional_peak);
         println!(
-            "  align-clone isolation ({rows} rows, keyed): Positional peak={positional_peak}, RowKey peak={aligned_peak}, delta (align cost)={align_cost} ({:.1}% of Positional peak, {:.2} bytes/row)",
+            "  RowKey on the id column ({rows} rows): matched_rows={} (asserted = rows), Positional peak={positional_peak}, RowKey peak={aligned_peak}, delta={align_cost} ({:.1}% of Positional), (rows+1)^2*4 = {table} (delta / table = {:.3})",
+            summary.matched_rows,
             align_cost as f64 / positional_peak.max(1) as f64 * 100.0,
-            align_cost as f64 / rows as f64,
+            align_cost as f64 / table as f64,
+        );
+    }
+
+    // --- The keyless path: a blank id in every 20th row (ForskScope's shape, f130) ---
+    // Rows with no key are paired with identical rows and the rest reported as removed / inserted, which is a
+    // different code path from the one above (a signature string per cell of each keyless row, a `Warning`).
+    for rows in [500u32, 5_000u32] {
+        let old = make_keyed_with_blank_ids(rows, false);
+        let new = make_keyed_with_blank_ids(rows, true);
+        let (positional, positional_peak) = measure_peak(|| {
+            let d = compare_bytes(black_box(&old), black_box(&new)).unwrap();
+            black_box(&d);
+            d
+        });
+        let opts = DiffOptions::builder()
+            .alignment(AlignmentMode::RowKey { columns: vec![1] })
+            .build()
+            .unwrap();
+        let (aligned, aligned_peak) = measure_peak(|| {
+            let d = compare_bytes_with_options(black_box(&old), black_box(&new), opts).unwrap();
+            black_box(&d);
+            d
+        });
+        let s = aligned.sheets[0].alignment_summary.as_ref().unwrap();
+        let keyless = rows.div_ceil(20) as usize;
+        assert!(
+            s.matched_rows + s.removed_rows >= rows as usize - keyless,
+            "the alignment did not run"
+        );
+        let table = (rows as usize + 1).pow(2) * 4;
+        println!(
+            "  RowKey, blank id every 20th row ({rows} rows, {keyless} keyless): matched/removed/inserted={}/{}/{}, cell_diffs={} (Positional: {}), Positional peak={positional_peak}, RowKey peak={aligned_peak}, delta={} ({:.3} of the (rows+1)^2*4 table {table})",
+            s.matched_rows,
+            s.removed_rows,
+            s.inserted_rows,
+            aligned.sheets[0].cell_diffs.len(),
+            positional.sheets[0].cell_diffs.len(),
+            aligned_peak.saturating_sub(positional_peak),
+            aligned_peak.saturating_sub(positional_peak) as f64 / table as f64,
         );
     }
 

@@ -540,6 +540,38 @@ it). **Cancellable alignment is a commitment in writing** — our letter of
 | **O((m+n)·D) alignment** in place of O(m·n) LCS. Internal only — same `RowMapping` out, no API surface. Their figures: 3.7 bytes and 48 ns per `m × n` cell; `max_alignment_product` (25M) bites at ~5,000 rows; 10,000 rows is 4.9 s and 465 MB. **Direction accepted, RFC-gated, no date** — degenerates toward O(m·n) at large D, so the bound stays as a guard. | RFC first |
 | **Row space on `CellDiff`.** A matched or removed row is numbered in the old sheet's space, an inserted one in the new; `CellDiff` carries an address and nothing saying which. Additive (`#[non_exhaustive]`), so a minor. **The naming is the hard part** — the field means *which file's row numbering this address uses*, not *which file the cell is in*. | RFC first |
 
+### f131 — "The coordinate-set loops have no ceiling" — 🔴 **OPEN 2026-09-26** *(next minor)*
+
+Found by the dev team while making alignment cancellable, reported rather than
+absorbed, and **reproduced at review**.
+
+`build_sheet_diff`'s three coordinate loops run
+`old_map.keys().filter(|(row, _)| row == r)` — `src/diff.rs:478`, `:487` — a full
+scan of the cell map **once per row**, so O(rows × cells). Measured, old sheet
+1 row against a new sheet of N, `RowKey`, 3 columns:
+
+| | `Positional` | `RowKey` |
+|---|---:|---:|
+| 1 × 2,500 | 9 ms | 132 ms |
+| 1 × 5,000 | 20 ms | 508 ms |
+| 1 × 10,000 | 39 ms | **2,075 ms** |
+| 1 × 40,000 | 0.13 s | **37 s** |
+
+**Doubling the rows quadruples the time**, and a sheet may have 1,048,576.
+
+**`max_alignment_product` does not bound it.** It bounds `old_rows × new_rows` —
+1 × 40,000 = 40,000 against a default of 25,000,000 — so a `Limits` field a
+reader would expect to cap alignment cost lets this through, and the threat
+model's Alignment paragraph describes only the LCS table. **Same shape as f123**,
+and the same category ForskScope named: a marker credited with more than it
+measured, here in the resource-limit surface.
+
+**Not a patch, and not urgent:** it predates the change that found it, it is
+**now cancellable** because of that change, and it needs an asymmetric shape. The
+fix is `old_map.range((r, 0)..=(r, u32::MAX))` in place of a full scan — it
+changes when, not what. The threat model's Alignment paragraph needs the cost
+either way.
+
 ### M9 — "Reaching the code, and a record that agrees with itself" — 🔄 **OPEN 2026-09-26** *(no release)*
 
 Handoffs: [`rfcs/handoffs/m9-reaching-the-code/`](rfcs/handoffs/m9-reaching-the-code/README.md).

@@ -36,6 +36,9 @@ fn row_key(product: Option<u64>) -> DiffOptions {
 /// Two rows share the key `dup` on the old side: raises `duplicate_alignment_key`.
 const DUP_OLD: &[(u32, u16, &str)] = &[(0, 0, "dup"), (1, 0, "dup"), (2, 0, "unique")];
 const DUP_NEW: &[(u32, u16, &str)] = &[(0, 0, "dup"), (1, 0, "unique")];
+/// Row 2 has no cell in the key column (A) and changed between the two: raises `missing_alignment_key`.
+const MISSING_OLD: &[(u32, u16, &str)] = &[(0, 0, "id1"), (1, 1, "note-old")];
+const MISSING_NEW: &[(u32, u16, &str)] = &[(0, 0, "id1"), (1, 1, "note-new")];
 /// 3 x 3 distinct rows: a product of 9 exceeds a bound of 5, raising `alignment_bound_exceeded`.
 const BOUND_OLD: &[(u32, u16, &str)] = &[(0, 0, "id1"), (1, 0, "id2"), (2, 0, "id3")];
 const BOUND_NEW: &[(u32, u16, &str)] = &[(0, 0, "id1"), (1, 0, "id2"), (2, 0, "id9")];
@@ -138,6 +141,55 @@ fn a_pair_level_diagnostic_names_the_new_side_of_a_renamed_and_moved_sheet() {
         location_pair(x),
         (Some(1), Some("New".into())),
         "the pair's new side (index 1, `New`), not the old side (index 0, `Old`)"
+    );
+}
+
+/// The same rule for the third alignment warning, `missing_alignment_key`: on a sheet that was renamed
+/// **and** moved it names the new workbook's sheet. All three alignment warnings get their sheet from one
+/// place (`build_sheet_diff` passes `new_sheet.or(old_sheet)` into `compute_row_mapping`), which is why this
+/// is correct — and why, until this test, nothing said so for this one.
+#[test]
+fn missing_alignment_key_names_the_new_side_of_a_renamed_and_moved_sheet() {
+    // old: Old(0) with a keyless row, Stay(1).   new: Stay(0), New(1): `Old` -> `New` is RenamedAndMoved, 0 -> 1.
+    let old = wb_sheets(&[("Old", MISSING_OLD), ("Stay", &[])]);
+    let new = wb_sheets(&[("Stay", &[]), ("New", MISSING_NEW)]);
+    let d = compare_bytes_with_options(&old, &new, row_key(None)).unwrap();
+    assert!(
+        d.sheets
+            .iter()
+            .any(|s| format!("{:?}", s.change).starts_with("RenamedAndMoved")),
+        "the fixture must be a renamed-and-moved pair"
+    );
+    let x = only(&d, "missing_alignment_key");
+    assert_eq!(
+        location_pair(x),
+        (Some(1), Some("New".into())),
+        "the pair's new side (index 1, `New`), not the old side (index 0, `Old`)"
+    );
+}
+
+/// A sheet that exists on one side only is named by that side, for the third warning too.
+#[test]
+fn a_one_sided_sheet_with_a_missing_key_is_named_by_the_side_it_exists_on() {
+    let added = compare_bytes_with_options(
+        wb_sheets(&[("Keep", &[])]),
+        wb_sheets(&[("Keep", &[]), ("Extra", MISSING_NEW)]),
+        row_key(None),
+    )
+    .unwrap();
+    assert_eq!(
+        location_pair(only(&added, "missing_alignment_key")),
+        (Some(1), Some("Extra".into()))
+    );
+    let removed = compare_bytes_with_options(
+        wb_sheets(&[("Keep", &[]), ("Gone", MISSING_OLD)]),
+        wb_sheets(&[("Keep", &[])]),
+        row_key(None),
+    )
+    .unwrap();
+    assert_eq!(
+        location_pair(only(&removed, "missing_alignment_key")),
+        (Some(1), Some("Gone".into()))
     );
 }
 
@@ -303,6 +355,15 @@ fn corpus_and_synthetic() -> Vec<(String, WorkbookDiff)> {
         .unwrap(),
     ));
     out.push((
+        "renamed and moved, missing key".into(),
+        compare_bytes_with_options(
+            wb_sheets(&[("Old", MISSING_OLD), ("Stay", &[])]),
+            wb_sheets(&[("Stay", &[]), ("New", MISSING_NEW)]),
+            row_key(None),
+        )
+        .unwrap(),
+    ));
+    out.push((
         "hidden".into(),
         compare_bytes(
             workbook_with_hidden(&["A", "Back", "C"], &[]),
@@ -359,7 +420,9 @@ fn every_sheet_level_diagnostic_names_the_sheet_that_owns_it() {
                 );
                 if matches!(
                     x.kind.code(),
-                    "alignment_bound_exceeded" | "duplicate_alignment_key"
+                    "alignment_bound_exceeded"
+                        | "duplicate_alignment_key"
+                        | "missing_alignment_key"
                 ) {
                     assert_eq!(
                         (order, name),

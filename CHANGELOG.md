@@ -1,5 +1,28 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Row alignment is now cancellable.** A `Cancellation` was polled while reading and while comparing, and not at all while
+  aligning, so under `AlignmentMode::RowKey` or `RowSignature` a cancel requested during alignment was not observed until it
+  ended: reproduced as 1.2 s after the request on 4,900 rows × 3 columns (the comparison ran to completion and returned
+  `Ok`), 3.9 s on 4,900 × 12, 23.6 s on 4,900 × 24. It is now observed in **4.6 ms, 5.8 ms and 11.6 ms** respectively.
+  Alignment polls once per row of the LCS table, and once per row in each of the three loops that build the set of cells to
+  compare — which, measured, are **most of an aligned comparison's time on a wide sheet, not the LCS table** (0.99 s against
+  0.25 s at 3 columns; 29.8 s against 0.25 s at 24). **The behaviour change:** a comparison that used to run to completion
+  after a cancel now returns `Err(SheetsDiffError::Cancelled)`. No public API changed, and a comparison that is not cancelled
+  returns exactly what it did (checked field for field, in all three alignment modes).
+
+### Documentation
+
+- **`docs/src/maintainers/performance.md`** records where an aligned comparison's time goes and what now polls, and settles
+  a hedged claim: the "23×-inflated, clearly-wrong delta" an earlier measurement discarded was the real one (the LCS table),
+  reproduced on the tree before the clone was deleted. It also records a cost this release does **not** change: building the
+  compared-cell set is O(rows × cells) and is not covered by `max_alignment_product` (one row against 40,000 takes 37 s
+  under `RowKey`, against 0.13 s under `Positional`). `benches/memory.rs` was measuring an alignment that did not happen
+  (`columns: vec![0]`, but key columns are 1-based); it now keys the id column and asserts the alignment ran.
+
 ## [3.1.0] - 2026-09-26
 
 **Minor release: a row with a blank key was never compared. Under `AlignmentMode::RowKey`, a row with

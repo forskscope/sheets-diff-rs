@@ -8,10 +8,11 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::fmt::Write as _;
 
 use crate::diff::CellMap;
+use crate::error::SheetsDiffError;
 use crate::model::{
     Diagnostic, DiagnosticKind, DiagnosticLocation, DiffStage, MatchConfidence, Severity, SheetRef,
 };
-use crate::options::AlignmentMode;
+use crate::options::{AlignmentMode, Cancellation};
 
 // Re-exported in model.rs; defined here to keep alignment logic co-located.
 
@@ -58,6 +59,9 @@ pub struct RowMapping {
 /// maps; the sequences a mode actually builds are always a subset of those
 /// rows, so this is a conservative (never-too-low) estimate of the LCS
 /// matrix a mode would allocate.
+/// `cancellation` is polled once per row of the LCS table's fill — the only phase that is quadratic in
+/// rows — and returns `Err(Cancelled)` from there. The phases around it are linear in data already read
+/// and are not polled (M-measured; see `docs/src/maintainers/performance.md`).
 /// `sheet` is the sheet being aligned, and is what every diagnostic raised here names in its
 /// location: the new workbook's side of the pair, or the old one's when the sheet exists only
 /// there — the label the renderer uses. Alignment warnings are about *the sheet*, and this is the
@@ -67,11 +71,12 @@ pub fn compute_row_mapping(
     new_cells: &CellMap,
     mode: &AlignmentMode,
     max_alignment_product: Option<u64>,
+    cancellation: Option<&dyn Cancellation>,
     sheet: &SheetRef,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Option<RowMapping> {
+) -> Result<Option<RowMapping>, SheetsDiffError> {
     if matches!(mode, AlignmentMode::Positional) {
-        return None;
+        return Ok(None);
     }
 
     if let Some(limit) = max_alignment_product {
@@ -91,27 +96,41 @@ pub fn compute_row_mapping(
                      exceeds max_alignment_product ({limit}); sheet compared positionally instead"
                 ),
             });
-            return None;
+            return Ok(None);
         }
     }
 
     match mode {
-        AlignmentMode::Positional => None,
+        AlignmentMode::Positional => Ok(None),
 
-        AlignmentMode::RowKey { columns } => Some(row_key_alignment(
+        AlignmentMode::RowKey { columns } => Ok(Some(row_key_alignment(
             old_cells,
             new_cells,
             columns,
+            cancellation,
             sheet,
             diagnostics,
-        )),
+        )?)),
 
-        AlignmentMode::RowSignature { sample_columns } => Some(row_signature_alignment(
+        AlignmentMode::RowSignature { sample_columns } => Ok(Some(row_signature_alignment(
             old_cells,
             new_cells,
             sample_columns.as_deref(),
+            cancellation,
             diagnostics,
-        )),
+        )?)),
+    }
+}
+
+/// `Err(Cancelled)` if a cancellation token is configured and has fired.
+///
+/// This module has its own three-line helper rather than reaching for `diff.rs`'s `check_cancel`,
+/// which takes the whole `&DiffOptions`: alignment is passed what it needs (the token) and nothing
+/// more, as it is passed `max_alignment_product` rather than the options tree.
+fn check_cancelled(cancellation: Option<&dyn Cancellation>) -> Result<(), SheetsDiffError> {
+    match cancellation {
+        Some(c) if c.is_cancelled() => Err(SheetsDiffError::Cancelled),
+        _ => Ok(()),
     }
 }
 
@@ -139,9 +158,10 @@ fn row_key_alignment(
     old_cells: &CellMap,
     new_cells: &CellMap,
     key_cols: &[u32],
+    cancellation: Option<&dyn Cancellation>,
     sheet: &SheetRef,
     diagnostics: &mut Vec<Diagnostic>,
-) -> RowMapping {
+) -> Result<RowMapping, SheetsDiffError> {
     let old_keys = extract_row_keys(old_cells, key_cols);
     let new_keys = extract_row_keys(new_cells, key_cols);
 
@@ -185,7 +205,7 @@ fn row_key_alignment(
     let old_keyless = keyless_rows(old_cells, &old_keys);
     let new_keyless = keyless_rows(new_cells, &new_keys);
 
-    let mut mapping = lcs_match(old_keys, new_keys);
+    let mut mapping = lcs_match(old_keys, new_keys, cancellation)?;
 
     if !old_keyless.is_empty() || !new_keyless.is_empty() {
         let (old_count, new_count) = (old_keyless.len(), new_keyless.len());
@@ -235,7 +255,7 @@ fn row_key_alignment(
         };
     }
 
-    mapping
+    Ok(mapping)
 }
 
 // ---------------------------------------------------------------------------
@@ -246,11 +266,12 @@ fn row_signature_alignment(
     old_cells: &CellMap,
     new_cells: &CellMap,
     sample_cols: Option<&[u32]>,
+    cancellation: Option<&dyn Cancellation>,
     _diagnostics: &mut Vec<Diagnostic>,
-) -> RowMapping {
+) -> Result<RowMapping, SheetsDiffError> {
     let old_sigs = compute_row_signatures(old_cells, sample_cols);
     let new_sigs = compute_row_signatures(new_cells, sample_cols);
-    lcs_match(old_sigs, new_sigs)
+    lcs_match(old_sigs, new_sigs, cancellation)
 }
 
 // ---------------------------------------------------------------------------
@@ -259,7 +280,11 @@ fn row_signature_alignment(
 
 /// Match rows using patience-LCS on their key/signature sequences.
 /// Returns a `RowMapping` with the matched, inserted, and removed rows.
-fn lcs_match(old_seq: BTreeMap<u32, RowKey>, new_seq: BTreeMap<u32, RowKey>) -> RowMapping {
+fn lcs_match(
+    old_seq: BTreeMap<u32, RowKey>,
+    new_seq: BTreeMap<u32, RowKey>,
+    cancellation: Option<&dyn Cancellation>,
+) -> Result<RowMapping, SheetsDiffError> {
     let old_rows: Vec<(u32, RowKey)> = old_seq.into_iter().collect();
     let new_rows: Vec<(u32, RowKey)> = new_seq.into_iter().collect();
 
@@ -268,6 +293,10 @@ fn lcs_match(old_seq: BTreeMap<u32, RowKey>, new_seq: BTreeMap<u32, RowKey>) -> 
     let n = new_rows.len();
     let mut dp = vec![vec![0u32; n + 1]; m + 1];
     for i in (0..m).rev() {
+        // The poll: once per row of the table, before its `n` cells — `m` polls in all, one atomic
+        // load per `n` cell operations. Not per cell: the table is quadratic and nobody needs
+        // granularity finer than a row.
+        check_cancelled(cancellation)?;
         for j in (0..n).rev() {
             if old_rows[i].1 == new_rows[j].1 {
                 dp[i][j] = dp[i + 1][j + 1] + 1;
@@ -314,7 +343,7 @@ fn lcs_match(old_seq: BTreeMap<u32, RowKey>, new_seq: BTreeMap<u32, RowKey>) -> 
 
     let n_removed = removed.len();
     let n_inserted = inserted.len();
-    RowMapping {
+    Ok(RowMapping {
         matched,
         removed,
         inserted,
@@ -324,7 +353,7 @@ fn lcs_match(old_seq: BTreeMap<u32, RowKey>, new_seq: BTreeMap<u32, RowKey>) -> 
             matched_rows: n_matched,
             confidence,
         },
-    }
+    })
 }
 
 /// `Exact` when every row on both sides was matched; `High` when matched rows outnumber the rest;
@@ -480,9 +509,11 @@ mod tests {
             &cells,
             &AlignmentMode::Positional,
             None,
+            None,
             &sheet(),
             &mut diag,
-        );
+        )
+        .unwrap();
         assert!(result.is_none());
     }
 
@@ -496,9 +527,11 @@ mod tests {
             &new,
             &AlignmentMode::RowKey { columns: vec![1] },
             None,
+            None,
             &sheet(),
             &mut diag,
         )
+        .unwrap()
         .unwrap();
         assert_eq!(mapping.matched.len(), 3);
         assert!(mapping.removed.is_empty());
@@ -521,9 +554,11 @@ mod tests {
             &new,
             &AlignmentMode::RowKey { columns: vec![1] },
             None,
+            None,
             &sheet(),
             &mut diag,
         )
+        .unwrap()
         .unwrap();
         // id1/id2/id3 all matched; id_new is inserted
         assert_eq!(mapping.matched.len(), 3);
@@ -541,9 +576,11 @@ mod tests {
             &new,
             &AlignmentMode::RowKey { columns: vec![1] },
             None,
+            None,
             &sheet(),
             &mut diag,
         )
+        .unwrap()
         .unwrap();
         assert_eq!(mapping.matched.len(), 2); // id1, id3
         assert_eq!(mapping.removed.len(), 1); // id2
@@ -560,9 +597,11 @@ mod tests {
             &new,
             &AlignmentMode::RowKey { columns: vec![1] },
             None,
+            None,
             &sheet(),
             &mut diag,
-        );
+        )
+        .unwrap();
         assert!(!diag.is_empty(), "expected diagnostic for duplicate keys");
         assert!(
             diag.iter()
@@ -582,9 +621,11 @@ mod tests {
             &new,
             &AlignmentMode::RowKey { columns: vec![1] },
             Some(5),
+            None,
             &sheet(),
             &mut diag,
-        );
+        )
+        .unwrap();
         // Degrades to None (caller's true-positional path) — never an error.
         assert!(result.is_none());
         assert!(
@@ -609,9 +650,11 @@ mod tests {
             &new,
             &AlignmentMode::RowKey { columns: vec![1] },
             Some(9), // product is exactly 9 — must not exceed
+            None,
             &sheet(),
             &mut diag,
-        );
+        )
+        .unwrap();
         assert!(result.is_some());
         assert!(
             !diag

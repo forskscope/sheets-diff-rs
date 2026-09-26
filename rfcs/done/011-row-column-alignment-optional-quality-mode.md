@@ -32,6 +32,14 @@ insertion. (A first version of this fix reported *every* keyless row that way an
 changed cell on a 2,000-row sheet with a blank key every twentieth row; identical-row pairing brings it to 22, against
 `Positional`'s 1, and a workbook compared with itself to 0.) Rows with *some* but not all of several
 key columns are keyed by the values they have; that is unchanged and is not addressed here.
+**Cancellation (alignment follow-ups, unreleased):** alignment is interruptible. RFC-024/M7 Handoff 03 made the read and the compare loop
+poll and left this phase, so a cancel requested during alignment was not observed until it finished (1.2 s on 4,900 rows × 3 columns).
+It now polls once per row of the LCS fill (`align.rs`) and once per row in the three loops that build the compared-cell set
+(`diff.rs`). **That second place is the larger one** — each loop scans a whole cell map per row, so it is O(rows × cells) and, measured,
+is most of an aligned comparison's time on a wide sheet (29.8 s of 30.3 s at 24 columns, against 0.25 s in the fill); a poll in the fill
+alone would have left most of it uncancellable. The token reaches `align.rs` as `Option<&dyn Cancellation>`, not as `&DiffOptions`,
+as `max_alignment_product` does. **Not changed, and worth knowing:** building that set is not bounded by `max_alignment_product`, which
+counts `old_rows × new_rows` (one row against 40,000 takes 37 s under `RowKey`); it is recorded in `performance.md`, not fixed.
 **Target:** v2.1 candidate, optional v2.0 if ready  
 **Created:** 2026-06-11  
 **Category:** Diff quality  
