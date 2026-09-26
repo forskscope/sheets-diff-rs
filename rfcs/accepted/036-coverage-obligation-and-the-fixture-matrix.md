@@ -88,6 +88,26 @@ wrong, which is precisely what happened to `formula`. Where a dimension's
 correct answer is knowable independently, coverage means an explicit assertion
 on that answer, not only a golden.
 
+> **Sharpened 2026-09-27, from an outside reader.** *"The behaviour for that
+> dimension"* is ambiguous when a dimension has **more than one** behaviour worth
+> protecting, and then "covered" is itself a marker credited with more than it
+> measures. **A dimension's matrix row must say which behaviour its assertion
+> protects** — correctness, resource cost, or both — because an assertion on one
+> would not fail if the other broke.
+>
+> The case that produced this: **row-count asymmetry**. In our aligned path it is
+> a **resource** dimension — an asymmetric pair is the only shape that reaches
+> the coordinate-set ceiling (f131), and a symmetric fixture of the same size
+> never will. ForskScope checked the same dimension in their line diff, expecting
+> to find the same gap, and **measured every asymmetric shape as *cheaper* than
+> the symmetric pair of the same size** (40,000 lines: 52.7 ms symmetric against
+> 15.7–32.6 ms for four asymmetric shapes) — cost tracks total input, so there is
+> no ceiling to guard. There an asymmetric fixture is a **correctness**
+> dimension: it buys hunk boundaries and one-sided rendering.
+>
+> Same word, different job, and their corpus *"would have read as covered by a
+> reviewer who did not ask that question."* So would ours.
+
 ### 5.2 The initial matrix
 
 Eleven scenarios, chosen to close every gap ranked 1–5 by consequence in the
