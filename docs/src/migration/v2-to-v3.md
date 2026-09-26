@@ -29,7 +29,7 @@ Start there.
 | `DiffOptionsBuilder::number_compare` | `number_compare_policy` |
 | `DiffOptionsBuilder::build_with_matching` | `.sheet_matching(..)` and/or `.alignment(..)` — and it fixes a silent bug |
 | `FormulaCompareMode::{NormalizedText, RawAndNormalized}`, `FormatCompareMode::{Ignore, NumberFormatOnly, AllAvailable}` (the whole enum), `ComparisonOptions::format`, `format_compare` | nothing — they returned `InvalidOptions` when selected |
-| `AlignmentMode::HeaderColumn` | `AlignmentMode::RowKey { columns: vec![1] }` — exactly equivalent |
+| `AlignmentMode::HeaderColumn` | `AlignmentMode::RowKey { columns: vec![1] }` — equivalent in 3.0.0; in 3.1.0 `RowKey` also compares rows with a blank key, so you may see more |
 | `Severity::Error`, `DiagnosticSummary::errors`, the CLI's `N error(s)` | nothing — no diagnostic was ever fatal |
 | `SheetsDiffError::{UnsupportedFormat, Internal}`, `OpenErrorKind::Locked` | `OpenWorkbook { kind: NotXlsx }` for the first; nothing for the others |
 
@@ -461,8 +461,16 @@ for mode in [FormulaCompareMode::RawText, FormulaCompareMode::Ignore] {
 
 It was exactly `AlignmentMode::RowKey { columns: vec![1] }` under another name: it delegated to
 row-key alignment on column 1 and never read a header. Its name promised column alignment from
-header names, which this crate does not have. Replace it with the `RowKey` form; the result is
-identical.
+header names, which this crate does not have. Replace it with the `RowKey` form.
+
+**In 3.0.0 the result is identical.** **In 3.1.0 it may not be, and that is a
+fix.** `HeaderColumn` — and `RowKey` — never compared a row that had no cell in
+the key column: the change in such a row was reported as no change, under
+`confidence: Exact`. 3.1.0 compares them. So a migrated caller gets the
+correction as well as the rename: identical keyless rows pair and stay silent,
+but a *changed* keyless row is reported as a removal plus an insertion, and
+`confidence` is capped at `Medium` whenever any row had no key. A sheet in which
+every row has a key is unaffected.
 
 ```rust
 use sheets_diff::options::AlignmentMode;

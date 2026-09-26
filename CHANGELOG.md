@@ -1,6 +1,28 @@
 # Changelog
 
-## [Unreleased]
+## [3.1.0] - 2026-09-26
+
+**Minor release: a row with a blank key was never compared. Under `AlignmentMode::RowKey`, a row with
+no cell in the key column — a subtotal, a spacer, a note — was left out of alignment and then
+skipped by the comparison, so a change in it was reported as no change, and the alignment summary
+said `confidence: Exact` about rows it had not looked at.** It was present in **twelve releases,
+2.1.0 through 3.0.0**, established by running the same comparison against each tag's own source.
+`Positional` and `RowSignature` never had it.
+
+ForskScope reported it, by measuring each alignment mode's *failure* cases rather than its success
+cases: 2,000 rows with a unique ID blank in about 5% of them. That is how we would like the next one
+to arrive.
+
+**It is a minor and not a patch** because the fix needs a new `DiagnosticKind::MissingAlignmentKey`
+(the `missing_alignment_key` warning), and `DiagnosticKind::code()` documents that new variants
+arrive in a minor release. Nothing was removed or changed; the public API only gains that variant.
+
+**The behaviour you will notice: `RowKey` now reports more.** Keyless rows that are identical on both
+sides are paired and silent. A keyless row that *changed* appears as a removal plus an insertion —
+more than `Positional`'s single changed cell, and deliberate until pairing a changed row with its
+counterpart has a design. And `confidence` is capped at `Medium` whenever any row was keyless,
+including when every keyless row paired. A sheet whose rows all have a key gets the same result,
+byte for byte, as in 3.0.0.
 
 ### Added
 
