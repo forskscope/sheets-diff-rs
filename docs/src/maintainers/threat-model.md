@@ -350,8 +350,19 @@ All surfaced during M2; none currently fixed.
   representation both entry points build identically. Among costs we control, the
   largest was `cell_map_to_align`'s clone of every `CellValue` (+33% of peak, paid
   only by non-`Positional` alignment modes). **That clone no longer exists:** M7
-  Handoff 04 (2.5.0) deleted it, and the re-measured delta is 0.0%. Method and
-  full figures: [performance.md](./performance.md).
+  Handoff 04 (2.5.0) deleted it.
+
+  > **Corrected M9 unit 00 (2026-09-26).** This said "the re-measured delta is
+  > 0.0%", which was **false, and is not the same claim as the clone being
+  > gone.** The re-measurement keyed `RowKey` on `columns: vec![0]`; key columns
+  > are **1-based**, so no row had a key and the LCS ran on two empty sequences —
+  > a delta of zero for an alignment that did not happen. The clone's deletion is
+  > real and the +33% is gone. **What replaced it is the LCS table, which is
+  > quadratic in rows and is near 100 MB at the default `max_alignment_product`.**
+  > Non-`Positional` alignment is not free. `tests/memory_relationships.rs` now
+  > holds the relationship, and fails if the alignment does not actually run.
+
+  Method and full figures: [performance.md](./performance.md).
 
 ## Advisory-response policy
 

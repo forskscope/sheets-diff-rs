@@ -3,6 +3,9 @@ name: CI
 on:
   push:
     branches: [main]
+    # Release tags (2.6.0, 3.0.0, ...): the `package` job below runs only for these. Every other job
+    # runs too, which re-checks the tagged commit and is deliberate: the tag is what ships.
+    tags: ["[0-9]*"]
   pull_request:
   workflow_dispatch:
 
@@ -36,10 +39,13 @@ jobs:
             flag: --features serde
           - name: chrono
             flag: --features chrono
+          # `cli` is kept and `serde,chrono,cli` is not (M9 unit 00, F-2). Since 2.6.0 `cli` implies
+          # `serde` and `chrono`, so the two were one build compiled twice per OS. Of the two, only
+          # `cli` alone can *fail* if that implication is lost: spelling `serde,chrono` out would
+          # enable them regardless, and the test would pass on a `cli` that no longer pulls them in.
+          # It is also the configuration the documented `cargo install --features cli` builds.
           - name: cli
             flag: --features cli
-          - name: serde+chrono+cli
-            flag: --features serde,chrono,cli
     steps:
       - uses: actions/checkout@v4
 
@@ -87,6 +93,14 @@ jobs:
       - name: cargo check --all-features at MSRV
         run: cargo check --all-features
 
+      # M9 unit 00, F-3: nothing built the *minimal* library at the floor. `--all-features` compiles
+      # every `cfg(feature = ...)` arm in; this compiles the arms that are out. A construct newer than
+      # the floor that sits under `cfg(not(feature = ...))` (or is only reachable without a feature)
+      # is invisible to the step above. `build`, not `check`: it also links, and it is the build a
+      # downstream user with `default-features = false` gets.
+      - name: cargo build --no-default-features at MSRV
+        run: cargo build --no-default-features
+
       # M6 Handoff 01 review, F-N: `cargo check` never builds doctests, so
       # docs/'s examples were compiled against stable and never against the
       # declared floor. Additional step, not a replacement -- this job's
@@ -126,6 +140,12 @@ jobs:
         run: |
           CLIPPY_CONF_DIR="$GITHUB_WORKSPACE/.github/clippy-no-stdout" \
             cargo clippy --lib --all-features -- -D warnings
+
+      # M9 unit 00: run as a gate by hand on every unit and absent from here. A broken intra-doc link
+      # or an unclosed HTML tag in a doc comment is only a warning to rustdoc; `-D warnings` is what
+      # makes it a failure.
+      - name: cargo doc -D warnings
+        run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
 
   # ---------------------------------------------------------------------------
   # tree — the permanent guard against Handoff 01's regression class: the
@@ -204,3 +224,154 @@ jobs:
       - name: cargo fuzz run (bounded)
         if: steps.install.outcome == 'success'
         run: cargo fuzz run ${{ matrix.target }} -- -runs=20000
+
+  # ---------------------------------------------------------------------------
+  # doctests-nightly -- M9 unit 00. THE PURPOSE OF THIS JOB IS ENFORCING THE `compile_fail,EXXXX`
+  # ERROR CODES. On stable, rustdoc only checks that a `compile_fail,E0639` block *fails to compile*,
+  # for any reason, so a mis-pinned code or a typo passes there; on nightly it checks the code. The
+  # crate has thirteen such blocks (verified both ways at M10 unit 10's review). This is NOT a
+  # duplicate of the stable doctest run in `test` and `msrv` -- those check something different and
+  # this must not be deleted for looking like them.
+  #
+  # Floating `@nightly`, as `fuzz-smoke` already does. If a nightly breaks this job, that is a
+  # toolchain break to triage; the answer is not `continue-on-error`, which would make the job a
+  # check that cannot fail -- the defect this job exists to remove.
+  # ---------------------------------------------------------------------------
+  doctests-nightly:
+    name: doctests-nightly (enforces compile_fail error codes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@nightly
+
+      - name: cargo test --doc --all-features (nightly)
+        run: cargo test --doc --all-features
+
+  # ---------------------------------------------------------------------------
+  # package -- M9 unit 00. `cargo publish --dry-run` would catch a packaging fault before a cut
+  # rather than during one. Release tags only, plus a manual run (workflow_dispatch) so it can be
+  # tried on any ref before tagging. Never publishes: `--dry-run` is the whole job.
+  #
+  # `.git-exclude/` is kept out of the repository by a local `.git/info/exclude`, not by anything
+  # shared, so it is absent from this checkout unless someone force-added it -- which is exactly the
+  # case the file-list check exists for.
+  # ---------------------------------------------------------------------------
+  package:
+    name: package (cargo publish --dry-run)
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Packaged file list contains no .git-exclude/ entry
+        run: |
+          cargo package --list --locked > "$RUNNER_TEMP/package-files.txt"
+          echo "packaged files: $(wc -l < "$RUNNER_TEMP/package-files.txt")"
+          if grep -E '^\.git-exclude/' "$RUNNER_TEMP/package-files.txt"; then
+            echo "::error::the package would ship .git-exclude/ files (listed above) -- they are review scratch, not part of the crate"
+            exit 1
+          fi
+
+      - name: cargo publish --dry-run
+        run: cargo publish --dry-run --locked
+
+  # ---------------------------------------------------------------------------
+  # public-api -- M9 unit 00. The public API may not break unless the MAJOR version moved.
+  #
+  # Compares the API at the last release tag reachable from HEAD (not HEAD's own tag, on a tag push)
+  # with the API at HEAD, using `cargo public-api` (rustdoc JSON, hence nightly). REMOVED or CHANGED
+  # public items fail the job unless Cargo.toml's major version is greater than the base tag's;
+  # ADDED items always pass. It is a gate on the exit status of `cargo public-api --deny`; nothing
+  # here parses its output, whose format is not stable. No release tag at all fails the job rather than
+  # passing it: a comparison against nothing is not a pass.
+  #
+  # This is stricter than "fail if the version is unchanged": a patch or minor bump does not license a
+  # removal either, and 3.0.1 removing a function would otherwise pass.
+  # ---------------------------------------------------------------------------
+  public-api:
+    name: public-api (no removal or change without a major bump)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the release tags must be present
+
+      - uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install cargo-public-api
+        run: cargo install cargo-public-api --locked
+
+      - name: Public API against the last release tag
+        run: |
+          set -euo pipefail
+          head="$(git rev-parse HEAD)"
+          # The latest release tag that is an ancestor of HEAD but not HEAD itself.
+          base="$(git tag --list '[0-9]*' --merged "$head" --no-contains "$head" --sort=-v:refname | head -n1)"
+          if [ -z "$base" ]; then
+            # Fail closed: this crate has release tags, so finding none means the checkout is shallow or
+            # tagless, and a green job here would be a check that compared nothing.
+            echo "::error::no release tag is an ancestor of HEAD: the checkout has no tags (fetch-depth: 0?), so there is nothing to compare against"
+            exit 1
+          fi
+          current="$(grep -m1 '^version' Cargo.toml | sed -E 's/^version *= *"([^"]+)".*/\1/')"
+          base_major="${base%%.*}"
+          current_major="${current%%.*}"
+          echo "base tag: $base (major $base_major); Cargo.toml: $current (major $current_major)"
+          deny=(--deny removed --deny changed)
+          if [ "$current_major" -gt "$base_major" ]; then
+            echo "major version moved: removals and changes are permitted; reporting the diff only"
+            deny=()
+          fi
+          if ! cargo public-api --all-features diff "$base..$head" "${deny[@]}"; then
+            echo "::error::the public API lost or changed an item since $base while the major version is still $base_major (Cargo.toml $current). Either restore it, or -- if the break is intended -- bump the major version."
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
+  # install -- M9 unit 00. The documented install command, run for real. `cargo install sheets-diff`
+  # with no features installs nothing and exits 0, and a `cli` that stopped implying `chrono` would
+  # install a binary whose `--format json` prints `iso: null` -- both defects that shipped once and
+  # that nothing else here runs the installed binary to see.
+  # ---------------------------------------------------------------------------
+  install:
+    name: install (cargo install --features cli)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo install --path . --features cli --locked
+        run: cargo install --path . --features cli --locked --root "$RUNNER_TEMP/sheets-diff-root"
+
+      - name: The installed binary's --format json populates iso
+        run: |
+          set -euo pipefail
+          bin="$RUNNER_TEMP/sheets-diff-root/bin/sheets-diff"
+          d=tests/fixtures/generated/date_column
+          rc=0
+          "$bin" "$d/old.xlsx" "$d/new.xlsx" --format json > "$RUNNER_TEMP/date.json" || rc=$?
+          if [ "$rc" -ne 1 ]; then
+            echo "::error::expected exit status 1 (differences found) from the installed binary, got $rc"
+            exit 1
+          fi
+          python3 - "$RUNNER_TEMP/date.json" <<'PY'
+          import json, sys
+          found = []
+          def walk(o):
+              if isinstance(o, dict):
+                  if "iso" in o and "serial" in o:
+                      found.append(o["iso"])
+                  for v in o.values():
+                      walk(v)
+              elif isinstance(o, list):
+                  for v in o:
+                      walk(v)
+          walk(json.load(open(sys.argv[1])))
+          print("iso values:", found)
+          if not found or not all(isinstance(x, str) and x for x in found):
+              sys.exit("the installed binary's --format json did not populate CellDateTime.iso: " + repr(found))
+          PY

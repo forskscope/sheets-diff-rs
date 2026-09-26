@@ -16,6 +16,25 @@ silently overwritten.
 
 ---
 
+## What a test guards, and what is one machine's measurement (M9 unit 00)
+
+Almost everything below is a **measurement**: `benches/memory.rs` printing numbers from the machine it ran on.
+A CI run of it would print *different* numbers and validate nothing, so it is not in CI and asserts nothing about
+figures. The exceptions are the properties that survive a change of machine, which are tests, and run in CI's
+test matrix:
+
+| Claim | Status | Where |
+|---|---|---|
+| A sparse sheet is read in memory proportional to its *populated* cells — a 5 KB workbook with two cells stays far under 64 MiB where the dense read needed ~646 MB | **Guarded.** A threshold with two orders of magnitude on each side, not a figure | `tests/streaming_read.rs` |
+| Choosing `RowKey` or `RowSignature` costs the LCS table and **no copy of the cell values** (the clone M7 Handoff 04 deleted) | **Guarded, as a relationship**: the aligned peak against the `Positional` peak from the same fixture in the same process, plus the table's size as a function of the row counts. No byte count | `tests/memory_relationships.rs` |
+| The LCS table is `(rows + 1)²` `u32` — about 100 MB at the default `max_alignment_product` — and dominates the aligned peak | **Guarded**, same test (a lower bound as well as an upper: the table must be *visible* in the peak) | `tests/memory_relationships.rs` |
+| Everything else on this page: bytes per cell, the ladder, `compare_bytes` vs `compare_paths`, the density comparison, every millisecond figure, the v1.2 comparison | **Point-in-time.** One machine, one profile, one day; reproducible with `cargo bench`, checked by nobody | `benches/memory.rs`, `benches/workbook_diff.rs` |
+
+**A figure below that is not in the guarded rows may still be true; it is not kept true by anything.** Treat a
+number here as "this is what it was", and a *relationship* as "this is what must stay so".
+
+---
+
 ## Method
 
 A `#[global_allocator]` wrapper (`benches/memory.rs`) around `std::alloc::System`
@@ -161,6 +180,31 @@ non-`Positional` alignment costs anything measurable against this fixture.
 `Positional`'s own peak is unchanged at both row counts (452,782 and
 4,366,990, matching the pre-fix row exactly), confirming it never paid this
 cost, as expected — `Positional` never called `cell_map_to_align`.
+
+> **Corrected M9 unit 00 (2026-09-26): the two tables above measured the clone and nothing else, and "delta exactly
+> zero" does not describe alignment.** `benches/memory.rs` keys `RowKey` on `columns: vec![0]`, and key columns
+> are **1-based**: column 0 selects no cell, so no row had a key and the LCS ran on two empty sequences. The clone was
+> real and its deletion is real — the 33% went away — but a `RowKey` that keys nothing does no alignment work, so
+> "nothing else in non-`Positional` alignment costs anything measurable" was measured on an alignment that did not
+> happen. The "23x-inflated, clearly-wrong delta" the note above discarded is consistent with being this: `vec![1]`
+> is 1-based column 1, the id column, and the delta at 5,000 rows below is 23.9× the `Positional` peak. The number that
+> looked wrong was the real one, and the one that looked plausible was the alignment doing nothing. With the id
+> column populated, the same fixture (a counting allocator, same method; `[profile.dev]` of this crate, so the
+> absolute bytes are not comparable with the
+> `opt-level = "z"` rows above):
+>
+> | Rows | `Positional` peak | `RowKey` on the id column | delta | `(rows + 1)² × 4` |
+> |---|---:|---:|---:|---:|
+> | 500 | 524,903 | 1,574,890 | +1,049,987 | 1,004,004 |
+> | 2,000 | 1,704,140 | 18,238,887 | +16,534,747 | 16,016,004 |
+> | 5,000 | 4,238,046 | 105,590,070 | +101,352,024 | 100,040,004 |
+>
+> **The cost of an aligned comparison is the LCS table, it is quadratic in rows, and it is what
+> `max_alignment_product` bounds** — about 100 MB at the default. That is what the threat model already says
+> (~95 MB at the bound); it is the "delta zero" sentence, here and in the threat model's Handoff-01 correction and the
+> Candidates table below, that overstated. `RowSignature` costs the same to within about 1%. The relationship is now a test
+> (`tests/memory_relationships.rs`, top of this page); the bench's column is left as it was, since it is the record of
+> what was measured.
 
 ### Both `CellMap`s resident, vs. calamine's own buffers
 
@@ -318,7 +362,7 @@ measured size and this report's confidence in the number.
 | Candidate | Measured size | Confidence | Note |
 |---|---|---|---|
 | Remove `compare_bytes`'s copy | +2.6–4.8% of peak at realistic scale (10k+ cells) | High | **Declined 2026-08-17.** Not "the single biggest win available" — Q1 settles this against the threat model's framing. Two routes exist: borrowing needs a lifetime on `OpenedWorkbook` across four modules; accepting an owned `Vec<u8>` needs no lifetime (the internals already take one — only the public `AsRef<[u8]>` bound forces the copy) but must be additive, since `&Vec<u8>` does not satisfy `Into<Vec<u8>>`. The cheap route recovers only the input's ~2.5% share and costs permanent public API. |
-| Reduce `cell_map_to_align`'s clone cost | **Done (M7 Handoff 04).** Was +33% of peak, linear, confirmed at two scales; re-measured after the fix at 0.0% — the delta collapses exactly to zero, both scales. | High | Paid only by non-`Positional` alignment modes; `Positional` (default) unaffected, and its own peak did not move. Alignment only ever called `display_string()` on these values, so the copy was deletable rather than reducible — deleted, not reduced. |
+| Reduce `cell_map_to_align`'s clone cost | **Done (M7 Handoff 04).** Was +33% of peak, linear, confirmed at two scales; re-measured after the fix at 0.0% — the delta collapses exactly to zero, both scales. **(Corrected M9 unit 00: measured with a key column that selected no row — see the note under Q2. The clone's deletion stands; "alignment costs nothing" does not.)** | High | Paid only by non-`Positional` alignment modes; `Positional` (default) unaffected, and its own peak did not move. Alignment only ever called `display_string()` on these values, so the copy was deletable rather than reducible — deleted, not reduced. |
 | Reduce peak by not holding both `CellMap`s | Not isolable from calamine's own buffers with external measurement | None — no actionable number | Would need instrumentation inside `src/`, out of this unit's scope. Not recommended as a standalone candidate without a different measurement approach. |
 | RFC-024 §7's density choice (`Sparse`/`Dense`) | +12.4% per-populated-cell for sparse vs. dense at equal populated count | High | **Declined 2026-08-17.** Real, and the smallest structural change available for the largest increase in engine complexity: a density heuristic plus two code paths through the hottest loop in the crate — the loop where every silent-wrong-answer defect this project has fixed lived. Revisit only on a reported memory problem on dense workbooks, and measure again — Handoff 04 landed since this row was written and changed what fraction of peak the remaining map is. |
 | Finer cancellation polling | **Done (M7 Handoff 03).** Was structurally zero for single-sheet workbooks; now polls every 50,000 cells in both phases, ≈95 ms worst case *(at the time, on the dense read — not re-measured since the streaming read; see the provenance note above)*, overhead not measurable above noise. | High | Was the milestone's top priority — "a feature that does not work," not an optimisation. Closed, not deferred further. |
