@@ -491,9 +491,12 @@ production use, and this is the cheapest it will ever be.
   and the filter has to cover both vectors anyway.
 - **A6: decide, then build.** Counting populated cells is what the name promises.
 
-### f130 — "`RowKey` drops rows with a blank key" — 🔴 **OPEN 2026-09-26** *(3.0.1, patch)*
+### f130 — "`RowKey` drops rows with a blank key" — ✅ **FIXED 2026-09-26** *(3.1.0, minor)*
 
-**Ahead of M9.** Defect response, not a milestone unit. Handoff:
+**Ahead of M9.** Defect response, not a milestone unit. **Merged `b49dfd0`;
+prep open at [`rfcs/handoffs/release-3.1.0/`](rfcs/handoffs/release-3.1.0/01-release-preparation.md).**
+A minor, not a patch: the fix needs a new `DiagnosticKind` and `code()`'s own
+documentation promises new variants in a minor. Handoff:
 [`rfcs/handoffs/f130-rowkey-drops-blank-key-rows/`](rfcs/handoffs/f130-rowkey-drops-blank-key-rows/01-blank-key-rows-are-never-compared.md).
 
 Reported by ForskScope 2026-09-26 and **reproduced here, worse than reported**.
