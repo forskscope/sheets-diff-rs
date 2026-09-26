@@ -540,7 +540,18 @@ it). **Cancellable alignment is a commitment in writing** — our letter of
 | **O((m+n)·D) alignment** in place of O(m·n) LCS. Internal only — same `RowMapping` out, no API surface. Their figures: 3.7 bytes and 48 ns per `m × n` cell; `max_alignment_product` (25M) bites at ~5,000 rows; 10,000 rows is 4.9 s and 465 MB. **Direction accepted, RFC-gated, no date** — degenerates toward O(m·n) at large D, so the bound stays as a guard. | RFC first |
 | **Row space on `CellDiff`.** A matched or removed row is numbered in the old sheet's space, an inserted one in the new; `CellDiff` carries an address and nothing saying which. Additive (`#[non_exhaustive]`), so a minor. **The naming is the hard part** — the field means *which file's row numbering this address uses*, not *which file the cell is in*. | RFC first |
 
-### f131 — "The coordinate-set loops have no ceiling" — 🔴 **OPEN 2026-09-26** *(next minor)*
+### f131 — "The coordinate-set loops have no ceiling" — 🔴 **OPEN 2026-09-26, SCHEDULED NEXT 2026-09-27** *(next minor)*
+
+Handoff: [`rfcs/handoffs/f131-coordinate-loops-have-no-ceiling/`](rfcs/handoffs/f131-coordinate-loops-have-no-ceiling/01-range-not-scan.md).
+**Ahead of M9's remaining units**, on two grounds: it is a resource cost with no
+ceiling in `Limits`, and ForskScope's adopted design reaches it — they run
+`Positional`, then `RowSignature` on a cascade, and the largest cascade
+`Positional` can report is exactly the asymmetric shape this is worst on. They
+are building a guard; this is what lets them delete it.
+
+**It is not keyed-only.** The loops are gated on a row mapping existing, not on
+the mode: `RowSignature` measured at 138 / 531 / 2,186 ms against `RowKey`'s
+137 / 531 / 2,177 at 1 × 2,500 / 5,000 / 10,000 rows.
 
 Found by the dev team while making alignment cancellable, reported rather than
 absorbed, and **reproduced at review**.
