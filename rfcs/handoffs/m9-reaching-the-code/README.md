@@ -14,7 +14,7 @@ configuration that runs one build twice and several checks not at all.
 | | Unit | Item | Nature |
 |---|---|---|---|
 | 00 | [CI asserts the standing properties](./00-ci-asserts-the-standing-properties.md) | audit; F-2, F-3 | **First** — makes every later unit cheaper to verify |
-| 01 | The fuzz corpus cannot reach the sheet reader | D1 | The substantive one |
+| 01 | [The fuzz corpus cannot reach the sheet reader](./01-the-corpus-cannot-reach-the-reader.md) | D1 | The substantive one |
 | 02 | Deviations from `project-instructions-rust.md` | B1–B4 | |
 | 03 | The remaining record corrections | C4, C6–C9, E, F-2 | |
 | 04 | `FormulaUnavailable` is pushed once per cell | O4 | **Measure before deciding** |
