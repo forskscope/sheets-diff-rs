@@ -27,6 +27,12 @@
   — all 19 corpus scenarios × 4 alignment modes and 360 generated pairs × 3 modes, the full result hashed before and after.
   No `Limits` field was added: making the cost linear is the fix, and a bound on a cost that can be removed would have been a
   worse answer. Present in every release with row alignment, 2.1.0 through 3.1.0.
+- **`tests/alignment_cancellation.rs` asserts on poll counts only; its four elapsed-time ratios are gone.** Each bounded the
+  cancelled run as a fraction of the same comparison run to completion — a proxy for "the cancel was observed in this phase"
+  that holds only while that phase dominates the run. It stopped holding twice at once: the fix above made the coordinate loops
+  cheap, and the fill's ratio, on a larger fixture, ended up measuring the allocate-and-zero of a 256 MB LCS table shared by
+  both runs. An aligned run of a fully-matching pair now polls `positional_polls + rows + rows` exactly, so removing any one
+  poll leaves a count short by the row count — which fails four tests instead of one, on any machine. No library code changed.
 
 ### Documentation
 

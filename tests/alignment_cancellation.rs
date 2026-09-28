@@ -14,13 +14,24 @@
 //!   cell map per row, O(rows x cells): 4,900 rows x 3 columns spent 0.25 s in the fill and 0.99 s
 //!   building the set (1.28 s in all — the "1.2 s alignment" that was reported), x 24 columns 0.25 s
 //!   against 29.8 s. **f131 made them range queries and they are now cheap**, but they are still
-//!   O(rows), still worth a poll, and the polls are still pinned here — by exact poll counts, which
-//!   do not depend on how long a loop takes. The one *ratio* assertion that leaned on the loops being
-//!   the expensive part was dropped for that reason (see the coordinate test).
+//!   O(rows), still worth a poll, and the polls are still pinned here.
 //!
-//! **What is asserted is a ratio, never a wall-clock figure**: the cancelled run's elapsed time as
-//! a fraction of the same comparison run to completion in the same process. The margin is stated at
-//! each assertion. The polls are counted, so a token that trips at the Nth poll trips *there*.
+//! **Every assertion in this file is a poll count. None is a time.** That is the second thing f131
+//! settled, and it took a red CI to settle it. Four of these tests used to bound the cancelled run's
+//! elapsed time as a fraction of the same comparison run to completion — a proxy for "the cancel was
+//! observed *in* this phase". The proxy only holds while the phase dominates the run. It stopped
+//! holding twice in one unit: f131 made the coordinate loops cheap, so the cancelled run became ~83%
+//! of the full one; and the fill's own ratio, retuned onto a 8,000-row fixture, was then measuring
+//! the **allocate-and-zero of a 256 MB table plus two workbook reads** — shared by both runs — with
+//! the fill a sliver on top. On the Windows CI runners the cancelled run came out at 72-108% of the
+//! full one and three jobs went red.
+//!
+//! What replaced it is exact and machine-independent: an aligned run of a fully-matching pair polls
+//! `positional_polls + rows` (the fill, once per table row) `+ rows` (the coordinate loop, once per
+//! matched row). Remove any one poll and a count is short by exactly the row count — **removing the
+//! fill's poll fails four of these tests**, where the ratio failed one, and it fails them at any
+//! speed. The elapsed times are still printed, because they are useful to read; nothing asserts on
+//! them. The polls are counted, so a token that trips at the Nth poll trips *there*.
 
 mod support;
 
@@ -122,16 +133,27 @@ fn cancelled_at(old: &[u8], new: &[u8], mode: AlignmentMode, trip_at: usize) -> 
 // The LCS table fill: a tall, narrow sheet
 // ---------------------------------------------------------------------------
 
-/// 8,000 rows, one column: a 64-million-cell table. Cancelling 50 polls in must stop within the
-/// first ~1% of the fill, so the cancelled run is little more than the two workbook reads. Asserted
-/// as under **half** of the full run: observed ~21% (most of it the two workbook reads, which are not
-/// cancellable by this), and ~90% with the fill's poll removed (the comparison then runs the whole
-/// fill before the next poll) — a margin of about 2x either side. The exact poll
-/// counts in the tests below are the deterministic guard; this is the time-shaped one.
+/// 4,000 rows, one column. **The fill's poll is pinned by an exact count, not by a clock:** every row
+/// has an id and every id matches, so an aligned run polls once before alignment, once per LCS table
+/// row, and once per matched row in the coordinate loop — `before_alignment + rows + rows`, exactly.
+/// Delete the fill's poll and this count is short by `rows`, on any machine, at any speed.
+///
+/// **There was a ratio assertion here and it had to go** (see the module comment): the cancelled run
+/// pays the same two workbook reads and the same allocate-and-zero of a `rows²` `u32` table as the
+/// full run, and only the *fill* on top is what the cancel cuts short. On a fast machine the fill
+/// dominates and the ratio looked like a measurement; on the Windows CI runners at 8,000 rows
+/// (a 256 MB table) the shared cost swamped it and the cancelled run came out at 72-108% of the full
+/// one. It was reading allocation and calling it the fill, so the count replaces it.
 #[test]
 fn a_cancel_during_the_lcs_fill_is_observed_during_the_fill() {
-    let (old, new) = (sheet(8_000, 1, false), sheet(8_000, 1, true));
+    let (old, new) = (sheet(4_000, 1, false), sheet(4_000, 1, true));
     let (full, total_polls) = uncancelled(&old, &new, row_key());
+    let before_alignment = positional_polls(&old, &new);
+    assert_eq!(
+        total_polls,
+        before_alignment + 4_000 + 4_000,
+        "one poll per LCS table row and one per matched row in the coordinate loop"
+    );
 
     let (was_cancelled, elapsed, polls) = cancelled_at(&old, &new, row_key(), 50);
     eprintln!(
@@ -140,21 +162,18 @@ fn a_cancel_during_the_lcs_fill_is_observed_during_the_fill() {
     );
     assert!(was_cancelled, "the comparison must return Err(Cancelled)");
     assert_eq!(polls, 50, "and stop at the poll that fired, not run on");
-    assert!(
-        elapsed < full / 2.0,
-        "cancelled after {elapsed:.4}s against {full:.4}s for the whole comparison: \
-         the cancel was not observed during the LCS fill"
-    );
 }
 
-/// The other mode that runs an LCS.
+/// The other mode that runs an LCS. Same exact-count guard, same reason.
 #[test]
 fn a_cancel_during_row_signature_alignment_is_observed_too() {
-    let (old, new) = (sheet(8_000, 1, false), sheet(8_000, 1, true));
+    let (old, new) = (sheet(4_000, 1, false), sheet(4_000, 1, true));
     let mode = || AlignmentMode::RowSignature {
         sample_columns: None,
     };
-    let (full, _) = uncancelled(&old, &new, mode());
+    let (full, total_polls) = uncancelled(&old, &new, mode());
+    let before_alignment = positional_polls(&old, &new);
+    assert_eq!(total_polls, before_alignment + 4_000 + 4_000);
     let (was_cancelled, elapsed, polls) = cancelled_at(&old, &new, mode(), 50);
     eprintln!(
         "[signature] full {full:.4}s; cancelled at poll 50 after {elapsed:.4}s ({:.1}% of full)",
@@ -162,7 +181,6 @@ fn a_cancel_during_row_signature_alignment_is_observed_too() {
     );
     assert!(was_cancelled);
     assert_eq!(polls, 50);
-    assert!(elapsed < full / 2.0, "{elapsed:.4}s vs {full:.4}s");
 }
 
 // ---------------------------------------------------------------------------
@@ -237,19 +255,22 @@ fn the_removed_and_inserted_row_loops_poll_too() {
 // Between the read and the alignment, and the uncancelled result
 // ---------------------------------------------------------------------------
 
-/// A token that fires at the first poll after the reads must cancel before any alignment work.
+/// A token that fires at the **first poll alignment makes** must stop there. `positional_polls` is
+/// what this pair polls before alignment begins (1: the sheet-pair check), so the poll index is
+/// derived rather than assumed, and the assertion is an equality on where the run stopped. (That the
+/// poll it stops at belongs to the *fill* is the previous tests' business, by count.)
 #[test]
 fn a_cancel_between_the_read_and_the_alignment_is_observed() {
-    let (old, new) = (sheet(8_000, 1, false), sheet(8_000, 1, true));
+    let (old, new) = (sheet(4_000, 1, false), sheet(4_000, 1, true));
+    let trip_at = positional_polls(&old, &new) + 1;
     let (full, _) = uncancelled(&old, &new, row_key());
-    let (was_cancelled, elapsed, polls) = cancelled_at(&old, &new, row_key(), 2);
+    let (was_cancelled, elapsed, polls) = cancelled_at(&old, &new, row_key(), trip_at);
     eprintln!(
-        "[between] full {full:.4}s; cancelled at poll 2 after {elapsed:.4}s ({:.1}% of full)",
+        "[between] full {full:.4}s; cancelled at poll {trip_at} after {elapsed:.4}s ({:.1}% of full)",
         100.0 * elapsed / full
     );
     assert!(was_cancelled);
-    assert_eq!(polls, 2);
-    assert!(elapsed < full / 2.0);
+    assert_eq!(polls, trip_at);
 }
 
 /// Adding a poll must not change an answer: the same comparison with a token that never fires

@@ -29,7 +29,7 @@ test matrix:
 | Choosing `RowKey` or `RowSignature` costs the LCS table and **no copy of the cell values** (the clone M7 Handoff 04 deleted) | **Guarded, as a relationship**: the aligned peak against the `Positional` peak from the same fixture in the same process, plus the table's size as a function of the row counts. No byte count | `tests/memory_relationships.rs` |
 | The LCS table is `(rows + 1)²` `u32` — about 100 MB at the default `max_alignment_product` — and dominates the aligned peak | **Guarded**, same test (a lower bound as well as an upper: the table must be *visible* in the peak) | `tests/memory_relationships.rs` |
 | Building the compared-cell set is linear in the sheet: a one-row sheet against a tall one, a tall one against one row, and thousands of matched rows each stay within 5× `Positional` on the same pair | **Guarded** by a ratio, and each of the three loops by its own shape (restoring any one scan fails a named test) | `tests/coordinate_set_cost.rs` |
-| Alignment is cancellable: the LCS fill and the three coordinate-set loops each poll once per row | **Guarded** by exact poll counts (removing any one poll fails a named test) and a ratio; the latency *figures* are point-in-time | `tests/alignment_cancellation.rs` |
+| Alignment is cancellable: the LCS fill and the three coordinate-set loops each poll once per row | **Guarded** by exact poll counts and nothing else (removing any one poll leaves a count short by exactly the row count, failing named tests at any speed); the latency *figures* are point-in-time | `tests/alignment_cancellation.rs` |
 | Everything else on this page: bytes per cell, the ladder, `compare_bytes` vs `compare_paths`, the density comparison, every millisecond figure, the v1.2 comparison | **Point-in-time.** One machine, one profile, one day; reproducible with `cargo bench`, checked by nobody | `benches/memory.rs`, `benches/workbook_diff.rs` |
 
 **A figure below that is not in the guarded rows may still be true; it is not kept true by anything.** Treat a
@@ -460,8 +460,11 @@ thread; release build; one machine; measured before f131, when the loops were st
 (A request at 100 ms into the 12-column comparison lands in the *read*, whose poll interval is 50,000 cells: 26.6 ms after,
 against 4.6 s before, and that is the read's granularity, not alignment's. After f131 the whole 4,900 × 24 comparison takes
 0.48 s, so the 5-second request in the last row would now arrive after it finished.) `tests/alignment_cancellation.rs` guards the
-polls **by exact poll counts** — the fill, and each of the three loops, so removing any one statement fails a named
-test — and by a ratio to the uncancelled run for the fill. `tests/coordinate_set_cost.rs` guards the cost: each loop has its own
+polls **by exact poll counts and nothing else** — the fill, and each of the three loops, so removing any one statement
+fails a named test, by a count that is short by exactly the row count. It had four ratio assertions (the cancelled run as a
+fraction of the full one) and they are gone: each was a proxy for "the cancel was observed in this phase" that held only while
+that phase dominated the run, and f131 broke that for the loops while the fill's, on a 8,000-row fixture, ended up measuring
+a 256 MB allocation shared by both runs — 72-108% of the full run on the Windows CI runners, three jobs red. `tests/coordinate_set_cost.rs` guards the cost: each loop has its own
 shape, the aligned comparison must stay under 5× `Positional` on the same pair, and restoring any one scan fails a named test.
 The latency and phase *figures* above are point-in-time.
 
