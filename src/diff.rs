@@ -447,35 +447,38 @@ fn build_sheet_diff(
     let mut coords: std::collections::BTreeSet<CoordKey> = std::collections::BTreeSet::new();
     match &align_mapping {
         Some(mapping) => {
+            // Each loop reads one row's cells with a range query on the ordered map — O(log n + the
+            // row's cells) — and not a scan of the whole map per row, which made building this set
+            // O(rows x cells) (f131: 37 s for one row against 40,000; nothing in `Limits` bounded it).
+            // `(r, 0)..=(r, u32::MAX)` is every possible column of row `r`, and both ends are inclusive,
+            // so column 0 and the largest column are covered.
+            //
+            // Each loop still polls for cancellation once per row. That is no longer "once per full scan of
+            // a map"; it is once per row, and the set is O(rows) to build, so a large sheet still takes
+            // time and the token is still worth looking at.
+
             // Matched pairs — canonical address is the OLD row; union of
             // both sides' columns (a matched row's new side may have
             // columns absent from the old side, or vice versa).
-            //
-            // **Each of the three loops below scans a whole `CellMap` once per row** (`keys().filter`),
-            // so building this set is O(rows x cells), not linear, and on a wide sheet it is most of the
-            // time an aligned comparison takes — far more than the LCS table. That is why each loop
-            // polls for cancellation once per row: one poll per full scan of a map. (It is measured in
-            // `docs/src/maintainers/performance.md`; making it cheaper is a separate change.)
             for (old_row, new_row) in &mapping.matched {
                 check_cancel(opts)?;
-                let old_cols: Vec<u32> = old_map
-                    .keys()
-                    .filter(|(r, _)| r == old_row)
-                    .map(|(_, c)| *c)
-                    .collect();
-                let new_cols: Vec<u32> = new_map
-                    .keys()
-                    .filter(|(r, _)| r == new_row)
-                    .map(|(_, c)| *c)
-                    .collect();
-                for c in old_cols.iter().chain(new_cols.iter()) {
+                for (_, c) in old_map
+                    .range((*old_row, 0)..=(*old_row, u32::MAX))
+                    .map(|(k, _)| k)
+                {
+                    coords.insert(CoordKey::Old(*old_row, *c));
+                }
+                for (_, c) in new_map
+                    .range((*new_row, 0)..=(*new_row, u32::MAX))
+                    .map(|(k, _)| k)
+                {
                     coords.insert(CoordKey::Old(*old_row, *c));
                 }
             }
             // Removed rows — old side only; no new-side counterpart exists.
             for r in &mapping.removed {
                 check_cancel(opts)?;
-                for (_, c) in old_map.keys().filter(|(row, _)| row == r) {
+                for (_, c) in old_map.range((*r, 0)..=(*r, u32::MAX)).map(|(k, _)| k) {
                     coords.insert(CoordKey::Old(*r, *c));
                 }
             }
@@ -484,7 +487,7 @@ fn build_sheet_diff(
             // old-row number above is never merged with it.
             for r in &mapping.inserted {
                 check_cancel(opts)?;
-                for (_, c) in new_map.keys().filter(|(row, _)| row == r) {
+                for (_, c) in new_map.range((*r, 0)..=(*r, u32::MAX)).map(|(k, _)| k) {
                     coords.insert(CoordKey::InsertedNew(*r, *c));
                 }
             }

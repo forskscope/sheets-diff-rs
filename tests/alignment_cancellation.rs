@@ -9,12 +9,14 @@
 //!
 //! * the LCS table fill (`lcs_match`), once per table row — the first quadratic phase, and the one
 //!   the report that started this blamed;
-//! * the three loops that build the compared-coordinate set (`build_sheet_diff`), once per row —
-//!   each scans a whole cell map per row, so they are O(rows x cells). **Measured, this is the
-//!   larger cost on every shape tried**, not the fill: 4,900 rows x 3 columns spends 0.25 s in the
-//!   fill and 0.99 s building the set (1.28 s in all — the "1.2 s alignment" that was reported);
-//!   x 12 columns, 0.24 s against 4.4 s; x 24 columns, 0.25 s against 29.8 s. A poll in the fill
-//!   alone would have left most of a large alignment uncancellable.
+//! * the three loops that build the compared-coordinate set (`build_sheet_diff`), once per row.
+//!   **When this was written they were the larger cost on every shape tried** — each scanned a whole
+//!   cell map per row, O(rows x cells): 4,900 rows x 3 columns spent 0.25 s in the fill and 0.99 s
+//!   building the set (1.28 s in all — the "1.2 s alignment" that was reported), x 24 columns 0.25 s
+//!   against 29.8 s. **f131 made them range queries and they are now cheap**, but they are still
+//!   O(rows), still worth a poll, and the polls are still pinned here — by exact poll counts, which
+//!   do not depend on how long a loop takes. The one *ratio* assertion that leaned on the loops being
+//!   the expensive part was dropped for that reason (see the coordinate test).
 //!
 //! **What is asserted is a ratio, never a wall-clock figure**: the cancelled run's elapsed time as
 //! a fraction of the same comparison run to completion in the same process. The margin is stated at
@@ -56,8 +58,11 @@ impl Cancellation for Token {
     }
 }
 
+/// `max_alignment_product` is switched off so the tall fixtures below (8,000 rows: a 64-million-cell
+/// table, over the 25-million default) really align instead of falling back to `Positional`.
 fn opts(mode: AlignmentMode, token: &Token) -> DiffOptions {
     DiffOptions::builder()
+        .max_alignment_product(None)
         .alignment(mode)
         .cancellation(token.clone())
         .build()
@@ -117,14 +122,15 @@ fn cancelled_at(old: &[u8], new: &[u8], mode: AlignmentMode, trip_at: usize) -> 
 // The LCS table fill: a tall, narrow sheet
 // ---------------------------------------------------------------------------
 
-/// 4,000 rows, one column: a 16-million-cell table. Cancelling 50 polls in must stop within the
+/// 8,000 rows, one column: a 64-million-cell table. Cancelling 50 polls in must stop within the
 /// first ~1% of the fill, so the cancelled run is little more than the two workbook reads. Asserted
-/// as under **a third** of the full run: observed about 12%, and about 48% with the fill's poll
-/// removed (the comparison then runs the whole fill before the next poll). The exact poll counts in
-/// the next two tests are the deterministic guard; this is the time-shaped one.
+/// as under **half** of the full run: observed ~21% (most of it the two workbook reads, which are not
+/// cancellable by this), and ~90% with the fill's poll removed (the comparison then runs the whole
+/// fill before the next poll) — a margin of about 2x either side. The exact poll
+/// counts in the tests below are the deterministic guard; this is the time-shaped one.
 #[test]
 fn a_cancel_during_the_lcs_fill_is_observed_during_the_fill() {
-    let (old, new) = (sheet(4_000, 1, false), sheet(4_000, 1, true));
+    let (old, new) = (sheet(8_000, 1, false), sheet(8_000, 1, true));
     let (full, total_polls) = uncancelled(&old, &new, row_key());
 
     let (was_cancelled, elapsed, polls) = cancelled_at(&old, &new, row_key(), 50);
@@ -135,7 +141,7 @@ fn a_cancel_during_the_lcs_fill_is_observed_during_the_fill() {
     assert!(was_cancelled, "the comparison must return Err(Cancelled)");
     assert_eq!(polls, 50, "and stop at the poll that fired, not run on");
     assert!(
-        elapsed < full / 3.0,
+        elapsed < full / 2.0,
         "cancelled after {elapsed:.4}s against {full:.4}s for the whole comparison: \
          the cancel was not observed during the LCS fill"
     );
@@ -144,7 +150,7 @@ fn a_cancel_during_the_lcs_fill_is_observed_during_the_fill() {
 /// The other mode that runs an LCS.
 #[test]
 fn a_cancel_during_row_signature_alignment_is_observed_too() {
-    let (old, new) = (sheet(4_000, 1, false), sheet(4_000, 1, true));
+    let (old, new) = (sheet(8_000, 1, false), sheet(8_000, 1, true));
     let mode = || AlignmentMode::RowSignature {
         sample_columns: None,
     };
@@ -156,21 +162,21 @@ fn a_cancel_during_row_signature_alignment_is_observed_too() {
     );
     assert!(was_cancelled);
     assert_eq!(polls, 50);
-    assert!(elapsed < full / 3.0, "{elapsed:.4}s vs {full:.4}s");
+    assert!(elapsed < full / 2.0, "{elapsed:.4}s vs {full:.4}s");
 }
 
 // ---------------------------------------------------------------------------
 // The coordinate-set loops: a wide sheet
 // ---------------------------------------------------------------------------
 
-/// 1,500 rows x 12 columns: the fill is 2.25 million cells; building the coordinate set scans an
-/// 18,000-entry map once per row, 27 million steps, and is much the larger cost. The fill polls once per
-/// row (1,500 polls) and the coordinate loop once per matched row (1,500 more), so tripping a few
-/// polls after the fill's are used up lands **inside the coordinate loop**. With that loop's poll
-/// removed the token would never trip at all — nothing polls again after it in a sheet this size —
-/// and the comparison would return `Ok`, so the first assertion is the deterministic one; the
-/// ratio is only a sanity bound, **under three quarters** of the full run (22-26% unloaded, 45% with
-/// 40 busy loops on 32 cores — it is the loosest here because the deterministic assertions carry it).
+/// 1,500 rows x 12 columns. The fill polls once per row (1,500 polls) and the coordinate loop once
+/// per matched row (1,500 more), so tripping a few polls after the fill's are used up lands **inside
+/// the coordinate loop**. With that loop's poll removed the token would never trip at all — nothing
+/// polls again after it in a sheet this size — and the comparison would return `Ok`, and the exact
+/// count of polls would be off by 1,500: both deterministic. **There is no ratio assertion here any
+/// more.** It was "under three quarters of the full run", true while the loop was the expensive
+/// part; f131 made the loop cheap, the cancelled run is then most of the full one, and a timing
+/// bound would be asserting the wrong thing.
 #[test]
 fn a_cancel_during_the_coordinate_set_build_is_observed_during_it() {
     let (old, new) = (sheet(1_500, 12, false), sheet(1_500, 12, true));
@@ -193,10 +199,6 @@ fn a_cancel_during_the_coordinate_set_build_is_observed_during_it() {
         "no cancellation observed in the coordinate-set loops"
     );
     assert_eq!(polls, trip_at);
-    assert!(
-        elapsed < full * 0.75,
-        "cancelled after {elapsed:.4}s against {full:.4}s for the whole comparison"
-    );
 }
 
 /// Every row of the old sheet is removed and every row of the new one inserted (no id in common),
@@ -238,7 +240,7 @@ fn the_removed_and_inserted_row_loops_poll_too() {
 /// A token that fires at the first poll after the reads must cancel before any alignment work.
 #[test]
 fn a_cancel_between_the_read_and_the_alignment_is_observed() {
-    let (old, new) = (sheet(4_000, 1, false), sheet(4_000, 1, true));
+    let (old, new) = (sheet(8_000, 1, false), sheet(8_000, 1, true));
     let (full, _) = uncancelled(&old, &new, row_key());
     let (was_cancelled, elapsed, polls) = cancelled_at(&old, &new, row_key(), 2);
     eprintln!(
@@ -247,7 +249,7 @@ fn a_cancel_between_the_read_and_the_alignment_is_observed() {
     );
     assert!(was_cancelled);
     assert_eq!(polls, 2);
-    assert!(elapsed < full / 3.0);
+    assert!(elapsed < full / 2.0);
 }
 
 /// Adding a poll must not change an answer: the same comparison with a token that never fires

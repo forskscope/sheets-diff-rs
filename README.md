@@ -94,8 +94,9 @@ sheets-diff old.xlsx new.xlsx --format unified
   for all `CellValue` conversions.
 - **Superlinear paths are bounded by default; linear paths stay opt-in.**
   `Limits::default()` bounds the row-alignment product
-  (`max_alignment_product`, empirically set so the worst case stays under
-  ~15ms) and the input size (`max_input_bytes`, 500 MiB) — both checked
+  (`max_alignment_product`, empirically set so the worst case stays around a
+  quarter of a second and ~95 MiB of table) and the input size
+  (`max_input_bytes`, 500 MiB) — both checked
   before the corresponding work begins. `max_sheets`, `max_cells_read`,
   `max_cells_compared`, and `max_diffs_returned` stay `None` (unbounded)
   unless set explicitly. Use `Limits::hardened()` for a stricter preset

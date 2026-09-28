@@ -9,19 +9,39 @@
   ended: reproduced as 1.2 s after the request on 4,900 rows × 3 columns (the comparison ran to completion and returned
   `Ok`), 3.9 s on 4,900 × 12, 23.6 s on 4,900 × 24. It is now observed in **4.6 ms, 5.8 ms and 11.6 ms** respectively.
   Alignment polls once per row of the LCS table, and once per row in each of the three loops that build the set of cells to
-  compare — which, measured, are **most of an aligned comparison's time on a wide sheet, not the LCS table** (0.99 s against
-  0.25 s at 3 columns; 29.8 s against 0.25 s at 24). **The behaviour change:** a comparison that used to run to completion
+  compare — which, when measured, **were most of an aligned comparison's time on a wide sheet, not the LCS table** (0.99 s against
+  0.25 s at 3 columns; 29.8 s against 0.25 s at 24; see *Fixed*, which made them cheap). **The behaviour change:** a comparison that used to run to completion
   after a cancel now returns `Err(SheetsDiffError::Cancelled)`. No public API changed, and a comparison that is not cancelled
   returns exactly what it did (checked field for field, in all three alignment modes).
+
+### Fixed
+
+- **Under any alignment mode, building the set of cells to compare no longer takes time quadratic in the sheet — and nothing
+  in `Limits` had bounded it.** After alignment, each matched, removed and inserted row's cells were found by scanning the whole
+  cell map (`keys().filter(..)`), once per row: O(rows × cells). **`max_alignment_product` never covered it** — it bounds
+  `old_rows × new_rows`, the LCS table — so an *asymmetric* pair passed it: a one-row sheet against a 40,000-row one (a product
+  of 40,000, against a default bound of 25,000,000) took **37 s** under `RowKey` where `Positional` took 0.13 s, and a sheet may
+  have 1,048,576 rows. `RowSignature` paid the same cost; it was not specific to keyed alignment. On a wide sheet it was most of an
+  aligned comparison (4,900 rows × 24 columns: 25 s of 25.2 s). Each row is now read with a range query on the ordered map, so the
+  set is built in O(cells): the same one-against-40,000 pair takes **154 ms**, 4,900 × 24 takes **0.48 s**. **Results are identical**
+  — all 19 corpus scenarios × 4 alignment modes and 360 generated pairs × 3 modes, the full result hashed before and after.
+  No `Limits` field was added: making the cost linear is the fix, and a bound on a cost that can be removed would have been a
+  worse answer. Present in every release with row alignment, 2.1.0 through 3.1.0.
 
 ### Documentation
 
 - **`docs/src/maintainers/performance.md`** records where an aligned comparison's time goes and what now polls, and settles
   a hedged claim: the "23×-inflated, clearly-wrong delta" an earlier measurement discarded was the real one (the LCS table),
-  reproduced on the tree before the clone was deleted. It also records a cost this release does **not** change: building the
-  compared-cell set is O(rows × cells) and is not covered by `max_alignment_product` (one row against 40,000 takes 37 s
-  under `RowKey`, against 0.13 s under `Positional`). `benches/memory.rs` was measuring an alignment that did not happen
+  reproduced on the tree before the clone was deleted. It also records the cost of building the compared-cell set, before and after
+  the fix under *Fixed*, and the corrected phase table. `benches/memory.rs` was measuring an alignment that did not happen
   (`columns: vec![0]`, but key columns are 1-based); it now keys the id column and asserts the alignment ran.
+- **A published figure corrected: `max_alignment_product`'s worst case is about 0.25 s, not "~15 ms".** The doc comment on
+  `DEFAULT_MAX_ALIGNMENT_PRODUCT`, the README and the threat model all said the default bound kept alignment's worst case
+  "under ~15ms". That number came from a measurement of the LCS table's **allocation** (plus a touch of 2,000 of its 5,001
+  rows); **filling** the table at the bound takes about 0.25 s — 17× more — measured at 4,900×4,900. The three sites now say
+  which phase they measure and give the fill's cost, and the fill is cancellable as of this release. The memory figure was
+  correct and had lost its unit: 100,040,004 bytes is ~95 MiB. **The bound's value is unchanged and still justified** — 0.25 s
+  at the bound against ~9.5 GB two size classes above it is the same curve that chose 25,000,000.
 
 ## [3.1.0] - 2026-09-26
 

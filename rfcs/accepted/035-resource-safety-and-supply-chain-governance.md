@@ -207,6 +207,19 @@ does, that is a finding to report before proceeding.
   a legitimate alignment silently degrades; too high and the protection is
   theoretical. The default must be justified with a measurement, not chosen by
   intuition, and the diagnostic makes degradation visible either way.
+  - **Annotated f131 (2026-09-29): this risk item was cited as though it were
+    the measurement.** Handoff 04 satisfied it, and the threat model, the README
+    and `DEFAULT_MAX_ALIGNMENT_PRODUCT`'s doc comment then attributed its figure
+    — "the default's worst case under ~15ms and ~95MB" — to *this section*,
+    which states a requirement and no number. The 25,000,000 default is sound
+    and unchanged. The figure was not: Handoff 04 timed the table's
+    **allocation** plus an XOR touch of 2,000 of its 5,001 rows, which its own
+    evidence file says; **filling** the table at the bound takes about 0.25 s,
+    17× the quoted time. The memory half was right and had lost its unit
+    (100,040,004 bytes = ~95 MiB). All three sites now state which phase they
+    measure. **A requirement for a measurement is not a citable measurement** —
+    if a figure belongs in the record, it belongs where a reader can see what
+    was timed.
 - `cargo deny`'s ban list can produce false positives on transitive
   dependencies. Report them rather than widening the allowlist reflexively.
 

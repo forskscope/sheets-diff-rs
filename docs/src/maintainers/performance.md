@@ -28,6 +28,7 @@ test matrix:
 | A sparse sheet is read in memory proportional to its *populated* cells — a 5 KB workbook with two cells stays far under 64 MiB where the dense read needed ~646 MB | **Guarded.** A threshold with two orders of magnitude on each side, not a figure | `tests/streaming_read.rs` |
 | Choosing `RowKey` or `RowSignature` costs the LCS table and **no copy of the cell values** (the clone M7 Handoff 04 deleted) | **Guarded, as a relationship**: the aligned peak against the `Positional` peak from the same fixture in the same process, plus the table's size as a function of the row counts. No byte count | `tests/memory_relationships.rs` |
 | The LCS table is `(rows + 1)²` `u32` — about 100 MB at the default `max_alignment_product` — and dominates the aligned peak | **Guarded**, same test (a lower bound as well as an upper: the table must be *visible* in the peak) | `tests/memory_relationships.rs` |
+| Building the compared-cell set is linear in the sheet: a one-row sheet against a tall one, a tall one against one row, and thousands of matched rows each stay within 5× `Positional` on the same pair | **Guarded** by a ratio, and each of the three loops by its own shape (restoring any one scan fails a named test) | `tests/coordinate_set_cost.rs` |
 | Alignment is cancellable: the LCS fill and the three coordinate-set loops each poll once per row | **Guarded** by exact poll counts (removing any one poll fails a named test) and a ratio; the latency *figures* are point-in-time | `tests/alignment_cancellation.rs` |
 | Everything else on this page: bytes per cell, the ladder, `compare_bytes` vs `compare_paths`, the density comparison, every millisecond figure, the v1.2 comparison | **Point-in-time.** One machine, one profile, one day; reproducible with `cargo bench`, checked by nobody | `benches/memory.rs`, `benches/workbook_diff.rs` |
 
@@ -400,48 +401,69 @@ the fix working, timed the same way Handoff 01 timed the defect.
 
 ---
 
-### Alignment: where an aligned comparison's time goes, and cancelling it (alignment follow-ups)
+### Alignment: where an aligned comparison's time goes, and cancelling it (alignment follow-ups, f131)
 
 2.5.1 made the *read* cancellable and left alignment, and the report that started this (ForskScope, 2026-09-26) blamed the
-LCS table fill: a cancel requested 100 ms into a 1.2 s alignment was observed at 1,208 ms. **Measured, the fill is the
-smaller part.** Phase timings, release build, `RowKey` on the id column, instrumented copy of the tree (`evidence` in the
-review request; one machine, one day):
+LCS table fill: a cancel requested 100 ms into a 1.2 s alignment was observed at 1,208 ms. **Measured, the fill was the
+smaller part.** Phase timings, release build, `RowKey` on the id column, an instrumented copy of the tree; one machine,
+one day. "Before" is `HEAD` at the start of f131 (`448f3ba`), "after" is the same source with the change below:
 
-| Shape | LCS fill | building the compared-coordinate set | whole comparison |
-|---|---:|---:|---:|
-| 4,900 rows × 3 columns | 0.25 s | **0.99 s** | 1.28 s |
-| 4,900 rows × 12 columns | 0.24 s | **4.43 s** | 4.80 s |
-| 4,900 rows × 24 columns | 0.25 s | **29.8 s** | 30.3 s |
-| 2,000 rows × 12 columns | 0.04 s | **0.73 s** | 0.82 s |
+| Shape | LCS fill | coordinate set, **before** | coordinate set, **after** | whole, before | whole, **after** |
+|---|---:|---:|---:|---:|---:|
+| 4,900 rows × 3 columns | 0.24 s | 0.98 s | **2.2 ms** | 1.27 s | **0.28 s** |
+| 4,900 rows × 12 columns | 0.24 s | 4.56 s | **7.5 ms** | 4.94 s | **0.36 s** |
+| 4,900 rows × 24 columns | 0.24 s | 24.7 s | **14.8 ms** | 25.2 s | **0.48 s** |
+| 2,000 rows × 12 columns | 0.04 s | 0.74 s | **2.8 ms** | 0.83 s | **0.09 s** |
 
-**The larger cost is not in `align.rs`.** `build_sheet_diff` turns the mapping into the set of cells to compare, and for
-each matched, removed and inserted row it scans a whole `CellMap` (`keys().filter(|(r, _)| r == row)`): **O(rows × cells)**,
-not linear. The fill is fixed by the row count; this grows with the *width*, so the reported 1.2 s was mostly this. **And
-`max_alignment_product` does not bound it**: the bound counts `old_rows × new_rows`, so a one-row sheet against a tall one
-passes it. Measured (`RowKey`, 3 columns): old 1 row against new 5,000 rows 0.53 s; 10,000 rows 2.2 s; 20,000 rows 9.3 s;
-**40,000 rows 37 s**, against 0.13 s for `Positional` on the same pair. That is a CPU cost with no ceiling in the current
-`Limits`; it is reported, not fixed (the loops could use a range query on the ordered map).
+(The first version of this table, measured the day before, had 29.8 s for the 24-column coordinate set; this run has 24.7 s.
+Same code, same shape; one machine's run-to-run spread on a 25-second measurement.)
 
-**What polls now.** The LCS fill polls once per table row (`m` polls; one atomic load per `n` cell operations), and each of the
-three coordinate-set loops polls once per row, which is once per full scan of a map. Not per cell. **The other phases were
-measured and are left unpolled**: `extract_row_keys` (both sides) 5.0 ms and `keyless_rows` 3.7 ms at 4,900 rows;
-`pair_identical_rows` 11.6 ms and the backtrack 0.39 ms at 5,000 rows × 12 columns, all keyless — each under 1% of the
-comparison it belongs to, and linear in data already read.
+**The larger cost was not in `align.rs`, and it is gone.** `build_sheet_diff` turns the mapping into the set of cells to
+compare, and for each matched, removed and inserted row it scanned a whole `CellMap` (`keys().filter(|(r, _)| r == row)`):
+**O(rows × cells)**. **f131 replaced each scan with `map.range((row, 0)..=(row, u32::MAX))`**, O(log n + the row's cells), in all
+three loops. **After it, the LCS fill is the dominant phase again** (0.24 s of 0.28 s at 4,900 × 3), and the coordinate set
+is 0.8–3% of the comparison and grows only with the cells. The results are byte-identical: all 19 corpus scenarios × 4 alignment
+modes, and 360 pseudo-random pairs × 3 modes including cells in the first and the last (XFD) columns, hashed on the full JSON,
+before and after.
+
+**`max_alignment_product` never bounded it**, and that was the defect: the bound counts `old_rows × new_rows`, so a one-row sheet
+against a tall one passed it. Old sheet 1 row, new sheet N rows × 3 columns, time before and after (`Positional` for scale):
+
+| New rows | `Positional` | `RowKey` before | `RowKey` after | `RowSignature` after |
+|---:|---:|---:|---:|---:|
+| 2,500 | 8 ms | 132 ms | **8.1 ms** | 8.1 ms |
+| 5,000 | 17 ms | 512 ms | **16.6 ms** | 16.7 ms |
+| 10,000 | 33 ms | 2.10 s | **35 ms** | 34 ms |
+| 20,000 | 67 ms | 9.27 s | **75 ms** | 72 ms |
+| 40,000 | 134 ms | 37 s (earlier run) | **154 ms** | 150 ms |
+| 100,000 | 327 ms | — | **399 ms** | 374 ms |
+
+Doubling the rows used to quadruple the time; it now doubles it, at 1.0–1.2× `Positional`. (`RowSignature` paid the same cost:
+the loops are gated on a row mapping existing, not on the mode.)
+
+**What polls.** The LCS fill polls once per table row (`m` polls; one atomic load per `n` cell operations), and each of the
+three coordinate-set loops polls once per row. Not per cell. The loops' poll used to be "once per full scan of a map"; it is
+now once per row, and the set is O(rows) to build, so a large sheet still takes time and the token is still worth reading.
+**The other phases were measured and are left unpolled**: `extract_row_keys` (both sides) 5.0 ms and `keyless_rows` 3.7 ms at
+4,900 rows; `pair_identical_rows` 11.6 ms and the backtrack 0.39 ms at 5,000 rows × 12 columns, all keyless — each under 1% of
+the comparison it belongs to, and linear in data already read.
 
 Cancel requested at a fixed delay, time from the request to the call returning (`Cancellation` is a flag set by another
-thread; release build; one machine):
+thread; release build; one machine; measured before f131, when the loops were still scans):
 
-| Shape, request at | Before (`78bfa91`) | After |
+| Shape, request at | Before alignment polled (`78bfa91`) | After |
 |---|---:|---:|
 | 4,900 × 3, 100 ms | **1.2 s** (ran to completion: `Ok`) | **4.6 ms** |
 | 4,900 × 12, 1,000 ms | 3.9 s | **5.8 ms** |
 | 4,900 × 24, 5,000 ms | 23.6 s | **11.6 ms** |
 
 (A request at 100 ms into the 12-column comparison lands in the *read*, whose poll interval is 50,000 cells: 26.6 ms after,
-against 4.6 s before, and that is the read's granularity, not alignment's.) `tests/alignment_cancellation.rs` guards the
-placement **by exact poll counts** — the fill, and each of the three loops, so removing any one statement fails a named
-test — and by a ratio (the cancelled run as a fraction of the same comparison run to completion, never a wall-clock
-figure). The latency figures above are point-in-time.
+against 4.6 s before, and that is the read's granularity, not alignment's. After f131 the whole 4,900 × 24 comparison takes
+0.48 s, so the 5-second request in the last row would now arrive after it finished.) `tests/alignment_cancellation.rs` guards the
+polls **by exact poll counts** — the fill, and each of the three loops, so removing any one statement fails a named
+test — and by a ratio to the uncancelled run for the fill. `tests/coordinate_set_cost.rs` guards the cost: each loop has its own
+shape, the aligned comparison must stay under 5× `Positional` on the same pair, and restoring any one scan fails a named test.
+The latency and phase *figures* above are point-in-time.
 
 **The keyless path's memory.** `RowKey` with a blank id in every twentieth row (ForskScope's shape, `benches/memory.rs`):
 500 rows +944,691 bytes over `Positional`, 5,000 rows +91,529,918 (0.94 and 0.92 of `(rows+1)² × 4`: the LCS runs over the keyed

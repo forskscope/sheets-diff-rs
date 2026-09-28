@@ -215,8 +215,10 @@ The optional row-alignment feature (`RowKey`/`RowSignature`
 modes) that reduces false-positive cascades after row insertions/deletions.
 **Mitigation:** `max_alignment_product` (default 25,000,000, `Limits::hardened()`
 same value — this bound was already conservative) caps the `old_rows ×
-new_rows` LCS matrix *before* it is allocated; measured to keep the
-default's worst case under ~15ms and ~95MB (RFC-035 §9), with the failure
+new_rows` LCS matrix *before* it is allocated. At the bound the table is
+`(m+1)(n+1)×4` bytes — 100,040,004, ~95 MiB — and **filling it takes about
+0.25 s** (measured 2026-09-29 at 4,900×4,900, product 24.0 M; 0.04 s at
+2,000×2,000), with the failure
 mode it exists to prevent (~10GB, process-aborting) sitting two size
 classes above the bound. Exceeding it degrades to positional comparison
 with an `alignment_bound_exceeded` diagnostic — never an error, never a
@@ -228,6 +230,27 @@ rare cases (an inserted row and a matched/removed row's numbers coinciding)
 [Residual risks](#residual-risks-worth-naming). Positional mode (the
 default `AlignmentMode`) does not use this bound at all and has no
 alignment-related resource surface.
+
+**The other cost, and what bounds it (f131).** `max_alignment_product` bounds the LCS table and only that. After alignment,
+`build_sheet_diff` builds the set of cells to compare, and until f131 it did so by scanning a whole cell map once per matched,
+removed or inserted row — O(rows × cells), with **nothing in `Limits` bounding it**: the bound counts `old_rows × new_rows`, so one
+row against 40,000 (a product of 40,000, against a default of 25,000,000) took 37 s where `Positional` took 0.13 s, and a sheet
+may have 1,048,576 rows. `RowSignature` paid it too. It now reads each row with a range query on the ordered map, so the set costs
+O(log n + the row's cells) per row and **O(cells) overall: nothing bounds it, and nothing needs to** beyond what already
+bounds the cells that were read (`max_cells_read`, `max_input_bytes`). The same pair takes 154 ms (`Positional` 134 ms) at
+40,000 rows and 399 ms at 100,000. The remaining alignment cost is the LCS table, fixed by the bound and stated above. Both
+alignment phases poll for cancellation once per row.
+
+**A correction this unit forced, worth keeping.** Until 2026-09-29 the paragraph above said the bound kept "the default's worst
+case under ~15ms and ~95MB (RFC-035 §9)". Two things were wrong with it. The citation: RFC-035 §9 contains no such figure — it
+contains the *requirement* that the default be justified by measurement. And the time: the measurement it came from
+(Handoff 04) timed `vec![vec![0u32; n+1]; m+1]` **allocation**, then touched 2,000 of the 5,001 rows with an XOR to
+approximate the fill, and said so. 15 ms was the cost of allocating and zeroing the table; downstream it became the worst case
+of the whole phase, which is 17× larger. The memory half was right all along and only lost its unit — 100,040,004 bytes is
+~95 MiB, which is also `performance.md`'s "about 100 MB". **The bound's value is unaffected**: 0.25 s at the bound is still
+unremarkable, and ~9.5 GB two size classes up is still the failure it exists to prevent, so the curve argument that chose
+25,000,000 stands. This is the defect category ForskScope named for us — a marker credited with more than it measured — in a
+figure we published, and it survived because every later reader cited the sentence rather than the measurement.
 
 ### The bounds themselves (`Limits`)
 

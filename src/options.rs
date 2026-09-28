@@ -186,14 +186,23 @@ pub struct MatchingOptions {
 
 /// Default bound on the row-alignment `m × n` table (RFC-035 §5.1, §9).
 ///
-/// Chosen from a direct measurement of `Vec<Vec<u32>>` allocation cost at
+/// Chosen from a direct measurement of `Vec<Vec<u32>>` **allocation** cost at
 /// several square sizes (see Handoff 04's review request for the full
-/// table): 5,000×5,000 (this bound) measured ~95 MB / ~15 ms; the
-/// previous *unbounded* worst case — two sheets each at the old row-count
-/// guard's 50,000-row ceiling — measured ~9.5 GB / ~3.3 s just to
-/// zero-allocate the table, before any comparison work. Two sheets each up
-/// to ~5,000 rows (or any combination whose product stays under this
-/// bound) get full alignment; larger degrades to positional with a
+/// table): at 5,000×5,000, this bound, the table is
+/// `(m + 1) × (n + 1) × 4` bytes = 100,040,004 (~95 MiB) and takes ~15 ms to
+/// allocate and zero; the previous *unbounded* worst case — two sheets each at
+/// the old row-count guard's 50,000-row ceiling — measured ~9.5 GB / ~3.3 s
+/// just to zero-allocate the table, before any comparison work.
+///
+/// **What a caller pays at this bound is the fill, not the allocation:**
+/// filling the table takes **about 0.25 s** at 4,900×4,900 (product 24.0 M,
+/// just inside this bound) and about 0.04 s at 2,000×2,000 — one machine,
+/// 2026-09-29. The fill polls for cancellation once per table row, so a
+/// comparison that reaches this bound can still be interrupted (see
+/// [`ExecutionOptions::cancellation`]). The ~15 ms above is the allocation alone.
+///
+/// Two sheets each up to ~5,000 rows (or any combination whose product stays
+/// under this bound) get full alignment; larger degrades to positional with a
 /// diagnostic (RFC-035 §5.2) rather than risking the unbounded case.
 pub const DEFAULT_MAX_ALIGNMENT_PRODUCT: u64 = 25_000_000;
 
