@@ -159,7 +159,7 @@ f132, f133 and f134, one open).** The f123 paragraph above is not the only way t
 *Availability of the host process* asset, and the third, fourth and fifth findings are not about
 availability at all.
 
-**Fixed (f132): a 512-byte file provoked a single 9,261,285,372-byte allocation.** `Xlsx::new` called
+**Fixed (f132), and published as [GHSA-w5x2-6474-pqp4](https://github.com/forskscope/sheets-diff-rs/security/advisories/GHSA-w5x2-6474-pqp4) on 2026-09-29: a 512-byte file provoked a single 9,261,285,372-byte allocation.** `Xlsx::new` called
 `check_for_password_protected` before returning, which parsed *any* bytes as a CFB (OLE2) container;
 a DIFAT-sector-count field from the CFB header reached `Vec::with_capacity` without being checked
 against the file's actual size (`calamine` 0.36.1, `cfb.rs:224` → `:260`, from `xlsx/mod.rs:2939`).
@@ -268,10 +268,14 @@ answer from a maintainer doing unpaid work, not a failure — **but it means a f
 could depend on is not something to assume.** `calamine` 0.36.1 is the newest release (2026-07-27),
 so no published version carries a fix for either.
 
-**And there is no advisory.** RustSec holds one calamine entry, RUSTSEC-2021-0015, unrelated;
-`cargo deny check advisories` passes against our tree. So a downstream user running `cargo audit`
-today learns nothing about any of this. **Our own disclosure is the only signal our users get**,
-which is why the CHANGELOG entry is a `### Security` section and names the issue numbers.
+**And RustSec still has nothing.** It holds one calamine entry, RUSTSEC-2021-0015, unrelated;
+`cargo deny check advisories` passes against our tree. **GHSA-w5x2-6474-pqp4 does not change that.**
+A repository advisory enters GitHub's Advisory Database, which is what Dependabot reads; `cargo
+audit` and `cargo deny` read **RustSec**, and a GHSA does not propagate there — the flow runs the
+other way. So as of 2026-09-29 a downstream user on a version below 3.2.0 gets a Dependabot alert
+and **no `cargo audit` finding at all**. Reaching the second audience needs a separate submission to
+`rustsec/advisory-db`, which is an outward action and the owner's (rule 004). Until then, treat a
+quiet `cargo audit` as absence of evidence.
 The remaining `calamine` defect is reported in `fuzz/corpus-quarantine/README.md`, along with why
 active fuzzing of the corpus/target that reaches it is held back rather than run and accepted as
 flaky. The `ExactNameThenIndex` defect above was never part of that quarantine — it was a correctness
