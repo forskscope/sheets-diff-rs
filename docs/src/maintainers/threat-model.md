@@ -154,9 +154,10 @@ is an out-of-memory abort, not an error a caller can handle — exactly the fail
 the *Availability of the host process* asset names — and the workbook needed
 nothing but a populated cell far from the data.
 
-**Four findings that defeated bounds or the sheet matcher (M9 unit 01, 2026-09-29; two fixed, by
-f132 and f133, two open).** The f123 paragraph above is not the only way to reach the *Availability
-of the host process* asset, and the third and fourth findings are not about availability at all.
+**Five findings that defeated bounds or the sheet matcher (M9 unit 01, 2026-09-29; four fixed, by
+f132, f133 and f134, one open).** The f123 paragraph above is not the only way to reach the
+*Availability of the host process* asset, and the third, fourth and fifth findings are not about
+availability at all.
 
 **Fixed (f132): a 512-byte file provoked a single 9,261,285,372-byte allocation.** `Xlsx::new` called
 `check_for_password_protected` before returning, which parsed *any* bytes as a CFB (OLE2) container;
@@ -215,30 +216,45 @@ reachable without depending on a fuzzer rediscovering it by corruption. The othe
 (`conservative_rename`, `index_match`) were checked for the same pattern and do not repeat it —
 `index_match` already tracks its own claims (`used_new`).
 
-**Open, and ours: fixing the above exposed a related, distinct defect in `ExactNameThenIndex` mode.**
-That mode's own post-processing — the `still_unmatched_old`/`still_unmatched_new` filters that decide
-what becomes `Added`/`Removed` after `index_match` runs — check whether *any* already-matched pair
-shares the candidate sheet's **name**, not whether it *is* the candidate. A leftover, genuinely
-unmatched old sheet whose name happens to coincide with an unrelated matched pair's name is therefore
-excluded from `still_unmatched_old` and never reaches `push_removed`: it is silently absent from the
-result altogether — not `Removed`, not anywhere, `WorkbookDiff::sheets` shorter by one. This was
-present before f133 too, but was largely masked by the defect above: with duplicate old sheets left
-unclaimed by the broken exact-name phase, they were usually absorbed into a duplicate pairing rather
-than reaching this filter at all. f133's fix, by correctly leaving an unmatched excess old sheet in
-`old_remaining`, is what makes this reachable on its own. Reproduced by construction (not corruption):
-two old sheets and one new sheet named `"Sheet"`, `ExactNameThenIndex` mode — the correct outcome (as
-`ExactNameOnly` and `ExactNameThenConservativeRename` both give for the same shape) is one matched
-pair and one `Removed`; the actual outcome is one matched pair and nothing else, the second old sheet
-gone. Pinned as a known-failing test, `src/matcher.rs`'s
-`known_defect_an_unrelated_matched_pairs_name_hides_a_leftover_sheet`. Not fixed; needs its own unit —
-`ExactNameThenIndex` and `index_match` were explicitly out of f133's scope.
+**Fixed (f134): fixing the above exposed a related, distinct — and worse — defect in
+`ExactNameThenIndex` mode.** That mode's own post-processing — the `still_unmatched_old`/
+`still_unmatched_new` filters that decide what becomes `Added`/`Removed` after `index_match` runs —
+checked whether *any* already-matched pair shared the candidate sheet's **name**, not whether it *was*
+the candidate. A leftover, genuinely unmatched old sheet whose name happened to coincide with an
+unrelated matched pair's name was therefore excluded from `still_unmatched_old` and never reached
+`push_removed`: it was silently absent from the result altogether — not `Removed`, not anywhere,
+`WorkbookDiff::sheets` shorter by one. **Confirmed symmetric**: the new-side filter carried the
+identical bug, probed directly before this fix landed (one old `X`, two new `X`, `ExactNameThenIndex`
+→ one pair, the second new sheet absent rather than `Added` — neither side was "only" broken). This
+was present before f133 too — and on the **new** side it was not masked at all. Measured at the
+released tag 3.1.0: one old `X` against two new `X`, `ExactNameThenIndex`, gives **one pair, the
+second new sheet absent**, exactly as it does today before this fix. **That half has shipped**, in
+3.1.0 and every earlier release carrying this mode. The **old** side is the half that was masked: a
+duplicate old sheet was absorbed into a duplicate pairing by the defect above and never reached this
+filter, so f133's fix — correctly leaving an unmatched excess sheet in
+`old_remaining`/`new_remaining_refs` — is what made *that* half reachable — reported in f133's own
+review request rather than left for someone else to trip over. **Worse than the defect f133 fixed**: a
+wrong classification for a sheet still present in the result versus a sheet gone with nothing for a
+caller to detect — the strongest form of the silent-wrong-answer class this document and RFC-005 treat
+as worse than a visible failure, and indefensible to ship in the same release whose headline is fixing
+exactly that category. **Closed** by comparing `SheetRef::index` — the sheet's position within its
+own workbook, assigned once via `.enumerate()` over that workbook's own sheet list in `src/open.rs`
+and therefore unique within each side, confirmed by reading the field's doc comment and its one
+production construction site rather than trusting the name — instead of `name`, in both filters. All
+three `SheetMatchingMode`s now agree on the sheet *set* for the same input (two old `X` / one new `X`
+→ one matched pair and one `Removed`; the symmetric new-side shape → one matched pair and one `Added`),
+differing only in how an unmatched pair is classified, which is the invariant the defect broke and is
+now pinned directly as its own test. `index_match` and `conservative_rename` were untouched — the
+handoff's own reasoning for why neither could repeat this pattern (`used_new`'s claim-tracking;
+respectively, the `(1, 1)` arm has only one candidate) was verified rather than assumed.
 
 **Status and disposition.** The first defect's broken frame was `calamine`'s; the broken promise was
 this crate's, because the API that aborted was `sheets_diff::compare_bytes` (RFC-028 §7) — and it was
 additionally ours to close without waiting for an upstream release, since `src/open.rs`'s
 `open_bytes_inner` was a single choke point. The second defect's frame is also `calamine`'s and stays
-open pending upstream (or a decision to guard it here). The third and fourth are entirely this crate's
-own code; the third is closed, the fourth is open and needs its own unit.
+open pending upstream (or a decision to guard it here). The third, fourth and fifth are entirely this
+crate's own code, all three closed — the fourth (f133) and fifth (f134) in the same release, the
+fifth found while fixing the fourth rather than left for a later audit to rediscover.
 
 **On expecting an upstream fix: plan without one.** Checked 2026-09-29. Both `calamine` defects were
 already filed by other people before we found them — [#714](https://github.com/tafia/calamine/issues/714)
@@ -258,9 +274,9 @@ today learns nothing about any of this. **Our own disclosure is the only signal 
 which is why the CHANGELOG entry is a `### Security` section and names the issue numbers.
 The remaining `calamine` defect is reported in `fuzz/corpus-quarantine/README.md`, along with why
 active fuzzing of the corpus/target that reaches it is held back rather than run and accepted as
-flaky. The `ExactNameThenIndex` defect above is unrelated to fuzzing safety (it is a correctness
-defect, reachable by construction, not something a fuzz run risks crashing on) and is not part of
-that quarantine.
+flaky. The `ExactNameThenIndex` defect above was never part of that quarantine — it was a correctness
+defect reachable by construction, not something a fuzz run risked crashing on — and is now closed
+(f134) besides.
 
 **How this went unseen for eleven releases** is the part worth keeping. The assurance table below
 listed "No panic on arbitrary/malformed input" as *Partially* covered and cited `fuzz_open_xlsx_bytes`
@@ -444,7 +460,7 @@ Said plainly, because the failure mode of a threat model is overclaiming:
 | A sheet read allocates in proportion to its populated cells, and its bound and cancellation poll fire before the spend | Yes | `tests/streaming_read.rs` — peak heap from a counting allocator against a 64 MiB budget, on a fixture where the pre-fix dense read measured about 646.5 million bytes (roughly ten times the budget); it also asserts the bound fires mid-sheet (`observed == max + 1`, peak a fraction of the whole read) and that `Limits::hardened()` accepts that fixture within the budget |
 | `cells_read` / `max_cells_read` count populated cells, and the bound is never stricter than the 2.6.0 box-area bound | Yes | `tests/cells_read.rs` — an independent count by `calamine` over all 19 corpus scenarios, the dense control, both directions of the limit, cumulative counting, the repeated-address case, and `cells_read >= cells_compared` |
 | Each cancellation poll (sheet pair, value read, formula read, compare loop) can actually cancel | Partially | `tests/integration.rs::cancellation_observed_during_{read,compare}_phase`, plus `tests/streaming_read.rs`. Each test was shown to fail when only its own poll is removed — demonstrated by hand on 2026-09-24, one poll at a time; no CI job repeats the removal, so a future test edit could lose that property unnoticed |
-| Normalisation/alignment/formula-attachment correctness | No dedicated ongoing check beyond the fixture corpus | The four Handoff 05 defects were found by manual audit, not by an automated property; a fifth of the same shape would only be caught if it happens to move a golden or fail a hand-written test. **A fifth was found (f132, 2026-09-29), by the self-comparison fuzz target rather than by audit, and fixed (f133)**: `src/matcher.rs`'s exact-name matching could pair two old sheets to the same new sheet when their names collided, silently dropping a third sheet's real content and reporting it as spurious `Added` changes instead — see *Sheet matching* below. A **sixth, related defect surfaced while fixing the fifth** and is still open — same section |
+| Normalisation/alignment/formula-attachment correctness | No dedicated ongoing check beyond the fixture corpus | The four Handoff 05 defects were found by manual audit, not by an automated property; a fifth of the same shape would only be caught if it happens to move a golden or fail a hand-written test. **A fifth was found (f132, 2026-09-29), by the self-comparison fuzz target rather than by audit, and fixed (f133)**: `src/matcher.rs`'s exact-name matching could pair two old sheets to the same new sheet when their names collided, silently dropping a third sheet's real content and reporting it as spurious `Added` changes instead — see *Sheet matching* below. A **sixth, related and worse defect surfaced while fixing the fifth and was fixed in the same release (f134)**: a name collision with an unrelated matched pair could make a genuinely unmatched sheet vanish from the result with no diagnostic at all — same section |
 | Comparison never accesses the network (NF-015) | Indirectly | Enforced structurally (no networking dependency can enter the tree, per the `[bans]` row above) rather than by a runtime sandbox or a dedicated test that observes zero syscalls |
 
 A control with "Partially"/"No"/"Indirectly" in the second column is not a

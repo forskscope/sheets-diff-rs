@@ -85,6 +85,17 @@ pub struct WorkbookSideInfo {
 /// A reference to a specific sheet in one workbook.
 ///
 /// `index` is **0-based** workbook order (as returned by calamine).
+///
+/// **`index` identifies a sheet within its own workbook; `name` does not.** It is assigned once,
+/// by position, when the workbook is opened, so it is unique among that workbook's sheets — while
+/// two sheets *can* carry the same `name`. Excel's own UI will not write duplicate names, but a
+/// file this crate did not produce is under no obligation to avoid them, and comparing `name`
+/// where identity was meant is the defect f133 and f134 fixed: it made one sheet claim another's
+/// match, and made a third disappear from the result entirely. **Compare `index` to ask "is this
+/// the same sheet?"; compare `name` only to ask "do these sheets share a name?"**
+///
+/// Indices are per workbook, so an old-side `index` and a new-side `index` are only comparable as
+/// positions — never as identity across the two sides.
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 #[non_exhaustive]

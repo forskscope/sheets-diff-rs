@@ -52,9 +52,10 @@ seeds, fresh corpus per run; **one is now fixed.**
   `cells_changed == 3`, ten repeats, same three cells every time). Unlike the other defect below, this
   one did **not** crash or panic in an ordinary build: it was a **silent wrong answer**, which this
   project treats as the worse category. See the threat model, *Sheet matching: a second, related
-  defect found while fixing the first*, for the fix and for a related, distinct defect it exposed in
-  `ExactNameThenIndex` mode — open, but not a reason this target is quarantined (it is a correctness
-  defect, reachable by construction, not something running the fuzzer risks crashing on).
+  defect found while fixing the first*, for the fix and for a related, distinct, and worse defect it
+  exposed in `ExactNameThenIndex` mode — also fixed, same release (f134); it was never a reason this
+  target is quarantined (it was a correctness defect, reachable by construction, not something running
+  the fuzzer risked crashing on).
 - **Still open:** the same overflow defect as `paired_encrypted` above, reached through a different
   call path (`read_sheet_cells` / `worksheet_cells_reader`), independent of any specific seed.
 

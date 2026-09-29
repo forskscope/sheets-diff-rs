@@ -97,7 +97,12 @@ pub fn match_sheets(
 
         SheetMatchingMode::ExactNameThenIndex => {
             index_match(&old_remaining, &mut new_remaining_refs, &mut pairs);
-            // Remaining are Added / Removed
+            // Remaining are Added / Removed. Checked by *identity* (`index`, unique per side —
+            // see `SheetRef::index`'s doc comment and its sole construction site, `open.rs`'s
+            // `.enumerate()` over one workbook's own sheets), not by name (f134): a leftover
+            // sheet whose *name* happens to coincide with an unrelated already-matched pair's
+            // name is a different sheet and must still be reported, not treated as accounted
+            // for. `index_match` above already relies on the same per-side uniqueness.
             let still_unmatched_old: Vec<&SheetRef> = old_remaining
                 .iter()
                 .copied()
@@ -105,7 +110,7 @@ pub fn match_sheets(
                     !pairs.iter().any(|p| {
                         p.old_sheet
                             .as_ref()
-                            .map(|r| r.name == s.name)
+                            .map(|r| r.index == s.index)
                             .unwrap_or(false)
                             && !matches!(p.change, SheetChange::Removed)
                     })
@@ -118,7 +123,7 @@ pub fn match_sheets(
                     !pairs.iter().any(|p| {
                         p.new_sheet
                             .as_ref()
-                            .map(|r| r.name == s.name)
+                            .map(|r| r.index == s.index)
                             .unwrap_or(false)
                             && !matches!(p.change, SheetChange::Added)
                     })
@@ -612,32 +617,139 @@ mod tests {
         assert_eq!(removed[0].old_sheet.as_ref().unwrap().index, 2);
     }
 
-    /// **Not this unit's defect — reported in the review request, reproduced here to pin the
-    /// current (wrong) behaviour rather than leave it undocumented.** `ExactNameThenIndex`'s own
-    /// "still unmatched" filter (`match_sheets`, the arm's `still_unmatched_old`/`_new`) checks
-    /// whether *any* pair shares the candidate's **name**, not whether it *is* the candidate. A
-    /// leftover old sheet whose name coincides with an unrelated, already-matched pair's name is
-    /// therefore excluded from `still_unmatched_old` and never reaches `push_removed` — silently
-    /// dropped from the result entirely (not `Removed`, not anywhere), even though it is a
-    /// completely different sheet. `index_match` itself is not at fault (it uses `used_new`
-    /// correctly, per `duplicate_names_then_index_fallback_still_claims_each_new_sheet_once` above);
-    /// the bug is in the name-based re-check that follows it. Out of this unit's scope
-    /// (`index_match`/its surrounding phase, not the exact-name phase) — Non-change scope says
-    /// report, not fix.
+    // -----------------------------------------------------------------------
+    // f134 — the `ExactNameThenIndex` "still unmatched" filters must check identity, not name
+    // -----------------------------------------------------------------------
+    //
+    // f133-01's review found that `still_unmatched_old`/`still_unmatched_new` (the filters just
+    // above, following `index_match`) asked "is a sheet with this *name* already paired?" where
+    // they meant "is *this* sheet already paired?" — a leftover sheet whose name happens to
+    // coincide with an unrelated matched pair's name was excluded from the "still needs
+    // Added/Removed" list and silently absent from `pairs` altogether, not `Removed`, not
+    // anywhere. Fixed by comparing `index` (the sheet's position within its own side, assigned
+    // once via `.enumerate()` over that side's own sheet list in `open.rs` — unique per side by
+    // construction; confirmed by reading `SheetRef`'s doc comment and its only production
+    // construction site, not merely by its name) instead of `name`.
+    //
+    // The three modes' agreement on the *set* of sheets for the same shape is the specification
+    // here (§ *Required implementation* 3 of the handoff): the two tests below assert the correct
+    // positive outcome directly, and `all_three_modes_agree_on_the_sheet_set` below states the
+    // cross-mode invariant the defect broke, so a future regression in any one mode is caught even
+    // if its own shape-specific test is ever weakened.
+
+    /// Old side: two old sheets share a name, the exact-name phase claims one, `index_match`
+    /// claims none of the remainder (no candidate on the new side left to match by index), and the
+    /// leftover must reach `push_removed` — matching what `ExactNameOnly` and
+    /// `ExactNameThenConservativeRename` already give for this exact shape (see the asymmetric
+    /// tests above). Before f134: `pairs.len() == 1`, the leftover silently absent.
     #[test]
-    fn known_defect_an_unrelated_matched_pairs_name_hides_a_leftover_sheet() {
+    fn an_unrelated_matched_pairs_name_must_not_hide_a_leftover_old_sheet() {
         let old = vec![sref("Sheet", 0), sref("Sheet", 1)];
         let new = vec![sref("Sheet", 0)];
         let mut diag = vec![];
         let pairs = match_sheets(&old, &new, SheetMatchingMode::ExactNameThenIndex, &mut diag);
-        // What SHOULD happen: old[1] is Removed, like it is under ExactNameOnly and
-        // ExactNameThenConservativeRename for the same shape (see the asymmetric tests above).
-        // What ACTUALLY happens: old[1] is dropped from `pairs` entirely, because old[0]'s matched
-        // pair shares its name ("Sheet") and the filter does not check *which* sheet it is.
-        assert_eq!(
-            pairs.len(),
-            1,
-            "known defect: expected 2 (one Unchanged, one Removed), got {pairs:?} — a sheet vanished"
-        );
+        assert_no_new_sheet_claimed_twice(&pairs);
+        assert_eq!(pairs.len(), 2, "{pairs:?}");
+        let matched: Vec<_> = pairs
+            .iter()
+            .filter(|p| matches!(p.change, SheetChange::Unchanged))
+            .collect();
+        let removed: Vec<_> = pairs
+            .iter()
+            .filter(|p| matches!(p.change, SheetChange::Removed))
+            .collect();
+        assert_eq!(matched.len(), 1, "{pairs:?}");
+        assert_eq!(removed.len(), 1, "{pairs:?}");
+        assert_eq!(removed[0].old_sheet.as_ref().unwrap().index, 1);
+    }
+
+    /// The symmetric new-side case — the handoff's review explicitly asked whether this side was
+    /// already broken before f133, independent of the old-side shape: it was (see
+    /// `evidence/00-new-side-pre-fix-probe.txt` — probed before this fix landed, `pairs.len() ==
+    /// 1`, the second new sheet silently absent rather than `Added`). One old `X`, two new `X`: the
+    /// exact-name phase claims the first new `X`, the second new `X` has no old candidate left for
+    /// `index_match`, and must reach `push_added` — never vanish.
+    #[test]
+    fn an_unrelated_matched_pairs_name_must_not_hide_a_leftover_new_sheet() {
+        let old = vec![sref("Sheet", 0)];
+        let new = vec![sref("Sheet", 0), sref("Sheet", 1)];
+        let mut diag = vec![];
+        let pairs = match_sheets(&old, &new, SheetMatchingMode::ExactNameThenIndex, &mut diag);
+        assert_no_new_sheet_claimed_twice(&pairs);
+        assert_eq!(pairs.len(), 2, "{pairs:?}");
+        let matched: Vec<_> = pairs
+            .iter()
+            .filter(|p| matches!(p.change, SheetChange::Unchanged))
+            .collect();
+        let added: Vec<_> = pairs
+            .iter()
+            .filter(|p| matches!(p.change, SheetChange::Added))
+            .collect();
+        assert_eq!(matched.len(), 1, "{pairs:?}");
+        assert_eq!(added.len(), 1, "{pairs:?}");
+        assert_eq!(added[0].new_sheet.as_ref().unwrap().index, 1);
+    }
+
+    /// The invariant the defect broke, stated directly rather than left implicit in the
+    /// shape-specific tests above: for the same input, every `SheetMatchingMode` must agree on
+    /// *which sheets* end up matched vs. unmatched (the "sheet set"), even though they may disagree
+    /// on *how* an unmatched pair is classified (`Removed`/`Added` vs. a low-confidence rename).
+    /// `ExactNameThenIndex` disagreeing with the other two — a vanished sheet instead of a
+    /// `Removed`/`Added` one — was exactly this invariant breaking.
+    #[test]
+    fn all_three_modes_agree_on_the_sheet_set() {
+        // Old-side leftover shape.
+        let old = vec![sref("Sheet", 0), sref("Sheet", 1)];
+        let new = vec![sref("Sheet", 0)];
+        let sheet_set_old_leftover = |mode: SheetMatchingMode| -> (usize, usize) {
+            let pairs = match_sheets(&old, &new, mode, &mut vec![]);
+            let matched = pairs
+                .iter()
+                .filter(|p| p.old_sheet.is_some() && p.new_sheet.is_some())
+                .count();
+            let unmatched_old = pairs
+                .iter()
+                .filter(|p| p.old_sheet.is_some() && p.new_sheet.is_none())
+                .count();
+            (matched, unmatched_old)
+        };
+        for mode in [
+            SheetMatchingMode::ExactNameOnly,
+            SheetMatchingMode::ExactNameThenConservativeRename,
+            SheetMatchingMode::ExactNameThenIndex,
+        ] {
+            assert_eq!(
+                sheet_set_old_leftover(mode),
+                (1, 1),
+                "mode {mode:?} disagrees with the others on the sheet set"
+            );
+        }
+
+        // New-side leftover shape (symmetric).
+        let old2 = vec![sref("Sheet", 0)];
+        let new2 = vec![sref("Sheet", 0), sref("Sheet", 1)];
+        let sheet_set_new_leftover = |mode: SheetMatchingMode| -> (usize, usize) {
+            let pairs = match_sheets(&old2, &new2, mode, &mut vec![]);
+            let matched = pairs
+                .iter()
+                .filter(|p| p.old_sheet.is_some() && p.new_sheet.is_some())
+                .count();
+            let unmatched_new = pairs
+                .iter()
+                .filter(|p| p.old_sheet.is_none() && p.new_sheet.is_some())
+                .count();
+            (matched, unmatched_new)
+        };
+        for mode in [
+            SheetMatchingMode::ExactNameOnly,
+            SheetMatchingMode::ExactNameThenConservativeRename,
+            SheetMatchingMode::ExactNameThenIndex,
+        ] {
+            assert_eq!(
+                sheet_set_new_leftover(mode),
+                (1, 1),
+                "mode {mode:?} disagrees with the others on the sheet set"
+            );
+        }
     }
 }

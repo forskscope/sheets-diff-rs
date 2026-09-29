@@ -30,13 +30,29 @@
   this project treats as worse than a visible failure. Found by `fuzz_self_comparison`'s oracle (zero
   cell diffs on a workbook compared with itself), validating the fix above; reproduces
   deterministically outside the fuzzer. **The later matching phases were checked and do not repeat
-  this pattern** (`index_match`'s own claim-tracking is correct) — though a related, distinct defect
-  was found in the same read, in the `ExactNameThenIndex` mode's post-processing, and is reported,
-  not fixed; see the threat model, *Sheet matching: a second, related defect found while fixing the
-  first*. Reachable only through a workbook reporting duplicate sheet
-  names, which Excel's UI will not produce but a file we did not write is not obliged to avoid. No
-  public API change. Committed as `tests/fixtures/f133/self-compare-duplicate-names.bin` and asserted
-  in `tests/f133_claim_each_new_sheet_once.rs`.
+  this pattern** (`index_match`'s own claim-tracking is correct) — though fixing this exposed a
+  related, distinct defect in `ExactNameThenIndex` mode's post-processing, fixed separately below.
+  Reachable only through a workbook reporting duplicate sheet names, which Excel's UI will not
+  produce but a file we did not write is not obliged to avoid. No public API change. Committed as
+  `tests/fixtures/f133/self-compare-duplicate-names.bin` and asserted in
+  `tests/f133_claim_each_new_sheet_once.rs`.
+
+- **Fixed: under `ExactNameThenIndex`, a leftover sheet whose name happened to match an unrelated,
+  already-matched pair's name vanished from the result entirely — not `Removed`, not `Added`,
+  absent, with `WorkbookDiff::sheets` one entry short and no diagnostic.** **Present in released
+  versions, including 3.1.0** — verified at the tag. Two shapes reach it, and they have different
+  histories. A duplicated **new** sheet (one old `X`, two new `X`) lost the second one in 3.1.0 and
+  every earlier release carrying this mode; nothing masked it. A duplicated **old** sheet reached it
+  only after the fix above stopped one old sheet from double-claiming another's match and so let a
+  genuinely-unmatched leftover through — so that half is new, and unreleased. In both, the "still
+  unmatched" filters asked whether *any* matched pair shared the candidate's **name**, not whether it
+  *was* the candidate, so a name collision with an unrelated pair hid it. `src/matcher.rs` now compares `SheetRef::index`
+  (the sheet's position within its own workbook, assigned once via `.enumerate()` in `src/open.rs`
+  and therefore unique within each side) instead of `name` in both filters. **The worse of the two
+  defects in this area**: the previous one produced a wrong classification for a sheet that was still
+  present in the result; this one made a sheet disappear with nothing for a caller to detect. All
+  three `SheetMatchingMode`s now agree on the sheet *set* for the same input, differing only in how
+  an unmatched pair is classified. No public API change.
 
 - **Known, unfixed: a crafted worksheet panics in builds with debug assertions on** — an unbounded
   base-26 column-letter multiply in `calamine` (`xlsx/mod.rs:2838`). Release builds wrap and return
