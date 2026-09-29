@@ -12,8 +12,9 @@ reader, the normaliser, the comparer, or alignment. f123, f130 and f131 all live
 code. The framing is now length-prefixed (`fuzz/src/framing.rs`) and a second target,
 `fuzz_self_comparison`, compares a workbook with itself — an oracle (zero cell diffs, in every
 alignment mode) rather than "did not panic", and one with a demonstrated capacity to fail (see §10).
-**Reaching the reader for the first time found three real defects, one now fixed (f132) and two still
-open — see §7's annotation and `fuzz/corpus-quarantine/README.md`.** §7's contract is about this
+**Reaching the reader for the first time found three real defects, and a fourth was found while
+fixing the third; three are fixed (f132, f133, f134) and one remains open — the `calamine` overflow,
+upstream #694. See §7's annotation and `fuzz/corpus-quarantine/README.md`.** §7's contract is about this
 crate's own public API (`compare_bytes` must not panic), not about which frame in the backtrace is
 whose: naming a dependency's bug does not discharge a promise about the API a caller actually holds,
 and the third defect found this way is not even a dependency's — it is `src/matcher.rs`'s own.

@@ -217,8 +217,10 @@ jobs:
           - target: fuzz_diff_options_builder
             runs: 20000
           # fuzz_self_comparison is not here yet -- see fuzz/corpus-quarantine/README.md. f132 closed
-          # the defect this omission was originally about; two others, unrelated to that fix, keep it
-          # out (one of them found by this same target, in our own code, not calamine's).
+          # the defect this omission was originally about, and f133/f134 closed the two this target
+          # found in our own code. What keeps it out now is the one still-open defect: calamine's
+          # base-26 column overflow, upstream #694 -- the same thing that holds the quarantined seed
+          # and keeps `fuzz_open_xlsx_bytes` at `-runs=0` above.
     steps:
       - uses: actions/checkout@v4
 
