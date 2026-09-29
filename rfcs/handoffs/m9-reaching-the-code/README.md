@@ -17,7 +17,7 @@ configuration that runs one build twice and several checks not at all.
 | 01 | [The fuzz corpus cannot reach the sheet reader](./01-the-corpus-cannot-reach-the-reader.md) | D1 | The substantive one |
 | 02 | Deviations from `project-instructions-rust.md` | B1–B4 | |
 | 03 | The remaining record corrections | C4, C6–C9, E, F-2 | |
-| 04 | `FormulaUnavailable` is pushed once per cell | O4 | **Measure before deciding** |
+| 04 | ~~`FormulaUnavailable` is pushed once per cell~~ **→ promoted to [f135](../f135-a-diagnostic-per-numeric-cell/01-say-it-once-and-mean-the-guard.md)** | O4 | Measured 2026-09-30: 400,000 diagnostics and a 158.9 MiB JSON result from a 666 KiB workbook **with no formulas**, on by default. Not an internal item |
 | 05 | The corpus cannot reach either alignment warning | O-B | D1's shape, in the fixtures |
 | 06 | The CLI applies no `Limits` | F-3 | Measure with 04 |
 
@@ -29,6 +29,14 @@ process, in every released version. That is now ahead of the rest of this queue,
 release waits for it (owner, 2026-09-29):
 `rfcs/handoffs/f132-a-512-byte-file-aborts-the-process/01-decline-before-delegating.md`.
 M9 resumes at unit 02 once it ships.
+
+**Amended 2026-09-30, after the owner asked whether M9's incompletion affects our consumer.** It
+does, through one unit. Unit 04 was filed as an internal measurement item and is not one: the
+diagnostic it concerns is **on by default** and its volume grows with the cell count, so a consumer
+comparing ordinary numeric spreadsheets pays it whether or not they know the option exists. It is
+promoted to **f135** and runs before the rest of this queue. Units 02, 03, 05 and 06 are confirmed
+internal — code layout, record corrections, fixture coverage, and CLI flags that a library consumer
+does not use — and none of them changes what a caller gets.
 
 **Unit 00 is first for a practical reason.** It moves standing checks off the
 local machine, and M9's own units will otherwise accumulate scratch the way
