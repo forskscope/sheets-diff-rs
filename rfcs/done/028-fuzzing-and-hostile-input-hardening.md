@@ -117,7 +117,9 @@ a fuzz target reached past the ZIP header:
    column-letter run with no length bound. Release builds wrap instead; on the artifact in hand the
    wrapped value then fails to parse and `compare_bytes` returns a clean `Err(sheet is malformed)`.
    **Debug builds are not an edge case** — every downstream `cargo test` is one. Not reachable by (1)'s
-   pre-screen (it lives inside a valid archive); upstream-only unless that changes. **f132 measured
+   pre-screen (it lives inside a valid archive); upstream-only unless that changes, and tracked as
+   [calamine#694](https://github.com/tafia/calamine/issues/694) — filed by someone else in July, not
+   by us. Defect 1 is [calamine#714](https://github.com/tafia/calamine/issues/714). **f132 measured
    it as reachable within CI's own fuzzing budget**, 3 of 20 `-runs=20000` sessions, once the
    encrypted-workbook seed is restored to active fuzzing — see `fuzz/corpus-quarantine/README.md`.
 3. **Open, and ours.** `src/matcher.rs`'s exact-name matching pairs each old sheet with the *first*

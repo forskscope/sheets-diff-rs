@@ -15,14 +15,19 @@
   encrypted `.xlsx`, which is a CFB container by design — `EncryptedWorkbook` is unchanged for real
   encrypted workbooks. No public API change. The minimized crash input now returns an ordinary
   `Err`; committed as `tests/fixtures/f132/oom-artifact-515b.bin` and asserted in
-  `tests/f132_decline_before_delegating.rs`. Reported upstream to `calamine`; not waiting on that fix.
+  `tests/f132_decline_before_delegating.rs`. Tracked upstream as
+  [calamine#714](https://github.com/tafia/calamine/issues/714), open since 2026-08-31 and reported
+  there independently of us; this fix does not wait on it, because declining non-ZIP input makes the
+  CFB parser unreachable rather than merely bounding it.
 
 - **Known, unfixed: two further defects, unrelated to the fix above and to each other**, both found
   the same way — reaching real code with a working fuzz corpus for the first time.
   1. **A crafted worksheet panics in builds with debug assertions on** — an unbounded base-26
      column-letter multiply in `calamine` (`xlsx/mod.rs:2838`). Release builds wrap and return
      `Err(sheet is malformed)` on the artifact in hand; every downstream `cargo test` is a debug
-     build, so it is live there. Reported upstream; ours to close only if calamine does not.
+     build, so it is live there. Tracked upstream as
+     [calamine#694](https://github.com/tafia/calamine/issues/694), open since 2026-07-26. Our
+     pre-screen cannot reach it — it lives inside a valid archive — so it stays open here too.
   2. **A silent wrong answer, and ours, not `calamine`'s: two sheets sharing a name can make a third
      sheet's real content vanish and reappear as spurious changes.** `src/matcher.rs`'s exact-name
      matching pairs each old sheet with the *first* new sheet of the same name, without checking

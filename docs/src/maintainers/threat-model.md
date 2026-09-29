@@ -185,7 +185,9 @@ not an edge case: every downstream `cargo test` is one. **f132's own validation 
 reachable within CI's own fuzzing budget** (`-runs=20000`): 0 of 20 runs on the 11-seed corpus that
 excludes the encrypted-workbook seed, 3 of 20 with that seed restored — plausibly because CFB-shaped
 bytes give the crossover mutator more structurally distinct material to combine with the other seeds.
-Reported upstream; ours to close only if `calamine` does not.
+Tracked upstream as [calamine#694](https://github.com/tafia/calamine/issues/694) (open since
+2026-07-26; [#709](https://github.com/tafia/calamine/issues/709) was closed as its duplicate). We did
+not report it — it was already there when we looked.
 
 **Open, and ours, not `calamine`'s: two sheets sharing a name can make a third sheet vanish and
 reappear as spurious changes.** Found by `fuzz_self_comparison`'s oracle (zero cell diffs on a
@@ -208,6 +210,23 @@ this crate's, because the API that aborted was `sheets_diff::compare_bytes` (RFC
 additionally ours to close without waiting for an upstream release, since `src/open.rs`'s
 `open_bytes_inner` was a single choke point. The second defect's frame is also `calamine`'s and stays
 open pending upstream (or a decision to guard it here). The third is entirely this crate's own code.
+
+**On expecting an upstream fix: plan without one.** Checked 2026-09-29. Both `calamine` defects were
+already filed by other people before we found them — [#714](https://github.com/tafia/calamine/issues/714)
+(2026-08-31, zero replies) and [#694](https://github.com/tafia/calamine/issues/694) (2026-07-26) — so
+there was nothing for us to report, and their age is the useful signal. On
+[#723](https://github.com/tafia/calamine/issues/723), where an external audit team asked for a private
+reporting channel for "multiple distinct root-cause vulnerabilities" in 0.36.1, the maintainer replied
+that the project "isn't currently resourced to handle the volume of public vulnerabilities that are
+reported", and that "there are enough public issues that need to be fixed first." That is a candid
+answer from a maintainer doing unpaid work, not a failure — **but it means a fix on a schedule we
+could depend on is not something to assume.** `calamine` 0.36.1 is the newest release (2026-07-27),
+so no published version carries a fix for either.
+
+**And there is no advisory.** RustSec holds one calamine entry, RUSTSEC-2021-0015, unrelated;
+`cargo deny check advisories` passes against our tree. So a downstream user running `cargo audit`
+today learns nothing about any of this. **Our own disclosure is the only signal our users get**,
+which is why the CHANGELOG entry is a `### Security` section and names the issue numbers.
 Both remaining defects are reported in `fuzz/corpus-quarantine/README.md`, along with why active
 fuzzing of the corpus/target that reach them is held back rather than run and accepted as flaky.
 
