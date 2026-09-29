@@ -45,19 +45,6 @@
   see the quarantine README). Both seeds and the target are still committed and still exercised
   in-process by the ordinary test gate.
 
-### Documentation
-
-- **The fuzz corpus reaches the sheet reader.** `fuzz_open_xlsx_bytes` split its input at
-  `data.len() / 2`, so a seed had to be two workbooks concatenated and of exactly equal length;
-  every seed in the corpus failed at `not an xlsx file`, and no code past the ZIP-header check had
-  ever been fuzzed. The framing is now a length prefix, and a second target,
-  `fuzz_self_comparison`, compares a workbook with itself under a fuzz-driven `AlignmentMode` and
-  bounded `Limits` — an oracle (zero cell diffs, every alignment mode), not "did not panic" —
-  reaching read, normalise, match, align and compare on every input. `tests/` gained the permanent
-  guard: at least one seed per corpus must reach the reader, checked in the ordinary gate. No
-  library code changed by that unit. **Reaching the reader immediately found three defects — one
-  fixed since, two still open; see *Security* above.**
-
 ### Changed
 
 - **Row alignment is now cancellable.** A `Cancellation` was polled while reading and while comparing, and not at all while
@@ -91,6 +78,17 @@
   poll leaves a count short by the row count — which fails four tests instead of one, on any machine. No library code changed.
 
 ### Documentation
+
+- **The fuzz corpus reaches the sheet reader.** `fuzz_open_xlsx_bytes` split its input at
+  `data.len() / 2`, so a seed had to be two workbooks concatenated and of exactly equal length;
+  every seed in the corpus failed at `not an xlsx file`, and no code past the ZIP-header check had
+  ever been fuzzed. The framing is now a length prefix, and a second target,
+  `fuzz_self_comparison`, compares a workbook with itself under a fuzz-driven `AlignmentMode` and
+  bounded `Limits` — an oracle (zero cell diffs, every alignment mode), not "did not panic" —
+  reaching read, normalise, match, align and compare on every input. `tests/` gained the permanent
+  guard: at least one seed per corpus must reach the reader, checked in the ordinary gate. No
+  library code changed by that unit. **Reaching the reader immediately found three defects — one
+  fixed since, two still open; see *Security* above.**
 
 - **`docs/src/maintainers/performance.md`** records where an aligned comparison's time goes and what now polls, and settles
   a hedged claim: the "23×-inflated, clearly-wrong delta" an earlier measurement discarded was the real one (the LCS table),
