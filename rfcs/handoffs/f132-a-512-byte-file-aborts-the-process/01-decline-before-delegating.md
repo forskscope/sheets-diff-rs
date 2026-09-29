@@ -92,9 +92,16 @@ scan to be rejected. State the bound you chose and why it is safe for a real enc
 CLI exit code, same JSON. The observable change must be exactly: *inputs that used to abort now
 return an error.*
 
-**5. Report both defects upstream to `calamine`**, with the minimized artifacts from M9 unit 01's
-evidence. Link the issue(s) from the CHANGELOG entry. **Do this first** — it is not blocked by the
-implementation and it is how every other user of `calamine` gets protected.
+**5. Draft the upstream reports; do not file them.** ~~Report both defects upstream to `calamine`.~~
+**Corrected 2026-09-29 by the owner: this instruction was wrong and should not have been given.**
+Filing an issue on a third party's tracker is outward-facing communication published under the
+owner's name, and it is theirs to send — the same rule as letters to a consumer. The dev team was
+right to stop at a draft. Now written down as `.git-exclude/rules/004-outward-facing-communication.md`.
+
+Write the reports as drafts under `.git-exclude/upstream/calamine/send/draft/`, pure report content
+(a `**Subject:**` line and the body, no internal notes), one file per defect, named
+`YYYY-MM-DD-<slug>.md`. The owner files them and moves the file up out of `draft/`. Do not attach a
+weaponized artifact to a public tracker; offer it privately.
 
 ## Required tests
 
@@ -128,7 +135,9 @@ implementation and it is how every other user of `calamine` gets protected.
 5. Both fuzz targets clean at `-runs=20000` × 5 seeds, fresh corpus each run, **with the quarantined
    seed restored**.
 6. `fuzz/corpus-quarantine/` **deleted**; `fuzz_self_comparison` in the `fuzz-smoke` matrix.
-7. Upstream issue(s) filed and linked.
+7. Upstream report(s) **drafted** under `.git-exclude/upstream/calamine/send/draft/`. Filing is the
+   owner's, and the CHANGELOG links the issue once it exists — so this criterion is met by the
+   drafts, not by a link.
 8. CHANGELOG moves this from "known, unfixed" to fixed, under `### Security`, naming the versions
    affected (all released) and that `Limits::hardened()` did not protect against it. The threat model
    and RFC-028 §7 likewise — and RFC-028's assurance row goes from **No** back to **Partially**, not
@@ -143,7 +152,8 @@ implementation and it is how every other user of `calamine` gets protected.
   describes this, and offering one implies they were meant to.
 - Do not parse the CFB header to validate the field. Reimplementing the parser we are avoiding is how
   this defect gets a second home.
-- Do not skip the upstream report because we have a local fix. Every other `calamine` user is exposed.
+- Do not skip *drafting* the upstream report because we have a local fix. Every other `calamine`
+  user is exposed. Equally, **do not file it** — see *Required implementation* 5.
 - Do not restore the quarantined seed before the fix passes — and do not leave it quarantined after.
 
 ## Known risks
@@ -176,7 +186,7 @@ Under `.git-exclude/review-request/f132-01-decline-before-delegating/evidence/`:
 4. Goldens and corpus: 0 differ.
 5. Both fuzz targets, 5 seeds each, fresh corpus per run, with the seed restored.
 6. `cargo public-api --simplified diff 3.1.0`.
-7. The upstream issue link(s).
+7. The paths of the upstream drafts (not links — they are not filed by this unit).
 8. Gate sweep including rule 003, one scratch dir, deleted.
 
 ## Review request format

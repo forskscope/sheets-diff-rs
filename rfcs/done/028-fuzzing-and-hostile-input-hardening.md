@@ -12,10 +12,11 @@ reader, the normaliser, the comparer, or alignment. f123, f130 and f131 all live
 code. The framing is now length-prefixed (`fuzz/src/framing.rs`) and a second target,
 `fuzz_self_comparison`, compares a workbook with itself — an oracle (zero cell diffs, in every
 alignment mode) rather than "did not panic", and one with a demonstrated capacity to fail (see §10).
-**Reaching the reader for the first time found two real defects in `calamine`, unfixed here** — see
-the review request's evidence; this RFC's §7/§10 (no panics; malformed input never crashes) describe
-what this crate promises about its own code, not about a dependency it calls into, and both findings
-are calamine's, not `sheets-diff`'s.
+**Reaching the reader for the first time found three real defects, one now fixed (f132) and two still
+open — see §7's annotation and `fuzz/corpus-quarantine/README.md`.** §7's contract is about this
+crate's own public API (`compare_bytes` must not panic), not about which frame in the backtrace is
+whose: naming a dependency's bug does not discharge a promise about the API a caller actually holds,
+and the third defect found this way is not even a dependency's — it is `src/matcher.rs`'s own.
 
 ## 1. Summary
 
@@ -95,34 +96,41 @@ used for parser errors.
 
 Use `Result` and diagnostics consistently.
 
-**Annotated M9 unit 01 (unreleased) — this policy is currently VIOLATED, by two inputs, through
-`compare_bytes`.** Both were found the first time a fuzz target reached past the ZIP header, and
-both are in `calamine` 0.36.1's parsing, upstream of every bound this crate applies:
+**Annotated M9 unit 01, updated by f132 (both unreleased) — this policy was VIOLATED by two inputs
+through `compare_bytes`; a third, distinct violation of a different policy (§*Panic policy* is silent
+on wrong-but-non-panicking answers) was found by the same work.** All three were found the first time
+a fuzz target reached past the ZIP header:
 
-1. **A 512-byte file causes a single 9,261,285,372-byte allocation and aborts the process.**
-   `Xlsx::new` calls `check_for_password_protected` unconditionally, which parses the input as a CFB
-   container; a DIFAT-sector-count field in the header reaches `Vec::with_capacity` with no check
-   against the file's actual length (`calamine-0.36.1/src/xlsx/mod.rs:2939` → `cfb.rs:260`, field
-   read at `cfb.rs:224`). **`max_input_bytes` cannot catch it** — the size comes from a header field,
-   not the input's length — and **`Limits::hardened()` does not prevent it**, verified. This is the
-   *Availability of the host process* asset, and the same failure class as the f123 bounding box:
-   an allocation so large it is an abort, not an `Err` a caller can handle.
-2. **A crafted worksheet panics in any build with debug assertions on** — "attempt to multiply with
-   overflow" in `get_row_and_optional_column` (`xlsx/mod.rs:2838`), parsing a base-26 column-letter
-   run with no length bound. Release builds wrap instead; on the artifact in hand the wrapped value
-   then fails to parse and `compare_bytes` returns a clean `Err(sheet is malformed)`. **Debug builds
-   are not an edge case** — every downstream `cargo test` is one.
+1. **Fixed (f132).** A 512-byte file caused a single 9,261,285,372-byte allocation and aborted the
+   process. `Xlsx::new` called `check_for_password_protected` unconditionally, which parsed the input
+   as a CFB container; a DIFAT-sector-count field in the header reached `Vec::with_capacity` with no
+   check against the file's actual length (`calamine-0.36.1/src/xlsx/mod.rs:2939` → `cfb.rs:260`,
+   field read at `cfb.rs:224`). **`max_input_bytes` could not catch it** — the size came from a header
+   field, not the input's length — and **`Limits::hardened()` did not prevent it**, verified. Closed
+   at `src/open.rs`: a `.xlsx` is a ZIP archive, and `open_workbook_from_cursor`'s call site was a
+   single choke point, so anything not beginning with the ZIP magic is declined before `calamine`
+   sees it — with a byte-scan carve-out, never a parse, for a real encrypted `.xlsx`, since our own
+   encrypted-workbook fixture, the crash artifact and legacy `.xls` all begin the CFB magic
+   (`d0cf11e0a1b11ae1`), so "reject CFB" and "report `EncryptedWorkbook`" could not be the same rule.
+2. **Open.** A crafted worksheet panics in any build with debug assertions on — "attempt to multiply
+   with overflow" in `get_row_and_optional_column` (`xlsx/mod.rs:2838`), parsing a base-26
+   column-letter run with no length bound. Release builds wrap instead; on the artifact in hand the
+   wrapped value then fails to parse and `compare_bytes` returns a clean `Err(sheet is malformed)`.
+   **Debug builds are not an edge case** — every downstream `cargo test` is one. Not reachable by (1)'s
+   pre-screen (it lives inside a valid archive); upstream-only unless that changes. **f132 measured
+   it as reachable within CI's own fuzzing budget**, 3 of 20 `-runs=20000` sessions, once the
+   encrypted-workbook seed is restored to active fuzzing — see `fuzz/corpus-quarantine/README.md`.
+3. **Open, and ours.** `src/matcher.rs`'s exact-name matching pairs each old sheet with the *first*
+   new sheet of the same name, without checking it was not already claimed by an earlier old sheet.
+   Two old sheets sharing a (here, corrupted-to-empty) name make one new sheet double-matched and
+   another silently reported `Added` instead of `Unchanged` — a workbook compared with itself reports
+   changes that do not exist. **Not a panic — a silent wrong answer**, found by `fuzz_self_comparison`'s
+   oracle rather than by a crash. Reproduces deterministically outside the fuzzer. Needs its own unit.
 
-**Whose fix.** Both should be reported upstream. Defect 1 is additionally ours to close without
-waiting: `src/open.rs:185` (`open_workbook_from_cursor`) is a single choke point, and the CFB parser
-is unreachable if non-ZIP input is declined there. The design question that makes it a unit rather
-than a one-liner is classification — our own encrypted-workbook fixture and the crash artifact share
-the CFB magic (`d0cf11e0a1b11ae1`), and legacy `.xls` does too, so "reject CFB" and "report
-`EncryptedWorkbook`" are not the same rule. Defect 2 is not reachable by that pre-screen (it lives
-inside a valid archive) and may be upstream-only.
-
-Until both are closed, the threat model's assurance row for this property reads **No**, not
-"Partially".
+Until (2) and (3) are closed, the threat model's assurance row for "no panic on malformed input"
+reads **Partially**, not "No" and not "Yes" — (1)'s fix moved it off "No"; (2) keeps it off "Yes". (3)
+is a different property this section does not name; see the threat model's
+*Normalisation/alignment/formula-attachment correctness* row.
 
 ## 8. Resource hardening
 

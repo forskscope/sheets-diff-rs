@@ -4,29 +4,41 @@
 
 ### Security
 
-- **Known, unfixed: two crafted inputs crash `compare_bytes`, and `Limits` does not stop either.**
-  Found by the fuzz work under *Documentation* below, the first time a target reached past the ZIP header.
-  **Not introduced by this release — present in every released version, including 3.1.0.**
-  1. **A 512-byte file causes a 9.26 GB allocation and aborts the process.** Opening a workbook
-     parses it as a CFB container before anything else, and a header field reaches
-     `Vec::with_capacity` unchecked against the file's size (`calamine` 0.36.1). `max_input_bytes`
-     cannot help — 512 bytes passes it — and **`Limits::hardened()` does not prevent it.** The abort
-     is not an `Err` a caller can handle.
-  2. **A crafted worksheet panics in builds with debug assertions on** — an unbounded base-26
-     column-letter multiply. Release builds wrap and return `Err(sheet is malformed)` on the input
-     in hand; every downstream `cargo test` is a debug build.
+- **Fixed: a 512-byte file caused a 9.26 GB allocation and aborted the process — present in every
+  released version through 3.1.0.** Opening a workbook parsed it as a CFB (OLE2) container before
+  anything else, and a header field reached `Vec::with_capacity` unchecked against the file's actual
+  size (`calamine` 0.36.1, `xlsx/mod.rs:2939` → `cfb.rs:260`). `max_input_bytes` could not help — 512
+  bytes passes it, the allocation size comes from a field *inside* the input, not its length — and
+  **`Limits::hardened()` did not prevent it either.** The abort was not an `Err` a caller could catch.
+  A `.xlsx` is a ZIP archive; `src/open.rs` now declines anything that does not begin with the ZIP
+  magic *before* handing it to the parser, with a byte-scan carve-out (never a parse) for a real
+  encrypted `.xlsx`, which is a CFB container by design — `EncryptedWorkbook` is unchanged for real
+  encrypted workbooks. No public API change. The minimized crash input now returns an ordinary
+  `Err`; committed as `tests/fixtures/f132/oom-artifact-515b.bin` and asserted in
+  `tests/f132_decline_before_delegating.rs`. Reported upstream to `calamine`; not waiting on that fix.
 
-  Both faulty frames are in `calamine`; the broken promise is ours, since the API that aborts is
-  `sheets_diff::compare_bytes` (RFC-028 §7). Fixes are being scoped — the first is closable in this
-  crate at the point where input is handed to the parser, without waiting on an upstream release.
-  See `docs/src/maintainers/threat-model.md`, *Opening a workbook: two inputs that defeat every
-  bound*. **If you compare untrusted workbooks, this is a denial-of-service exposure today.**
+- **Known, unfixed: two further defects, unrelated to the fix above and to each other**, both found
+  the same way — reaching real code with a working fuzz corpus for the first time.
+  1. **A crafted worksheet panics in builds with debug assertions on** — an unbounded base-26
+     column-letter multiply in `calamine` (`xlsx/mod.rs:2838`). Release builds wrap and return
+     `Err(sheet is malformed)` on the artifact in hand; every downstream `cargo test` is a debug
+     build, so it is live there. Reported upstream; ours to close only if calamine does not.
+  2. **A silent wrong answer, and ours, not `calamine`'s: two sheets sharing a name can make a third
+     sheet's real content vanish and reappear as spurious changes.** `src/matcher.rs`'s exact-name
+     matching pairs each old sheet with the *first* new sheet of the same name, without checking
+     whether that new sheet was already claimed — reachable when a corrupted (but still-decodable)
+     workbook reports more than one sheet with the same (here, empty) name. Unlike the other two
+     defects found this month, **this one does not crash**: `compare_bytes(bytes, bytes)` on the
+     artifact in hand deterministically reports 3 changed cells that do not exist. Not fixed here;
+     needs its own unit. See `fuzz/corpus-quarantine/README.md` for both, with the measurements.
 
-  Because of (1), the seed that reaches it is held in `fuzz/corpus-quarantine/` rather than in the
-  corpus CI's bounded fuzz run mutates, and the new self-comparison target is not in that job's
-  matrix yet: with the seed present the job aborts on 5 runs out of 5, and a job that is red as its
-  normal state reports no more than one that cannot fail. Both return in the change that closes the
-  defect. The seed is still committed and still checked in the ordinary test gate.
+  Neither is introduced by this release; both were unreachable by any fuzz target before this
+  month's fuzzing work. `fuzz_self_comparison` stays out of CI's `fuzz-smoke` matrix and
+  `fuzz/corpus/fuzz_open_xlsx_bytes/paired_encrypted` stays quarantined until both close — not
+  because either seed is wrong, but because restoring them to *active* fuzzing measurably raises how
+  often CI hits these two, still-open defects within its own run budget (0/20 → 3/20, one example;
+  see the quarantine README). Both seeds and the target are still committed and still exercised
+  in-process by the ordinary test gate.
 
 ### Documentation
 
@@ -38,8 +50,8 @@
   bounded `Limits` — an oracle (zero cell diffs, every alignment mode), not "did not panic" —
   reaching read, normalise, match, align and compare on every input. `tests/` gained the permanent
   guard: at least one seed per corpus must reach the reader, checked in the ordinary gate. No
-  library code changed. **Reaching the reader immediately found two ways to crash `compare_bytes`;
-  see *Security* below.**
+  library code changed by that unit. **Reaching the reader immediately found three defects — one
+  fixed since, two still open; see *Security* above.**
 
 ### Changed
 

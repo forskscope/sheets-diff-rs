@@ -5,7 +5,7 @@ use std::path::Path;
 
 use calamine::{Reader, Xlsx};
 
-use crate::error::{LimitKind, SheetsDiffError, from_open_error};
+use crate::error::{LimitKind, OpenErrorKind, SheetsDiffError, from_open_error};
 use crate::model::{SheetRef, Side, SourceDescription, SourceKind};
 
 // ---------------------------------------------------------------------------
@@ -153,11 +153,80 @@ pub fn open_reader<R: Read + Seek>(
 // Common inner open
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Pre-screen (f132): never hand bytes to calamine unless they are a ZIP.
+//
+// `Xlsx::new` runs `check_for_password_protected` before anything else, which parses the input as
+// a CFB (OLE2) container regardless of whether it is one. A sector-count field in the CFB header
+// reaches `Vec::with_capacity` unchecked against the input's actual length (calamine 0.36.1:
+// `xlsx/mod.rs:2939` -> `cfb.rs:260`), so a hand-craftable ~512-byte input aborts the process with
+// a multi-gigabyte allocation request — reachable through every entry point, and not stopped by
+// `max_input_bytes` (which bounds the input's *length*, not a field *inside* it) or by
+// `Limits::hardened()` (verified: identical abort). This is the one place every input passes
+// through before calamine sees it, so it is the one place that can close it without an upstream
+// release.
+//
+// The rule: a `.xlsx` is a ZIP archive, so it begins `PK\x03\x04` (or `PK\x05\x06` for an empty
+// one). Anything else is declined *before* `Xlsx::new` runs, at the cost of one prefix comparison.
+// An encrypted `.xlsx` is a CFB container, not a ZIP, so declining "everything that is not a ZIP"
+// would turn today's `EncryptedWorkbook` into an indistinguishable generic failure. That case is
+// carved out by a byte *scan*, never a parse: the CFB magic, plus the stream name
+// `EncryptedPackage` encoded UTF-16LE anywhere in a bounded prefix, is classified as
+// `EncryptedWorkbook` ourselves, without calamine's CFB parser ever running on it. A CFB input
+// without that marker (a legacy `.xls`, or the crash artifact itself) gets the same outcome a
+// non-`.xlsx` gets today: `OpenErrorKind::NotXlsx`. Every byte compared here is already in memory;
+// nothing is allocated on the strength of anything the input claims about itself.
+
+const ZIP_MAGIC: &[u8] = b"PK\x03\x04";
+const ZIP_EMPTY_MAGIC: &[u8] = b"PK\x05\x06";
+const CFB_MAGIC: [u8; 8] = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
+
+/// How far into the input to scan for the `EncryptedPackage` marker. The CFB *directory* — where a
+/// stream's name lives — holds one entry per stream, and an encrypted OOXML package has a handful
+/// of small, fixed streams (`EncryptionInfo`, `EncryptedPackage`, a couple of storages); the
+/// directory's size tracks that count, not the size of the (potentially large) encrypted payload
+/// `EncryptedPackage` actually names. On `tests/fixtures/corrupt/encrypted.xlsx` (1,536 bytes) the
+/// marker sits at byte 1,152 — this bound gives it roughly 170x that much room, at the cost of a
+/// single bounded scan of bytes already in memory. If a real encrypted workbook ever needed more,
+/// that would be a finding to widen this, not a reason to parse instead of scan.
+const CFB_ENCRYPTED_MARKER_SCAN_LIMIT: usize = 256 * 1024;
+
+/// `None` if `bytes` looks enough like a ZIP to hand to calamine; `Some(error)` — already fully
+/// classified, without calamine ever seeing these bytes — otherwise.
+fn pre_screen(bytes: &[u8], side: Side, source: &SourceDescription) -> Option<SheetsDiffError> {
+    if bytes.starts_with(ZIP_MAGIC) || bytes.starts_with(ZIP_EMPTY_MAGIC) {
+        return None;
+    }
+    if bytes.starts_with(&CFB_MAGIC) {
+        let scan_len = bytes.len().min(CFB_ENCRYPTED_MARKER_SCAN_LIMIT);
+        // UTF-16LE, as CFB stream names are stored.
+        let marker: Vec<u8> = "EncryptedPackage"
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect();
+        if bytes[..scan_len]
+            .windows(marker.len())
+            .any(|w| w == marker.as_slice())
+        {
+            return Some(SheetsDiffError::EncryptedWorkbook { side });
+        }
+    }
+    Some(SheetsDiffError::OpenWorkbook {
+        side,
+        source: source.clone(),
+        kind: OpenErrorKind::NotXlsx,
+        inner: None,
+    })
+}
+
 fn open_bytes_inner(
     bytes: Vec<u8>,
     side: Side,
     source: SourceDescription,
 ) -> Result<OpenedWorkbook, SheetsDiffError> {
+    if let Some(err) = pre_screen(&bytes, side, &source) {
+        return Err(err);
+    }
     let cursor = Cursor::new(bytes);
     let wb: Xlsx<Cursor<Vec<u8>>> =
         open_workbook_from_cursor(cursor).map_err(|e| from_open_error(side, source.clone(), e))?;

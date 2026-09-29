@@ -211,6 +211,9 @@ jobs:
           - fuzz_addr_roundtrip
           - fuzz_range_merge
           - fuzz_diff_options_builder
+          # fuzz_self_comparison is not here yet -- see fuzz/corpus-quarantine/README.md. f132 closed
+          # the defect this omission was originally about; two others, unrelated to that fix, keep it
+          # out (one of them found by this same target, in our own code, not calamine's).
     steps:
       - uses: actions/checkout@v4
 

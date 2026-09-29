@@ -67,19 +67,11 @@ PR referencing it.
 
 ## CI
 
-**One seed is quarantined, and one target is not in CI's `fuzz-smoke` matrix yet (M9 unit 01).**
-See `fuzz/corpus-quarantine/README.md`: `paired_encrypted` seeds a known, unfixed out-of-memory
-abort in `calamine`'s CFB parser, and with it in the corpus the smoke job aborts 5 runs out of 5 at
-`-runs=20000`; without it, 0 out of 5. It is still committed and still exercised in-process by
-`tests/fuzz_corpus_reaches_reader.rs`. The other eleven seeds reach the sheet reader and run clean.
-
-**`fuzz_self_comparison` is deliberately not in the matrix yet.** It
-finds a 9.26 GB allocation inside `calamine`'s CFB parser from a 512-byte input, reachable from
-`compare_bytes` and not prevented by `Limits::hardened()`. Until that is mitigated (see the
-threat model, *Opening a workbook*), adding the target to a job that is expected to fail would
-make `fuzz-smoke` red on `main` as its normal state — which carries no more information than
-`continue-on-error` does, from the other end. Add it in the same change that closes the finding.
-
+**One seed is quarantined and one target is not in the `fuzz-smoke` matrix — see
+`fuzz/corpus-quarantine/README.md`.** f132 closed the defect that first put `paired_encrypted` there;
+it stays out of active fuzzing anyway, and `fuzz_self_comparison` stays out of the matrix, for two
+other, still-open defects (one of them found by `fuzz_self_comparison` itself, in this crate's own
+sheet-matching code — see the quarantine README for both).
 
 Normal CI compiles the fuzz targets but does not run them (would be too slow).
 Run fuzzing manually or in a nightly workflow with a time budget, e.g.:

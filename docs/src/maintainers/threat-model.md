@@ -154,37 +154,62 @@ is an out-of-memory abort, not an error a caller can handle — exactly the fail
 the *Availability of the host process* asset names — and the workbook needed
 nothing but a populated cell far from the data.
 
-**Two inputs that defeat every bound (M9 unit 01, 2026-09-29, unfixed).** The f123 paragraph above
-is not the only way to reach the *Availability of the host process* asset, and the other way needs no
-large workbook at all.
+**Three findings that defeated bounds or the sheet matcher (M9 unit 01, 2026-09-29; one fixed by
+f132, two open).** The f123 paragraph above is not the only way to reach the *Availability of the
+host process* asset, and the third finding is not about availability at all.
 
-**A 512-byte file provokes a single 9,261,285,372-byte allocation.** `Xlsx::new` calls
-`check_for_password_protected` before returning, which parses the bytes as a CFB (OLE2) container;
-a DIFAT-sector-count field from the CFB header reaches `Vec::with_capacity` without being checked
+**Fixed (f132): a 512-byte file provoked a single 9,261,285,372-byte allocation.** `Xlsx::new` called
+`check_for_password_protected` before returning, which parsed *any* bytes as a CFB (OLE2) container;
+a DIFAT-sector-count field from the CFB header reached `Vec::with_capacity` without being checked
 against the file's actual size (`calamine` 0.36.1, `cfb.rs:224` → `:260`, from `xlsx/mod.rs:2939`).
-Reproduced from the public API: `compare_bytes` on 512 bytes, `memory allocation of 9261285372 bytes
-failed`. **Every bound this document credits is upstream of it.** `max_input_bytes` bounds the
-*input's* length — 512 bytes passes it trivially — while the allocation's size comes from a field
-*inside* that input. `max_cells_read` and `max_alignment_product` are never reached; no sheet is read.
-**`Limits::hardened()`, which this document and the README recommend for untrusted input, does not
-prevent it** — verified, same abort. It is an abort, not an `Err`, so a caller cannot handle it, and
-the file is hand-craftable: the fuzzer minimized it to 515 bytes, but nothing about it requires a
-fuzzer to construct.
+Reproduced from the public API before the fix: `compare_bytes` on 512 bytes, `memory allocation of
+9261285372 bytes failed`. **Every bound this document credits was upstream of it.** `max_input_bytes`
+bounds the *input's* length — 512 bytes passes it trivially — while the allocation's size came from a
+field *inside* that input; `max_cells_read` and `max_alignment_product` were never reached, since no
+sheet was read. **`Limits::hardened()`, which this document and the README recommend for untrusted
+input, did not prevent it** — verified, same abort. It was an abort, not an `Err`, so a caller could
+not handle it, and the file was hand-craftable: the fuzzer minimized it to 515 bytes, but nothing
+about it required a fuzzer to construct. **Closed at `src/open.rs`**: a `.xlsx` is a ZIP archive, so
+anything not beginning with the ZIP magic is declined *before* `calamine` sees it, with a byte-scan
+carve-out (never a parse) for a real encrypted `.xlsx`, which is a CFB container by design — an
+encrypted workbook, a legacy `.xls` and this crash artifact all begin `d0cf11e0a1b11ae1`, so the
+carve-out matters: `EncryptedWorkbook` is unchanged for the first, the other two get the ordinary
+not-an-xlsx outcome. Present in every released version through 3.1.0; not introduced by any recent
+change, only visible once the fuzz target that was supposed to find it actually reached the code.
 
-**A crafted worksheet panics in any build with debug assertions on** — "attempt to multiply with
-overflow" in `get_row_and_optional_column` (`xlsx/mod.rs:2838`), a base-26 column-letter run with no
-length bound. In release the multiply wraps and, on the artifact in hand, the sheet then fails to
-parse and `compare_bytes` returns `Err(sheet is malformed)`. Debug builds are not an edge case: every
-downstream `cargo test` is one.
+**Open: a crafted worksheet panics in any build with debug assertions on** — "attempt to multiply
+with overflow" in `get_row_and_optional_column` (`xlsx/mod.rs:2838`), a base-26 column-letter run
+with no length bound. In release the multiply wraps and, on the artifact minimized during M9 unit 01,
+the sheet then fails to parse and `compare_bytes` returns `Err(sheet is malformed)`. Debug builds are
+not an edge case: every downstream `cargo test` is one. **f132's own validation run measured this as
+reachable within CI's own fuzzing budget** (`-runs=20000`): 0 of 20 runs on the 11-seed corpus that
+excludes the encrypted-workbook seed, 3 of 20 with that seed restored — plausibly because CFB-shaped
+bytes give the crossover mutator more structurally distinct material to combine with the other seeds.
+Reported upstream; ours to close only if `calamine` does not.
 
-**Status and disposition.** Both frames are `calamine`'s; the broken promise is this crate's, because
-the API that aborts is `sheets_diff::compare_bytes` (RFC-028 §7). Both should go upstream. The first
-is additionally ours to close without waiting for an upstream release: `src/open.rs:185` is a single
-choke point and the CFB parser is unreachable if non-ZIP input is declined before delegating — with a
-classification question attached, since an encrypted `.xlsx`, a legacy `.xls` and this crash artifact
-all begin `d0cf11e0a1b11ae1`. **Present in every released version**, including 3.1.0; not introduced by
-any recent change, only now visible, because the fuzz target that was supposed to find it had never
-reached the code.
+**Open, and ours, not `calamine`'s: two sheets sharing a name can make a third sheet vanish and
+reappear as spurious changes.** Found by `fuzz_self_comparison`'s oracle (zero cell diffs on a
+workbook compared with itself), not by a crash: `src/matcher.rs`'s exact-name matching
+(`new_sheets.iter().position(|n| n.name == old.name)`) pairs each old sheet with the *first* new
+sheet of that name, with no check that the new sheet was not already claimed. Two old sheets with the
+same name both claim the same first match; the second new sheet of that name is never considered,
+falls into `push_added`, and its real (identical, on self-comparison) content is reported as freshly
+added rather than unchanged. Reproduced deterministically from `fuzz_self_comparison`'s own corpus
+mutated by 3 bytes inside a compressed ZIP stream — still decodable, corrupting a sheet name to the
+empty string on two of three sheets — via the public API alone (`compare_bytes(bytes, bytes)`,
+`cells_changed == 3`, ten repeats, identical every time). **Unlike the other two, this is not a crash:
+it is a silent wrong answer**, the category this document and RFC-005 treat as worse than a visible
+failure. Reachable only through a corrupted ZIP stream that still decompresses — not a shape a genuine
+Excel file produces — but exactly the class RFC-028's fuzzing exists to find. Not fixed; needs its own
+unit.
+
+**Status and disposition.** The first defect's broken frame was `calamine`'s; the broken promise was
+this crate's, because the API that aborted was `sheets_diff::compare_bytes` (RFC-028 §7) — and it was
+additionally ours to close without waiting for an upstream release, since `src/open.rs`'s
+`open_bytes_inner` was a single choke point. The second defect's frame is also `calamine`'s and stays
+open pending upstream (or a decision to guard it here). The third is entirely this crate's own code.
+Both remaining defects are reported in `fuzz/corpus-quarantine/README.md`, along with why active
+fuzzing of the corpus/target that reach them is held back rather than run and accepted as flaky.
 
 **How this went unseen for eleven releases** is the part worth keeping. The assurance table below
 listed "No panic on arbitrary/malformed input" as *Partially* covered and cited `fuzz_open_xlsx_bytes`
@@ -360,7 +385,7 @@ Said plainly, because the failure mode of a threat model is overclaiming:
 | Dependency versions come only from crates.io | Yes | `deny.toml` `[sources]` (`unknown-registry`/`unknown-git` denied), CI `deps` job |
 | License compliance | Yes | `deny.toml` `[licenses]` allowlist, CI `deps` job |
 | No `unsafe` code | Yes | `#![forbid(unsafe_code)]` in `src/lib.rs` — a compile error, not a lint |
-| No panic on arbitrary/malformed input | **No** (2026-09-29) | Two inputs abort or panic through `compare_bytes` — see *Opening a workbook: two inputs that defeat every bound* below. Until M9 unit 01 the evidence cited here was `fuzz_open_xlsx_bytes`, which **had never executed a line past the ZIP-header check**: its corpus could not reach the reader, so this row was backed by a target that fuzzed the archive opener and nothing else. The other three targets (`fuzz_addr_roundtrip`, `fuzz_range_merge`, `fuzz_diff_options_builder`) do test what they claim; they do not touch workbook parsing. Bounded smoke runs (`-runs=20000`) in CI's `fuzz-smoke` job, not a continuous campaign |
+| No panic on arbitrary/malformed input | Partially (2026-09-29) | One of two inputs that used to abort or panic through `compare_bytes` is fixed (f132); the other is still open — see *Opening a workbook: two inputs that defeat every bound* below, which despite its name now covers three findings. Until M9 unit 01 the evidence cited here was `fuzz_open_xlsx_bytes`, which **had never executed a line past the ZIP-header check**: its corpus could not reach the reader, so this row was backed by a target that fuzzed the archive opener and nothing else. The other three targets (`fuzz_addr_roundtrip`, `fuzz_range_merge`, `fuzz_diff_options_builder`) do test what they claim; they do not touch workbook parsing. Bounded smoke runs (`-runs=20000`) in CI's `fuzz-smoke` job, not a continuous campaign — and, as of f132, not run against the full corpus or the self-comparison target yet, because doing so measurably raises how often the still-open defects are hit within that budget; see `fuzz/corpus-quarantine/README.md` |
 | Full feature-combination matrix builds and tests | Yes | CI `test` job — 5 feature combinations × 2 OSes |
 | MSRV floor is real, not merely declared | Yes | CI `msrv` job — builds at the pinned toolchain, asserts the resolved version matches |
 | Comparison output does not silently drift | Yes | The fixture corpus (`tests/fixtures/generated/*/expected.json`) — CI `tree` job additionally asserts the test suite itself never dirties the working tree |
@@ -368,7 +393,7 @@ Said plainly, because the failure mode of a threat model is overclaiming:
 | A sheet read allocates in proportion to its populated cells, and its bound and cancellation poll fire before the spend | Yes | `tests/streaming_read.rs` — peak heap from a counting allocator against a 64 MiB budget, on a fixture where the pre-fix dense read measured about 646.5 million bytes (roughly ten times the budget); it also asserts the bound fires mid-sheet (`observed == max + 1`, peak a fraction of the whole read) and that `Limits::hardened()` accepts that fixture within the budget |
 | `cells_read` / `max_cells_read` count populated cells, and the bound is never stricter than the 2.6.0 box-area bound | Yes | `tests/cells_read.rs` — an independent count by `calamine` over all 19 corpus scenarios, the dense control, both directions of the limit, cumulative counting, the repeated-address case, and `cells_read >= cells_compared` |
 | Each cancellation poll (sheet pair, value read, formula read, compare loop) can actually cancel | Partially | `tests/integration.rs::cancellation_observed_during_{read,compare}_phase`, plus `tests/streaming_read.rs`. Each test was shown to fail when only its own poll is removed — demonstrated by hand on 2026-09-24, one poll at a time; no CI job repeats the removal, so a future test edit could lose that property unnoticed |
-| Normalisation/alignment/formula-attachment correctness | No dedicated ongoing check beyond the fixture corpus | The four Handoff 05 defects were found by manual audit, not by an automated property; a fifth of the same shape would only be caught if it happens to move a golden or fail a hand-written test |
+| Normalisation/alignment/formula-attachment correctness | No dedicated ongoing check beyond the fixture corpus | The four Handoff 05 defects were found by manual audit, not by an automated property; a fifth of the same shape would only be caught if it happens to move a golden or fail a hand-written test. **A fifth was found (f132, 2026-09-29), by the self-comparison fuzz target rather than by audit**: `src/matcher.rs`'s exact-name matching can pair two old sheets to the same new sheet when their names collide, silently dropping a third sheet's real content and reporting it as spurious `Added` changes instead — see *Opening a workbook* below. Unfixed |
 | Comparison never accesses the network (NF-015) | Indirectly | Enforced structurally (no networking dependency can enter the tree, per the `[bans]` row above) rather than by a runtime sandbox or a dedicated test that observes zero syscalls |
 
 A control with "Partially"/"No"/"Indirectly" in the second column is not a
