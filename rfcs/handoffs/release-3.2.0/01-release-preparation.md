@@ -52,9 +52,13 @@ summary**, so the bump does not read as scope creep or as a security-theatre ver
 - **Do not add or reword an existing CHANGELOG entry.** Assembling what is there, and writing the
   summary, is the task. The entries have each been through a review.
 - **MSRV stays 1.88.0.** Confirm rather than assume.
-- **`fuzz/corpus-quarantine/` stays, and `fuzz_self_comparison` stays out of the `fuzz-smoke`
-  matrix.** Both wait on the still-open `calamine` overflow, not on anything in this release.
-  Do not tidy them as part of the cut.
+- **Three things wait on the still-open `calamine` overflow and none of them is yours to tidy at the
+  cut:** `fuzz/corpus-quarantine/` stays; `fuzz_self_comparison` stays out of the `fuzz-smoke`
+  matrix; and `fuzz_open_xlsx_bytes` stays at **`-runs=0`** in that matrix — a corpus replay rather
+  than a mutating run, because a mutating run of the xlsx reader can reach that panic and fail a
+  commit unrelated to it (it did, on `d89643a`). All three close together when #694 is fixed and the
+  dependency is bumped. **Do not change any of them as part of the cut**, and do not read a green
+  `fuzz-smoke` as evidence the reader was fuzzed this cycle — it was replayed.
 - **`benches/memory.rs:382`** is still knowingly left alone, as in 3.1.0's cut. Scheduled separately.
 - **The GHSA, the ForskScope letter and the `calamine#714` patch are not yours and not part of this
   unit.** They follow the cut and are the owner's (rule 004).

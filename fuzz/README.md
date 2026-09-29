@@ -67,6 +67,15 @@ PR referencing it.
 
 ## CI
 
+**`fuzz_open_xlsx_bytes` runs in CI with `-runs=0` — a replay of the committed corpus, not a
+mutating run.** While `calamine`'s base-26 column overflow
+([#694](https://github.com/tafia/calamine/issues/694)) is open, any mutating run of the xlsx reader
+can reach a panic that has nothing to do with the commit under test; it did exactly that on
+`d89643a`, which touched only `src/matcher.rs`. Every committed seed still executes on every push,
+so a seed that starts crashing still fails the job. What is given up is exploration — which belongs
+in a time-budgeted campaign (RFC-028 §9), not in a smoke test. The other three targets still mutate
+at `-runs=20000`. **Restore it here in the same change that closes #694.**
+
 **One seed is quarantined and one target is not in the `fuzz-smoke` matrix — see
 `fuzz/corpus-quarantine/README.md`.** f132 and f133 each closed a defect that used to put something
 there; both stay out anyway, for one remaining, still-open `calamine` defect that is not either

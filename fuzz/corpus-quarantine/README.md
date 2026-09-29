@@ -7,6 +7,13 @@ directory as well as `fuzz/corpus/`. Nothing here is broken or deprecated.
 
 **This directory should be empty. It is a debt marker, not a category.**
 
+**A third thing waits on the same upstream defect.** CI's `fuzz-smoke` runs `fuzz_open_xlsx_bytes`
+with `-runs=0` (a corpus replay) rather than `-runs=20000`, because a mutating run of the xlsx
+reader can reach `calamine`'s open base-26 column overflow
+([#694](https://github.com/tafia/calamine/issues/694)) and fail a commit that had nothing to do with
+it. All three — this directory, `fuzz_self_comparison`'s absence from the matrix, and that `-runs=0`
+— are closed by the same change: #694 fixed and the dependency bumped.
+
 ## `fuzz_open_xlsx_bytes/paired_encrypted`
 
 Quarantined 2026-09-29 (M9 unit 01 review). RFC-028 §6's "password-protected" category, built from
