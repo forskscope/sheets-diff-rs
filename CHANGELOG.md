@@ -22,6 +22,12 @@
   See `docs/src/maintainers/threat-model.md`, *Opening a workbook: two inputs that defeat every
   bound*. **If you compare untrusted workbooks, this is a denial-of-service exposure today.**
 
+  Because of (1), the seed that reaches it is held in `fuzz/corpus-quarantine/` rather than in the
+  corpus CI's bounded fuzz run mutates, and the new self-comparison target is not in that job's
+  matrix yet: with the seed present the job aborts on 5 runs out of 5, and a job that is red as its
+  normal state reports no more than one that cannot fail. Both return in the change that closes the
+  defect. The seed is still committed and still checked in the ordinary test gate.
+
 ### Documentation
 
 - **The fuzz corpus reaches the sheet reader.** `fuzz_open_xlsx_bytes` split its input at

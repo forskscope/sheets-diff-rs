@@ -25,16 +25,40 @@
 include!("../fuzz/src/framing.rs");
 include!("../fuzz/src/self_seed.rs");
 
+/// Every committed seed for `target`, from the live corpus **and** from `fuzz/corpus-quarantine/`.
+///
+/// A quarantined seed is one libFuzzer must not *mutate* in CI because a mutation of it reaches a
+/// crash we have not fixed (see that directory's README). Reading it once, as itself, is safe and is
+/// exactly what these tests do — so quarantining a seed takes it out of the fuzzer's reach without
+/// taking it out of the guard's. Without this, a quarantined seed would rot: still committed, no
+/// longer decoded by anything.
 fn corpus_files(target: &str) -> Vec<std::path::PathBuf> {
-    let dir = std::path::Path::new("fuzz/corpus").join(target);
-    let mut files: Vec<_> = std::fs::read_dir(&dir)
-        .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
-        .map(|e| e.unwrap().path())
-        .filter(|p| p.is_file())
-        .collect();
+    let live = std::path::Path::new("fuzz/corpus").join(target);
+    let quarantine = std::path::Path::new("fuzz/corpus-quarantine").join(target);
+
+    // The live corpus must exist; the quarantine directory is absent whenever nothing is
+    // quarantined, which is the state we want to be in.
+    let mut files = read_seeds(&live).unwrap_or_else(|e| panic!("{}: {e}", live.display()));
+    match read_seeds(&quarantine) {
+        Ok(more) => files.extend(more),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => panic!("{}: {e}", quarantine.display()),
+    }
+
     files.sort();
-    assert!(!files.is_empty(), "{}: no seeds committed", dir.display());
+    assert!(!files.is_empty(), "{}: no seeds committed", live.display());
     files
+}
+
+fn read_seeds(dir: &std::path::Path) -> std::io::Result<Vec<std::path::PathBuf>> {
+    let mut v = Vec::new();
+    for entry in std::fs::read_dir(dir)? {
+        let p = entry?.path();
+        if p.is_file() {
+            v.push(p);
+        }
+    }
+    Ok(v)
 }
 
 #[test]

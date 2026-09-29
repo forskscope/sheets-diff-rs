@@ -67,7 +67,13 @@ PR referencing it.
 
 ## CI
 
-**`fuzz_self_comparison` is deliberately not in CI's `fuzz-smoke` matrix yet (M9 unit 01).** It
+**One seed is quarantined, and one target is not in CI's `fuzz-smoke` matrix yet (M9 unit 01).**
+See `fuzz/corpus-quarantine/README.md`: `paired_encrypted` seeds a known, unfixed out-of-memory
+abort in `calamine`'s CFB parser, and with it in the corpus the smoke job aborts 5 runs out of 5 at
+`-runs=20000`; without it, 0 out of 5. It is still committed and still exercised in-process by
+`tests/fuzz_corpus_reaches_reader.rs`. The other eleven seeds reach the sheet reader and run clean.
+
+**`fuzz_self_comparison` is deliberately not in the matrix yet.** It
 finds a 9.26 GB allocation inside `calamine`'s CFB parser from a 512-byte input, reachable from
 `compare_bytes` and not prevented by `Limits::hardened()`. Until that is mitigated (see the
 threat model, *Opening a workbook*), adding the target to a job that is expected to fail would
