@@ -2,6 +2,42 @@
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-09-29
+
+**Security and correctness release. Two of the three fixed defects were present in shipped
+versions, not just unreleased work — that is the fact to lead with.** A 512-byte file could abort
+the process with a 9.26 GB allocation, present in every released version; **a caller's own
+mitigation did not help** — `max_input_bytes` cannot see it (the file is 512 bytes) and
+`Limits::hardened()` did not prevent it either, verified. Under `SheetMatchingMode::ExactNameThenIndex`,
+a sheet could vanish from `WorkbookDiff::sheets` entirely — not `Removed`, not `Added`, absent, with
+no diagnostic — and one of the two shapes that reaches it shipped in 3.1.0 and every earlier release
+carrying that mode; the other shape is new, introduced only by this release's own fix to a third,
+related defect (two old sheets sharing a name could make a third sheet's real content read as
+spurious changes), which was unreleased work only. **One defect stays open and is said here
+plainly, not left for a reader to discover:** a crafted worksheet panics in builds with debug
+assertions on (`calamine` [#694](https://github.com/tafia/calamine/issues/694)) — release builds
+return an ordinary `Err`, but every downstream `cargo test` is a debug build, so this is live there
+today. Separately, row alignment (`RowKey`/`RowSignature`) is now cancellable — a cancel requested
+during alignment used to run to completion regardless, taking as long as 23.6 s to be observed; it
+is now observed in single-digit milliseconds — and the pass that builds the set of cells to compare
+after alignment is now linear instead of quadratic in the sheet, with no ceiling in `Limits` before
+this release (37 s → 154 ms on one row compared against 40,000).
+
+**This is a minor release, not a patch, despite `cargo public-api` showing no difference at all
+against 3.1.0.** A comparison cancelled during alignment now returns
+`Err(SheetsDiffError::Cancelled)` where it used to run to completion and return `Ok` — a real
+behaviour change a caller relying on cancellation will notice, even though no type or signature
+moved. A caller will also notice: sheet matching now reports a `Removed` sheet where it used to
+report a bogus `Moved` one, or nothing at all; and aligned comparisons of asymmetric workbooks are
+dramatically faster.
+
+**Where these came from.** The alignment work below was found by ForskScope, who reported it by
+measuring each alignment mode's *failure* cases rather than its successes — the same pattern behind
+3.1.0. The three correctness fixes below came from our own fuzz corpus reaching the sheet reader for
+the first time this cycle; the third of them was found by the dev team while testing the
+neighbourhood of its own fix to the second, rather than left for a later audit to rediscover. That
+is how we would like the next ones to arrive, from either source.
+
 ### Security
 
 - **Fixed: a 512-byte file caused a 9.26 GB allocation and aborted the process — present in every
@@ -25,8 +61,8 @@
   old sheet with the *first* new sheet of the same name, without checking whether that new sheet was
   already claimed by an earlier old sheet: two old sheets with one name both matched the same new
   sheet, and the genuine second new sheet of that name was silently reported `Added`, with its
-  (actually identical, on self-comparison) content read as spurious changes. **Unlike the other two
-  defects found this month, this one did not crash — it was a silent wrong answer**, the category
+  (actually identical, on self-comparison) content read as spurious changes. **This one did not crash — it was a silent
+  wrong answer**, the category
   this project treats as worse than a visible failure. Found by `fuzz_self_comparison`'s oracle (zero
   cell diffs on a workbook compared with itself), validating the fix above; reproduces
   deterministically outside the fuzzer. **The later matching phases were checked and do not repeat
@@ -109,8 +145,9 @@
   bounded `Limits` — an oracle (zero cell diffs, every alignment mode), not "did not panic" —
   reaching read, normalise, match, align and compare on every input. `tests/` gained the permanent
   guard: at least one seed per corpus must reach the reader, checked in the ordinary gate. No
-  library code changed by that unit. **Reaching the reader immediately found three defects — one
-  fixed since, two still open; see *Security* above.**
+  library code changed by that unit. **Reaching the reader immediately found three defects, and a
+  fourth was found while fixing the third. Three are fixed in this release; one remains open — the
+  `calamine` overflow. See *Security* above.**
 
 - **`docs/src/maintainers/performance.md`** records where an aligned comparison's time goes and what now polls, and settles
   a hedged claim: the "23×-inflated, clearly-wrong delta" an earlier measurement discarded was the real one (the LCS table),
