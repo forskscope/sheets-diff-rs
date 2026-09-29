@@ -66,6 +66,30 @@ pub fn wb_with_formula(
     wb.save_to_buffer().unwrap()
 }
 
+/// One sheet mixing formula cells (each with a cached numeric result, so the values pass
+/// retains them as numeric before the formula pass attaches their text) and plain numeric
+/// cells with no formula at all -- the shape a genuine formula-bearing sheet has, as opposed
+/// to `wb_numbers`' all-plain shape or `wb_with_formula`'s single formula next to a string.
+pub fn wb_formula_and_plain_numbers(
+    formulas: &[(u32, u16, &str, f64)],
+    plain_numbers: &[(u32, u16, f64)],
+) -> Vec<u8> {
+    let mut wb = Workbook::new();
+    let ws = wb.add_worksheet();
+    for (row, col, formula, result) in formulas {
+        ws.write_formula(
+            *row,
+            *col,
+            Formula::new(*formula).set_result(result.to_string()),
+        )
+        .unwrap();
+    }
+    for (row, col, val) in plain_numbers {
+        ws.write_number(*row, *col, *val).unwrap();
+    }
+    wb.save_to_buffer().unwrap()
+}
+
 /// Empty workbook (one sheet, no cells).
 pub fn wb_empty() -> Vec<u8> {
     let mut wb = Workbook::new();

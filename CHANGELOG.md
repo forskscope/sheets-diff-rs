@@ -2,6 +2,44 @@
 
 ## [Unreleased]
 
+### Security
+
+- **Fixed: a plain numeric workbook with no formulas anywhere produced one `Info` diagnostic per
+  numeric cell, per side, on by default, with nothing bounding the total — present in every
+  released version, back to 2.0.0.** Measured: a 666 KiB workbook of 20,000 rows × 10 columns of
+  plain numbers, compared with itself, produced **400,000 `formula_unavailable` diagnostics and a
+  158.9 MiB JSON result**, against 1,870 bytes with `include_formula_cached_values` turned off —
+  roughly 89,000× the output, from ordinary input, with no formula in the workbook at all. Two
+  faults, and the second is why the first was reachable: the diagnostic (`src/diff.rs`) was pushed
+  once per numeric cell without an attached formula, with no bound anywhere (`max_diffs_returned`
+  bounds diffs, not diagnostics); and its guard, `has_formulas`, was set true on `Ok(None)` from
+  the formula-reading pass — **ordinary end of stream, reached by every readable sheet** — so it
+  actually meant "the formula pass completed without error," true for essentially every sheet,
+  not "this sheet has formulas." The doc comment directly above the loop said what was intended —
+  *"don't spam warnings on plain data sheets"* — and did the opposite. **This is the fifth instance
+  of the category ForskScope named for us: a marker credited with more than it measured**, and the
+  first whose consequence is a resource cost rather than a wrong description. Renamed to
+  `sheet_has_formulas`, computed from whether the formula pass actually found and attached a
+  formula, so a sheet with none now emits zero. Measured the genuine case before deciding the
+  shape: a realistic 1,000-row sheet mixing formula and plain-numeric columns would have produced
+  8,000 of these per side under the old per-cell scheme (6.6 MB of JSON for one sheet) — excessive
+  even when the case is real. `formula_unavailable` now fires **once per sheet per side**, with the
+  count in its message (`address: None`, since it is no longer about one cell), not once per cell;
+  a genuinely formula-bearing sheet still reports it, unchanged in kind. No public API change: the
+  count is text, not a new field, since adding one to `DiagnosticKind::FormulaUnavailable` — a
+  currently-unit variant — would itself be a breaking change under `#[non_exhaustive]`, and this
+  defect fix is not the place for that.
+
+### Changed
+
+- **`formula_unavailable` changes shape: once per sheet per side carrying a count, not once per
+  numeric cell.** A caller counting these, asserting on their number, or reading per-cell
+  `location.address` from one will see a different result: at most two per sheet now (one per
+  side), each with `address: None` and the count in `message`, instead of up to one per numeric
+  cell with an address. The severity, `DiagnosticKind`, and the condition that raises it
+  (a numeric cell with no attached formula, on a sheet that genuinely has at least one formula) are
+  unchanged; only the volume and shape are. See *Security* above.
+
 ## [3.2.0] - 2026-09-29
 
 **Security and correctness release. Two of the three fixed defects were present in shipped

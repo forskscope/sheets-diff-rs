@@ -15,7 +15,7 @@
 //! decision — to be revisited.
 
 mod support;
-use support::{wb_numbers, wb_sheets, wb_strings};
+use support::{wb_formula_and_plain_numbers, wb_sheets, wb_strings};
 
 use std::collections::BTreeSet;
 
@@ -117,11 +117,15 @@ fn row_key_opts(product: Option<u64>) -> DiffOptions {
 /// One synthetic comparison per producible code.
 fn synthetic() -> Vec<(&'static str, WorkbookDiff)> {
     let cell: &[(u32, u16, &str)] = &[(0, 0, "x")];
-    let nums = |o: f64| wb_numbers(&[(0, 0, 1.0 + o), (1, 0, 2.0 + o)]);
+    // f135: a sheet with no formulas at all must not produce `formula_unavailable` any more
+    // (that was the defect); a genuinely formula-bearing sheet with a plain numeric cell
+    // alongside it still must.
+    let formula_and_plain =
+        |o: f64| wb_formula_and_plain_numbers(&[(0, 0, "=1+1", 2.0)], &[(1, 0, 2.0 + o)]);
     vec![
         (
             "formula_unavailable",
-            compare_bytes(nums(0.0), nums(0.5)).unwrap(),
+            compare_bytes(formula_and_plain(0.0), formula_and_plain(0.5)).unwrap(),
         ),
         (
             "ambiguous_sheet_match",

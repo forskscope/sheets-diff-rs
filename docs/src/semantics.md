@@ -184,7 +184,7 @@ assert_eq!(diff.summary.cells_changed, 1);
 
 // ...while also reporting that a chart sheet's content was not compared.
 assert_eq!(diff.summary.diagnostics.warnings, 2);
-assert_eq!(diff.summary.diagnostics.info, 5);
+assert_eq!(diff.summary.diagnostics.info, 1);
 
 let warning = diff
     .diagnostics

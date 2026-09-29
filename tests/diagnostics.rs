@@ -15,7 +15,7 @@
 //! are reading may be wrong".)
 
 mod support;
-use support::{wb_numbers, wb_strings};
+use support::{wb_formula_and_plain_numbers, wb_numbers, wb_strings};
 
 use sheets_diff::options::AlignmentMode;
 use sheets_diff::output::text::{render_summary, render_unified};
@@ -57,8 +57,12 @@ fn bound_exceeded_pair() -> (Vec<u8>, Vec<u8>) {
     )
 }
 
-/// Numeric cells with no formula: every one raises a sheet-level `Info`
-/// `formula_unavailable`, plus the workbook-level `Info` coverage note.
+/// Numeric cells with no formula anywhere in the sheet. **This is f135's own regression
+/// shape**: through 3.2.0, every one of these raised a sheet-level `Info` `formula_unavailable`
+/// — a 20,000x10 sheet of exactly this shape measured 400,000 of them and a 158.9 MiB result,
+/// from a guard (`has_formulas`) that actually meant "the formula pass completed without
+/// error", true for essentially every sheet including this one. Fixed: a sheet with no
+/// formulas now emits zero.
 const NUMERIC_CELLS: usize = 40;
 fn numeric_pair() -> (Vec<u8>, Vec<u8>) {
     let cells = |offset: f64| -> Vec<(u32, u16, f64)> {
@@ -67,6 +71,19 @@ fn numeric_pair() -> (Vec<u8>, Vec<u8>) {
             .collect()
     };
     (wb_numbers(&cells(0.0)), wb_numbers(&cells(0.5)))
+}
+
+/// A sheet that genuinely has formulas, mixed with `N` plain numeric cells that have none --
+/// the shape `formula_unavailable` exists for. One formula cell (column 0), `n` plain numeric
+/// cells (column 1..), each side identical so the comparison itself reports no changes and
+/// only the diagnostics are under test.
+fn formula_and_plain_pair(n: u32) -> (Vec<u8>, Vec<u8>) {
+    let make = || {
+        let formulas: Vec<(u32, u16, &str, f64)> = vec![(0, 0, "=1+1", 2.0)];
+        let plain: Vec<(u32, u16, f64)> = (0..n).map(|r| (r, 1u16, r as f64)).collect();
+        wb_formula_and_plain_numbers(&formulas, &plain)
+    };
+    (make(), make())
 }
 
 // ---------------------------------------------------------------------------
@@ -97,8 +114,10 @@ fn summary_total(d: &WorkbookDiff) -> usize {
 
 #[test]
 fn min_severity_none_collects_every_diagnostic() {
-    // The control: proves the filter is not always on.
-    let (old, new) = numeric_pair();
+    // The control: proves the filter is not always on. Needs a genuine sheet-level Info
+    // alongside the workbook-level one; `numeric_pair` (no formulas at all) no longer produces
+    // one since f135 -- that used to be the bug this fixture exercised by accident.
+    let (old, new) = formula_and_plain_pair(5);
     let d = compare_bytes(&old, &new).unwrap();
 
     assert!(
@@ -117,7 +136,9 @@ fn min_severity_none_collects_every_diagnostic() {
 
 #[test]
 fn min_severity_warning_drops_info_at_both_levels_and_the_counters_follow() {
-    let (old, new) = numeric_pair();
+    // A genuine sheet-level Info to drop, not `numeric_pair` (which produces none since f135
+    // and would make the sheet-level assertion below trivially true either way).
+    let (old, new) = formula_and_plain_pair(5);
     let mut opts = DiffOptions::default();
     opts.diagnostics.min_severity = Some(Severity::Warning);
     let d = compare_bytes_with_options(&old, &new, opts).unwrap();
@@ -197,8 +218,10 @@ fn summary_counts_sheet_level_warnings() {
 
 #[test]
 fn summary_total_equals_diagnostics_emitted_when_both_levels_have_diagnostics() {
-    // Numeric cells: workbook-level Info (coverage note) + sheet-level Info per cell.
-    let (old, new) = numeric_pair();
+    // A genuine formula-bearing sheet: workbook-level Info (coverage note) + sheet-level Info
+    // (formula_unavailable, once per side since f135 -- not the all-numeric, no-formula shape,
+    // which correctly produces none of the sheet-level kind any more).
+    let (old, new) = formula_and_plain_pair(5);
     let d = compare_bytes(&old, &new).unwrap();
     assert!(
         !d.diagnostics.is_empty() && !d.sheets[0].diagnostics.is_empty(),
@@ -281,34 +304,70 @@ fn render_unified_leaves_workbook_level_warnings_where_they_were() {
 }
 
 // ---------------------------------------------------------------------------
-// FormulaUnavailable: Info, per numeric cell — counted, never printed
+// FormulaUnavailable: Info, once per sheet with a count — never printed (f135)
 // ---------------------------------------------------------------------------
 
+/// **The f135 regression.** A sheet with no formulas anywhere emits zero
+/// `formula_unavailable` — not one per numeric cell, which is what every version through
+/// 3.2.0 did (`has_formulas` meant "the formula pass completed without error", true here).
 #[test]
-fn formula_unavailable_reaches_the_info_count_but_neither_renderer() {
+fn no_formula_numeric_sheet_emits_zero_formula_unavailable() {
     let (old, new) = numeric_pair();
     let d = compare_bytes(&old, &new).unwrap();
 
-    // Sheet-level `formula_unavailable` per numeric cell on each side, plus the one
-    // workbook-level coverage note. The exact number is reported in the review.
     let unavailable = d.sheets[0]
         .diagnostics
         .iter()
         .filter(|x| x.kind.code() == "formula_unavailable")
         .count();
-    assert!(unavailable >= NUMERIC_CELLS, "got {unavailable}");
+    assert_eq!(
+        unavailable, 0,
+        "a sheet with no formulas must not raise formula_unavailable at all: {:?}",
+        d.sheets[0].diagnostics
+    );
+}
+
+/// A sheet that genuinely has a formula still reports — a guard fix that silences the true
+/// case too would be a worse defect than the one being fixed. One `Info` per side (old read +
+/// new read each contribute their own), not one per plain numeric cell: the message carries
+/// the count instead. Neither renderer prints `Info` regardless (O3's existing rule).
+#[test]
+fn formula_bearing_sheet_still_reports_once_per_side_with_a_count() {
+    let (old, new) = formula_and_plain_pair(40);
+    let d = compare_bytes(&old, &new).unwrap();
+
+    let unavailable: Vec<_> = d.sheets[0]
+        .diagnostics
+        .iter()
+        .filter(|x| x.kind.code() == "formula_unavailable")
+        .collect();
+    assert_eq!(
+        unavailable.len(),
+        2,
+        "one per side (old read, new read), not one per cell: {:?}",
+        unavailable
+    );
+    for diag in &unavailable {
+        assert_eq!(diag.severity, Severity::Info);
+        assert!(
+            diag.location.address.is_none(),
+            "not about one cell any more: {:?}",
+            diag.location
+        );
+        assert_eq!(diag.location.sheet_name.as_deref(), Some("Sheet1"));
+        assert!(
+            diag.message.contains("40"),
+            "message should carry the count: {}",
+            diag.message
+        );
+    }
     assert_eq!(
         d.summary.diagnostics.info,
         d.diagnostics.len() + d.sheets[0].diagnostics.len(),
         "every Info diagnostic, at both levels, is counted"
     );
-    eprintln!(
-        "[measured] numeric fixture, {NUMERIC_CELLS} cells/side: summary.diagnostics.info = {}, \
-         of which formula_unavailable = {unavailable}",
-        d.summary.diagnostics.info
-    );
 
-    // ... and neither renderer says a word about them.
+    // ... and neither renderer says a word about them (O3's existing rule, unaffected).
     let unified = render_unified(&d);
     assert!(
         !unified.contains("# Diagnostics"),
@@ -319,5 +378,28 @@ fn formula_unavailable_reaches_the_info_count_but_neither_renderer() {
     assert!(
         !summary.contains("diagnostics:"),
         "Info reached the summary line: {summary}"
+    );
+}
+
+/// The count is bounded by sheets (well, by sides of a sheet), not by cells: a sheet with
+/// 4,000 plain numeric cells produces exactly as many `formula_unavailable` diagnostics as one
+/// with 40 -- two, one per side -- even though the count *inside* each message's text differs.
+#[test]
+fn formula_unavailable_diagnostic_count_does_not_grow_with_plain_numeric_cells() {
+    let count_for = |n: u32| {
+        let (old, new) = formula_and_plain_pair(n);
+        let d = compare_bytes(&old, &new).unwrap();
+        d.sheets[0]
+            .diagnostics
+            .iter()
+            .filter(|x| x.kind.code() == "formula_unavailable")
+            .count()
+    };
+    let small = count_for(40);
+    let large = count_for(4_000);
+    assert_eq!(small, 2, "got {small}");
+    assert_eq!(
+        large, small,
+        "100x the plain numeric cells must not multiply the diagnostic count"
     );
 }

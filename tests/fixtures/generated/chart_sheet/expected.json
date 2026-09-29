@@ -58,68 +58,7 @@
         ]
       },
       "alignment_summary": null,
-      "diagnostics": [
-        {
-          "severity": "Info",
-          "kind": "FormulaUnavailable",
-          "location": {
-            "stage": "Read",
-            "sheet_order": 0,
-            "sheet_name": "Sheet1",
-            "address": {
-              "row": 1,
-              "col": 1,
-              "a1": "A1"
-            }
-          },
-          "message": "formula text unavailable for numeric cell at A1"
-        },
-        {
-          "severity": "Info",
-          "kind": "FormulaUnavailable",
-          "location": {
-            "stage": "Read",
-            "sheet_order": 0,
-            "sheet_name": "Sheet1",
-            "address": {
-              "row": 2,
-              "col": 1,
-              "a1": "A2"
-            }
-          },
-          "message": "formula text unavailable for numeric cell at A2"
-        },
-        {
-          "severity": "Info",
-          "kind": "FormulaUnavailable",
-          "location": {
-            "stage": "Read",
-            "sheet_order": 0,
-            "sheet_name": "Sheet1",
-            "address": {
-              "row": 1,
-              "col": 1,
-              "a1": "A1"
-            }
-          },
-          "message": "formula text unavailable for numeric cell at A1"
-        },
-        {
-          "severity": "Info",
-          "kind": "FormulaUnavailable",
-          "location": {
-            "stage": "Read",
-            "sheet_order": 0,
-            "sheet_name": "Sheet1",
-            "address": {
-              "row": 2,
-              "col": 1,
-              "a1": "A2"
-            }
-          },
-          "message": "formula text unavailable for numeric cell at A2"
-        }
-      ],
+      "diagnostics": [],
       "summary": {
         "cells_changed": 1,
         "values_changed": 1,
@@ -210,7 +149,7 @@
     "formulas_changed": 0,
     "diagnostics": {
       "warnings": 2,
-      "info": 5
+      "info": 1
     }
   },
   "metrics": {
@@ -218,6 +157,6 @@
     "cells_read": 6,
     "cells_compared": 3,
     "diffs_emitted": 1,
-    "diagnostics_emitted": 7
+    "diagnostics_emitted": 3
   }
 }

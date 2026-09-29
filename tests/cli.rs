@@ -628,5 +628,8 @@ fn json_summary_diagnostics_has_warnings_and_info_only() {
     keys.sort();
     assert_eq!(keys, ["info", "warnings"], "{counts:?}");
     assert_eq!(counts["warnings"], 2);
-    assert_eq!(counts["info"], 5);
+    // f135: was 5 (4 spurious per-cell `formula_unavailable` on a sheet with no real formulas,
+    // plus the 1 workbook-level coverage note) -- now just the coverage note. `Sheet1` here has
+    // no genuine formulas, so `formula_unavailable` no longer fires on it at all.
+    assert_eq!(counts["info"], 1);
 }

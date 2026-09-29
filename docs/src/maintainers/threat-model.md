@@ -154,6 +154,24 @@ is an out-of-memory abort, not an error a caller can handle — exactly the fail
 the *Availability of the host process* asset names — and the workbook needed
 nothing but a populated cell far from the data.
 
+**Fixed (f135, 2026-09-30): the formula-text pass's own diagnostic had no bound, and its guard
+did not mean what it was named.** `read_sheet_cells` pushed one `Info` `formula_unavailable` per
+numeric cell with no attached formula text, gated on `has_formulas` — set true on `Ok(None)` from
+the formula-reading pass, which is **ordinary end of stream, reached by every readable sheet**,
+not "this sheet has formulas." A plain numeric workbook, no formula anywhere, measured 20,000 rows
+× 10 columns compared with itself: **400,000 diagnostics, a 158.9 MiB JSON result**, from a 666 KiB
+input, against 1,870 bytes with the guard's intended behaviour. Unlike the other findings in this
+section, the consequence is a resource cost, not a wrong description or a crash — output
+proportional to populated cells, unbounded, on by default. Found while scoping M9 unit 04 (not
+this section's M9 unit 01 findings above; promoted ahead of the rest of that unit once its scale
+was measured). **Closed** by computing the guard from whether the formula pass actually attached a
+formula (renamed `sheet_has_formulas`) and by reporting once per sheet per side with a count in the
+message, rather than once per numeric cell — measured the genuine formula-bearing case first (a
+realistic 1,000-row mixed sheet would have produced 8,000 of these per side, 6.6 MB of JSON, under
+the old shape) before choosing that. No public API change; the count is text, not a new
+`DiagnosticKind` field, since that field does not exist today and adding one to a currently-unit
+variant would itself be a breaking change under `#[non_exhaustive]`.
+
 **Five findings that defeated bounds or the sheet matcher (M9 unit 01, 2026-09-29; four fixed, by
 f132, f133 and f134, one open).** The f123 paragraph above is not the only way to reach the
 *Availability of the host process* asset, and the third, fourth and fifth findings are not about

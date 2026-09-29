@@ -500,7 +500,7 @@ along with `Severity::Error` and the `"ERROR"` prefix in the unified output. The
 to migrate to; delete the reads. Two visible effects for anything that parses output: the CLI's
 summary line `diagnostics: 0 error(s), 2 warning(s)` is now `diagnostics: 2 warning(s)` (still
 absent when there are no warnings), and `--format json`'s `summary.diagnostics` loses `errors`
-(`{"errors":0,"warnings":2,"info":5}` becomes `{"warnings":2,"info":5}`).
+(`{"errors":0,"warnings":2,"info":1}` becomes `{"warnings":2,"info":1}`).
 
 `Severity` is `#[non_exhaustive]`, so keep a wildcard arm, and `Info < Warning` still holds, so
 `min_severity` works as before:
@@ -514,7 +514,7 @@ let diff = compare_paths(
 )?;
 let d = &diff.summary.diagnostics;
 // 2.6.0 also had `d.errors`, always 0.
-assert_eq!((d.warnings, d.info), (2, 5));
+assert_eq!((d.warnings, d.info), (2, 1));
 assert!(Severity::Info < Severity::Warning);
 for x in &diff.diagnostics {
     let label = match x.severity {

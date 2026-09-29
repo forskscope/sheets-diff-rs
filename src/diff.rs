@@ -729,12 +729,12 @@ fn read_sheet_cells(
 
     // Pass 2: formula text, attached to cells that have a value. Best-effort as
     // before: a read error (other than cancellation) drops every formula for the
-    // sheet rather than failing the read, and `has_formulas` records that. The
-    // formulas are collected first and attached only on success, so a failure
-    // part-way never leaves a sheet with some of its formulas.
+    // sheet rather than failing the read. The formulas are collected first and
+    // attached only on success, so a failure part-way never leaves a sheet with
+    // some of its formulas.
     let mut formulas: Vec<((u32, u32), String)> = Vec::new();
-    let has_formulas = match wb.reader.worksheet_cells_reader(&sheet.name) {
-        Ok(mut reader) => loop {
+    if let Ok(mut reader) = wb.reader.worksheet_cells_reader(&sheet.name) {
+        loop {
             match reader.next_formula() {
                 Ok(Some(cell)) => {
                     poll_count += 1;
@@ -749,15 +749,26 @@ fn read_sheet_cells(
                         }
                     }
                 }
-                Ok(None) => break true,
+                Ok(None) => break,
                 Err(_) => {
                     formulas.clear();
-                    break false;
+                    break;
                 }
             }
-        },
-        Err(_) => false,
-    };
+        }
+    }
+    // f135: whether this sheet genuinely has at least one formula, captured here
+    // -- before `formulas` is drained below -- from whether the formula pass
+    // actually found one attached to a retained cell. The old `has_formulas`
+    // was the formula PASS's own success flag (true on `Ok(None)`, which is
+    // ordinary end-of-stream reached by every readable sheet), not whether the
+    // sheet has formulas; it was true for essentially every sheet, including
+    // ones with none at all. That is the whole reason the per-cell diagnostic
+    // below used to fire on plain numeric data: a 20,000x10 sheet of plain
+    // numbers, no formula anywhere, measured 400,000 of them and a 158.9 MiB
+    // result (f135). A read error still clears `formulas`, so it is empty and
+    // this is `false` in that case too, exactly as `has_formulas` was.
+    let sheet_has_formulas = !formulas.is_empty();
     // Applied in stream order, so a duplicate address keeps its last formula as
     // `Range::from_sparse` did.
     for (key, text) in formulas {
@@ -766,35 +777,44 @@ fn read_sheet_cells(
         }
     }
 
-    // Diagnostic: formula text unavailable for a cell that looks like it
-    // might have a formula (numeric cached value, formula pass ran but no text
-    // at this position). Not every numeric cell is a formula; this is expected
-    // and not worth more than Info — don't spam warnings on plain data sheets.
-    // `cells` is ordered by (row, col), the order the dense loop visited them.
-    if has_formulas && opts.comparison.include_formula_cached_values {
-        for (&(row1, col1), cell) in &cells {
-            if cell.formula.is_none()
-                && matches!(
-                    cell.value,
-                    crate::model::CellValue::Integer(_) | crate::model::CellValue::Number(_)
-                )
-            {
-                diagnostics.push(Diagnostic {
-                    severity: Severity::Info,
-                    kind: DiagnosticKind::FormulaUnavailable,
-                    location: DiagnosticLocation {
-                        stage: DiffStage::Read,
-                        sheet_order: Some(sheet.index),
-                        sheet_name: Some(sheet.name.clone()),
-                        address: Some(CellAddress::new_unchecked(row1, col1)),
-                    },
-                    message: format!(
-                        "formula text unavailable for numeric cell at {}{}",
-                        crate::address::col_to_label(col1),
-                        row1
-                    ),
-                });
-            }
+    // Diagnostic: this sheet has formulas, but not every numeric cell is one --
+    // expected, and worth at most Info. f135: previously pushed once per such
+    // cell (unbounded by anything), which is excessive even on a sheet that
+    // genuinely has formulas -- measured, a realistic 1,000-row mixed sheet (8
+    // plain-numeric columns, 2 formula columns) would emit 8,000 of these per
+    // side under the old per-cell shape, 6.6 MB of JSON for one sheet. One Info
+    // per sheet, carrying the count, is what a caller wants; `address: None`
+    // since it is not about one cell. Kept out of `DiagnosticKind`'s payload
+    // (a plain-text count, not a field) so this stays within the existing
+    // public API -- adding a field to a currently-unit variant is a breaking
+    // change under `#[non_exhaustive]`, and this defect fix is not the place
+    // for that.
+    if sheet_has_formulas && opts.comparison.include_formula_cached_values {
+        let count = cells
+            .values()
+            .filter(|cell| {
+                cell.formula.is_none()
+                    && matches!(
+                        cell.value,
+                        crate::model::CellValue::Integer(_) | crate::model::CellValue::Number(_)
+                    )
+            })
+            .count();
+        if count > 0 {
+            diagnostics.push(Diagnostic {
+                severity: Severity::Info,
+                kind: DiagnosticKind::FormulaUnavailable,
+                location: DiagnosticLocation {
+                    stage: DiffStage::Read,
+                    sheet_order: Some(sheet.index),
+                    sheet_name: Some(sheet.name.clone()),
+                    address: None,
+                },
+                message: format!(
+                    "formula text unavailable for {count} numeric cell{} on this sheet",
+                    if count == 1 { "" } else { "s" }
+                ),
+            });
         }
     }
 

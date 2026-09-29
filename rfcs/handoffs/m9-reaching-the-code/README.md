@@ -17,8 +17,8 @@ configuration that runs one build twice and several checks not at all.
 | 01 | [The fuzz corpus cannot reach the sheet reader](./01-the-corpus-cannot-reach-the-reader.md) | D1 | The substantive one |
 | 02 | Deviations from `project-instructions-rust.md` | B1–B4 | |
 | 03 | The remaining record corrections | C4, C6–C9, E, F-2 | |
-| 04 | ~~`FormulaUnavailable` is pushed once per cell~~ **→ promoted to [f135](../f135-a-diagnostic-per-numeric-cell/01-say-it-once-and-mean-the-guard.md)** | O4 | Measured 2026-09-30: 400,000 diagnostics and a 158.9 MiB JSON result from a 666 KiB workbook **with no formulas**, on by default. Not an internal item |
-| 05 | The corpus cannot reach either alignment warning | O-B | D1's shape, in the fixtures |
+| 04 ✅ | ~~`FormulaUnavailable` is pushed once per cell~~ **→ promoted to and closed as [f135](../f135-a-diagnostic-per-numeric-cell/01-say-it-once-and-mean-the-guard.md)** | O4 | Fixed 2026-09-30: guard renamed `sheet_has_formulas`, computed from whether a formula actually attached, not "the formula pass completed without error." Reports once per sheet per side with a count, not once per cell |
+| 05 | The corpus cannot reach either alignment warning | O-B | D1's shape, in the fixtures **Also owns a mixed formula/plain-numeric scenario** — f135's review found the corpus no longer reaches `formula_unavailable` at all: the two goldens that produced it were doing so by accident, on sheets with no formulas, and the four formula-bearing fixtures are two cells each with formulas on all of them. Second instance of this unit's own shape |
 | 06 | The CLI applies no `Limits` | F-3 | Measure with 04 |
 
 **Order: 00 first.** The rest in any order; 04 and 06 want measuring together.
