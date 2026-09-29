@@ -108,7 +108,24 @@ pub struct ValueCompareOptions {
 pub struct ComparisonOptions {
     pub value: ValueCompareOptions,
     pub formula: FormulaCompareMode,
-    /// Whether the formula's cached value is compared as a value change.
+    /// **Whether a sheet that has formulas reports an `Info` diagnostic naming how many of its
+    /// numeric cells carry no formula text.** That is all this option does.
+    ///
+    /// **It does not control whether cached formula values are compared, despite its name.** A
+    /// formula cell's cached value is *always* compared, as an ordinary value, whatever this is set
+    /// to — setting it `false` does not hide a cached-value change, and never has. Verified
+    /// 2026-09-30: a cell whose formula text is identical on both sides and whose cached value
+    /// differs produces the same `CellDiff` either way.
+    ///
+    /// The doc comment here used to read *"Whether the formula's cached value is compared as a value
+    /// change"*, which described behaviour this crate has never implemented. A downstream consumer
+    /// found it by reading the code after we recommended setting this `false` as a workaround and
+    /// told them it would cost them cached values. It would not have.
+    ///
+    /// **If you set this `false`, you lose one `Info` diagnostic per sheet and nothing else.**
+    /// [`Limits`]-style resource concerns no longer apply either: before 3.3.0 this diagnostic was
+    /// emitted once per numeric cell rather than once per sheet, which is why turning it off was
+    /// ever worth recommending.
     pub include_formula_cached_values: bool,
 }
 
@@ -529,6 +546,12 @@ pub struct DiagnosticOptions {
     /// This is a different thing from a *display* threshold. The text renderers
     /// choose what to print (the unified renderer shows warnings and errors)
     /// from whatever was collected; they cannot show what this dropped.
+    ///
+    /// **It is not a resource control.** The filter is a single `retain` applied after every
+    /// diagnostic vector has been assembled, so the dropped diagnostics were allocated first and
+    /// peak memory is unchanged. If a diagnostic's volume is a problem, this will not help; that is
+    /// a defect in whatever emits it. (Noted 2026-09-30 by a consumer who nearly reached for this to
+    /// contain the per-cell `formula_unavailable` flood fixed in 3.3.0.)
     ///
     /// Set it with [`DiffOptionsBuilder::min_severity`], or assign the field:
     ///

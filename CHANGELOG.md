@@ -32,6 +32,17 @@
 
 ### Changed
 
+- **`include_formula_cached_values` never controlled whether cached formula values are compared, and
+  its documentation said it did.** The field is read in exactly one place that affects behaviour —
+  the `Info` diagnostic gate above — and a formula cell's cached value is compared as an ordinary
+  value whatever this option is set to. Verified: a cell with identical formula text on both sides
+  and a differing cached value produces the same `CellDiff` either way. **If you set this `false`,
+  including on our recommendation while the diagnostic flood above was unfixed, you did not lose any
+  comparison.** The doc comment now says what the option does. The option's *name* remains
+  misleading, which is a v4 question rather than something to change under a minor; it is also now
+  largely redundant, since `min_severity` suppresses the same one diagnostic per sheet. Found by
+  ForskScope, reading the code after we told them the workaround would cost them cached values.
+
 - **`formula_unavailable` changes shape: once per sheet per side carrying a count, not once per
   numeric cell.** A caller counting these, asserting on their number, or reading per-cell
   `location.address` from one will see a different result: at most two per sheet now (one per
