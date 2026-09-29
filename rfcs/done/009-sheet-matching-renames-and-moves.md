@@ -128,6 +128,17 @@ If a matched sheet later fails to read, sheet-level read diagnostics apply norma
 
 ## 9. Testing and acceptance criteria
 
+**Annotated f133 (unreleased).** Checked this section and §6 against a defect found by
+`fuzz_self_comparison` (M9 unit 01): the exact-name phase paired an old sheet with the first new
+sheet of the same name without checking it was not already claimed, so two old sheets sharing a name
+both matched the same new sheet and a third, genuine new sheet of that name was silently reported
+`Added` instead. **Neither section makes a claim this contradicts** — "Exact same-name sheets match"
+below does not say each new sheet is claimed at most once, and duplicate names are not mentioned
+anywhere in this RFC — so this is not the "specified and never built" shape M10 unit 01 found
+elsewhere in this file; it is closer to "specified loosely enough that an implementation could satisfy
+the letter of it while being wrong." Recorded so a future reader does not read "Exact same-name sheets
+match" as covering it. Fixed in `src/matcher.rs`; see the f133 handoff and CHANGELOG.
+
 Acceptance criteria:
 
 - Exact same-name sheets match.

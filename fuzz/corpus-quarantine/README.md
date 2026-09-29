@@ -39,23 +39,24 @@ does; that condition has already been met and was not sufficient by itself.
 
 ## `fuzz_self_comparison` — the whole target
 
-Not in CI's `fuzz-smoke` matrix. Two open reasons, found running it at `-runs=20000` × 20 seeds,
-fresh corpus per run:
+Not in CI's `fuzz-smoke` matrix. Quarantined for two reasons found running it at `-runs=20000` × 20
+seeds, fresh corpus per run; **one is now fixed.**
 
-- The same overflow defect as above, reached through a different call path (`read_sheet_cells` /
-  `worksheet_cells_reader`), independent of any specific seed.
-- **A defect this unit found that is ours, not `calamine`'s**: `src/matcher.rs`'s exact-name matching
-  (`match_sheets`, the `new_sheets.iter().position(|n| n.name == old.name)` line) does not check
-  whether a new-side sheet is already claimed before pairing an old-side sheet to it. Two old sheets
-  sharing a name — reachable here because 3 bytes flipped inside a compressed ZIP stream corrupted a
-  sheet name to the empty string on more than one sheet — both match the *same* first same-named new
-  sheet; one new sheet is left unmatched and reported `Added`, with its cells reported as spurious
-  changes. **Reproduces deterministically outside the fuzzer** (`compare_bytes(bytes, bytes)`,
-  `cells_changed == 3`, ten repeats, same three cells every time) — see
-  `.git-exclude/review-request/f132-01-*/evidence/matcher-bug/`. Unlike the other two defects found
-  this month, this one does **not** crash or panic in an ordinary build: it is a **silent wrong
-  answer**, which this project treats as the worse category. Reachable only through a corrupted ZIP
-  stream that still decompresses, so not a defect a genuine Excel file can trigger — but exactly the
-  class RFC-028's fuzzing exists to find. Not fixed here; needs its own unit.
+- **Fixed (f133):** `src/matcher.rs`'s exact-name matching (`match_sheets`, the
+  `new_sheets.iter().position(|n| n.name == old.name)` line) did not check whether a new-side sheet
+  was already claimed before pairing an old-side sheet to it. Two old sheets sharing a name —
+  reachable here because 3 bytes flipped inside a compressed ZIP stream corrupted a sheet name to the
+  empty string on more than one sheet — both matched the *same* first same-named new sheet; one new
+  sheet was left unmatched and reported `Added`, with its cells reported as spurious changes.
+  **Reproduced deterministically outside the fuzzer** (`compare_bytes(bytes, bytes)`,
+  `cells_changed == 3`, ten repeats, same three cells every time). Unlike the other defect below, this
+  one did **not** crash or panic in an ordinary build: it was a **silent wrong answer**, which this
+  project treats as the worse category. See the threat model, *Sheet matching: a second, related
+  defect found while fixing the first*, for the fix and for a related, distinct defect it exposed in
+  `ExactNameThenIndex` mode — open, but not a reason this target is quarantined (it is a correctness
+  defect, reachable by construction, not something running the fuzzer risks crashing on).
+- **Still open:** the same overflow defect as `paired_encrypted` above, reached through a different
+  call path (`read_sheet_cells` / `worksheet_cells_reader`), independent of any specific seed.
 
-Add the target to the matrix once both are closed, in the same change that closes the second one.
+Add the target to the matrix once the overflow defect closes, in the same change that closes it —
+the same condition as `paired_encrypted`, above.

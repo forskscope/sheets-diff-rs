@@ -68,10 +68,9 @@ PR referencing it.
 ## CI
 
 **One seed is quarantined and one target is not in the `fuzz-smoke` matrix — see
-`fuzz/corpus-quarantine/README.md`.** f132 closed the defect that first put `paired_encrypted` there;
-it stays out of active fuzzing anyway, and `fuzz_self_comparison` stays out of the matrix, for two
-other, still-open defects (one of them found by `fuzz_self_comparison` itself, in this crate's own
-sheet-matching code — see the quarantine README for both).
+`fuzz/corpus-quarantine/README.md`.** f132 and f133 each closed a defect that used to put something
+there; both stay out anyway, for one remaining, still-open `calamine` defect that is not either
+unit's to fix — see the quarantine README.
 
 Normal CI compiles the fuzz targets but does not run them (would be too slow).
 Run fuzzing manually or in a nightly workflow with a time budget, e.g.:

@@ -20,29 +20,35 @@
   there independently of us; this fix does not wait on it, because declining non-ZIP input makes the
   CFB parser unreachable rather than merely bounding it.
 
-- **Known, unfixed: two further defects, unrelated to the fix above and to each other**, both found
-  the same way — reaching real code with a working fuzz corpus for the first time.
-  1. **A crafted worksheet panics in builds with debug assertions on** — an unbounded base-26
-     column-letter multiply in `calamine` (`xlsx/mod.rs:2838`). Release builds wrap and return
-     `Err(sheet is malformed)` on the artifact in hand; every downstream `cargo test` is a debug
-     build, so it is live there. Tracked upstream as
-     [calamine#694](https://github.com/tafia/calamine/issues/694), open since 2026-07-26. Our
-     pre-screen cannot reach it — it lives inside a valid archive — so it stays open here too.
-  2. **A silent wrong answer, and ours, not `calamine`'s: two sheets sharing a name can make a third
-     sheet's real content vanish and reappear as spurious changes.** `src/matcher.rs`'s exact-name
-     matching pairs each old sheet with the *first* new sheet of the same name, without checking
-     whether that new sheet was already claimed — reachable when a corrupted (but still-decodable)
-     workbook reports more than one sheet with the same (here, empty) name. Unlike the other two
-     defects found this month, **this one does not crash**: `compare_bytes(bytes, bytes)` on the
-     artifact in hand deterministically reports 3 changed cells that do not exist. Not fixed here;
-     needs its own unit. See `fuzz/corpus-quarantine/README.md` for both, with the measurements.
+- **Fixed: two old sheets sharing a name could make a third sheet's real content vanish and reappear
+  as spurious changes — ours, not a dependency's.** `src/matcher.rs`'s exact-name phase paired each
+  old sheet with the *first* new sheet of the same name, without checking whether that new sheet was
+  already claimed by an earlier old sheet: two old sheets with one name both matched the same new
+  sheet, and the genuine second new sheet of that name was silently reported `Added`, with its
+  (actually identical, on self-comparison) content read as spurious changes. **Unlike the other two
+  defects found this month, this one did not crash — it was a silent wrong answer**, the category
+  this project treats as worse than a visible failure. Found by `fuzz_self_comparison`'s oracle (zero
+  cell diffs on a workbook compared with itself), validating the fix above; reproduces
+  deterministically outside the fuzzer. **The later matching phases were checked and do not repeat
+  this pattern** (`index_match`'s own claim-tracking is correct) — though a related, distinct defect
+  was found in the same read, in the `ExactNameThenIndex` mode's post-processing, and is reported,
+  not fixed; see the threat model, *Sheet matching: a second, related defect found while fixing the
+  first*. Reachable only through a workbook reporting duplicate sheet
+  names, which Excel's UI will not produce but a file we did not write is not obliged to avoid. No
+  public API change. Committed as `tests/fixtures/f133/self-compare-duplicate-names.bin` and asserted
+  in `tests/f133_claim_each_new_sheet_once.rs`.
 
-  Neither is introduced by this release; both were unreachable by any fuzz target before this
-  month's fuzzing work. `fuzz_self_comparison` stays out of CI's `fuzz-smoke` matrix and
-  `fuzz/corpus/fuzz_open_xlsx_bytes/paired_encrypted` stays quarantined until both close — not
-  because either seed is wrong, but because restoring them to *active* fuzzing measurably raises how
-  often CI hits these two, still-open defects within its own run budget (0/20 → 3/20, one example;
-  see the quarantine README). Both seeds and the target are still committed and still exercised
+- **Known, unfixed: a crafted worksheet panics in builds with debug assertions on** — an unbounded
+  base-26 column-letter multiply in `calamine` (`xlsx/mod.rs:2838`). Release builds wrap and return
+  `Err(sheet is malformed)` on the artifact in hand; every downstream `cargo test` is a debug build,
+  so it is live there. Tracked upstream as
+  [calamine#694](https://github.com/tafia/calamine/issues/694), open since 2026-07-26. Our pre-screen
+  cannot reach it — it lives inside a valid archive. Not introduced by this release; unreachable by
+  any fuzz target before this month's fuzzing work. `fuzz_self_comparison` stays out of CI's
+  `fuzz-smoke` matrix and `fuzz/corpus/fuzz_open_xlsx_bytes/paired_encrypted` stays quarantined until
+  it closes — not because either seed is wrong, but because restoring them to *active* fuzzing
+  measurably raises how often CI hits it within its own run budget (0/20 → 3/20, one example; see
+  `fuzz/corpus-quarantine/README.md`). Both seed and target are still committed and still exercised
   in-process by the ordinary test gate.
 
 ### Changed
