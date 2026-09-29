@@ -18,6 +18,12 @@ test = false
 doc = false
 
 [[bin]]
+name = "fuzz_self_comparison"
+path = "src/fuzz_self_comparison.rs"
+test = false
+doc = false
+
+[[bin]]
 name = "fuzz_addr_roundtrip"
 path = "src/fuzz_addr_roundtrip.rs"
 test = false

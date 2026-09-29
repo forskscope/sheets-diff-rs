@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+### Security
+
+- **Known, unfixed: two crafted inputs crash `compare_bytes`, and `Limits` does not stop either.**
+  Found by the fuzz work under *Documentation* below, the first time a target reached past the ZIP header.
+  **Not introduced by this release — present in every released version, including 3.1.0.**
+  1. **A 512-byte file causes a 9.26 GB allocation and aborts the process.** Opening a workbook
+     parses it as a CFB container before anything else, and a header field reaches
+     `Vec::with_capacity` unchecked against the file's size (`calamine` 0.36.1). `max_input_bytes`
+     cannot help — 512 bytes passes it — and **`Limits::hardened()` does not prevent it.** The abort
+     is not an `Err` a caller can handle.
+  2. **A crafted worksheet panics in builds with debug assertions on** — an unbounded base-26
+     column-letter multiply. Release builds wrap and return `Err(sheet is malformed)` on the input
+     in hand; every downstream `cargo test` is a debug build.
+
+  Both faulty frames are in `calamine`; the broken promise is ours, since the API that aborts is
+  `sheets_diff::compare_bytes` (RFC-028 §7). Fixes are being scoped — the first is closable in this
+  crate at the point where input is handed to the parser, without waiting on an upstream release.
+  See `docs/src/maintainers/threat-model.md`, *Opening a workbook: two inputs that defeat every
+  bound*. **If you compare untrusted workbooks, this is a denial-of-service exposure today.**
+
+### Documentation
+
+- **The fuzz corpus reaches the sheet reader.** `fuzz_open_xlsx_bytes` split its input at
+  `data.len() / 2`, so a seed had to be two workbooks concatenated and of exactly equal length;
+  every seed in the corpus failed at `not an xlsx file`, and no code past the ZIP-header check had
+  ever been fuzzed. The framing is now a length prefix, and a second target,
+  `fuzz_self_comparison`, compares a workbook with itself under a fuzz-driven `AlignmentMode` and
+  bounded `Limits` — an oracle (zero cell diffs, every alignment mode), not "did not panic" —
+  reaching read, normalise, match, align and compare on every input. `tests/` gained the permanent
+  guard: at least one seed per corpus must reach the reader, checked in the ordinary gate. No
+  library code changed. **Reaching the reader immediately found two ways to crash `compare_bytes`;
+  see *Security* below.**
+
 ### Changed
 
 - **Row alignment is now cancellable.** A `Cancellation` was polled while reading and while comparing, and not at all while

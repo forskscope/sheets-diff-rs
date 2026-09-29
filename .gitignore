@@ -7,3 +7,9 @@ target/
 
 # custom below
 /tests/local/**/*.xlsx
+
+# cargo-fuzz's own run output (M9 unit 01): fuzz/target/ was already ignored; these were not, so a
+# fuzz run's discovered artifacts and coverage.profdata files sat untracked-but-unignored, one
+# accidental `git add -A` from being committed as opaque binaries.
+/fuzz/artifacts/
+/fuzz/coverage/

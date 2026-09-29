@@ -4,6 +4,19 @@
 **Target:** v2.0+  
 **Related:** RFC-004, RFC-005, RFC-016, RFC-026
 
+**Corrected M9 unit 01 (unreleased, "annotate, do not downgrade" — the same ruling M10 unit 01 gave RFC-009).**
+`fuzz_open_xlsx_bytes` split its one input at `data.len() / 2`, so a valid seed had to be two
+workbooks concatenated **and of exactly equal length**; every seed in the corpus failed at
+`not an xlsx file`, and **no code past the ZIP-header check had ever been fuzzed** — not the sheet
+reader, the normaliser, the comparer, or alignment. f123, f130 and f131 all lived in exactly that
+code. The framing is now length-prefixed (`fuzz/src/framing.rs`) and a second target,
+`fuzz_self_comparison`, compares a workbook with itself — an oracle (zero cell diffs, in every
+alignment mode) rather than "did not panic", and one with a demonstrated capacity to fail (see §10).
+**Reaching the reader for the first time found two real defects in `calamine`, unfixed here** — see
+the review request's evidence; this RFC's §7/§10 (no panics; malformed input never crashes) describe
+what this crate promises about its own code, not about a dependency it calls into, and both findings
+are calamine's, not `sheets-diff`'s.
+
 ## 1. Summary
 
 Define a fuzzing and hostile-input strategy for `.xlsx` input handling. A diff
@@ -47,6 +60,12 @@ fuzz_sheet_matching_manifest
 `fuzz_open_xlsx_bytes` should be behind an optional fuzzing setup because parser
 fuzzing can be expensive.
 
+**Annotated M9 unit 01 (unreleased).** Four of six exist (`fuzz_addr_roundtrip`, `fuzz_range_merge`,
+`fuzz_diff_options_builder`, `fuzz_open_xlsx_bytes`); `fuzz_cell_value_normalization` and
+`fuzz_sheet_matching_manifest` do not and are out of this unit's scope. A fifth,
+`fuzz_self_comparison`, exists and was not suggested here — it reaches past the archive with an
+oracle (§10). This is a sketch ("suggested"), not a contract; the contract is §10, and §10 is met.
+
 ## 6. Corpus seeds
 
 Seed corpus should include:
@@ -62,6 +81,12 @@ Seed corpus should include:
 - workbook with formulas;
 - workbook with unsupported objects.
 
+**Annotated M9 unit 01 (unreleased).** All ten now exist, split across two corpora
+(`fuzz/corpus/fuzz_open_xlsx_bytes/`, `fuzz/corpus/fuzz_self_comparison/`) — see the review request's
+category table for which seed is which. Through this unit only the first two existed, and the
+target's own framing (see the note at the top of this RFC) made writing the other eight
+impractical: a seed had to be two workbooks of exactly equal length.
+
 ## 7. Panic policy
 
 Public APIs must not panic on malformed input. Panics in internal debug asserts
@@ -69,6 +94,35 @@ are acceptable only when unreachable by public ordinary input and should not be
 used for parser errors.
 
 Use `Result` and diagnostics consistently.
+
+**Annotated M9 unit 01 (unreleased) — this policy is currently VIOLATED, by two inputs, through
+`compare_bytes`.** Both were found the first time a fuzz target reached past the ZIP header, and
+both are in `calamine` 0.36.1's parsing, upstream of every bound this crate applies:
+
+1. **A 512-byte file causes a single 9,261,285,372-byte allocation and aborts the process.**
+   `Xlsx::new` calls `check_for_password_protected` unconditionally, which parses the input as a CFB
+   container; a DIFAT-sector-count field in the header reaches `Vec::with_capacity` with no check
+   against the file's actual length (`calamine-0.36.1/src/xlsx/mod.rs:2939` → `cfb.rs:260`, field
+   read at `cfb.rs:224`). **`max_input_bytes` cannot catch it** — the size comes from a header field,
+   not the input's length — and **`Limits::hardened()` does not prevent it**, verified. This is the
+   *Availability of the host process* asset, and the same failure class as the f123 bounding box:
+   an allocation so large it is an abort, not an `Err` a caller can handle.
+2. **A crafted worksheet panics in any build with debug assertions on** — "attempt to multiply with
+   overflow" in `get_row_and_optional_column` (`xlsx/mod.rs:2838`), parsing a base-26 column-letter
+   run with no length bound. Release builds wrap instead; on the artifact in hand the wrapped value
+   then fails to parse and `compare_bytes` returns a clean `Err(sheet is malformed)`. **Debug builds
+   are not an edge case** — every downstream `cargo test` is one.
+
+**Whose fix.** Both should be reported upstream. Defect 1 is additionally ours to close without
+waiting: `src/open.rs:185` (`open_workbook_from_cursor`) is a single choke point, and the CFB parser
+is unreachable if non-ZIP input is declined there. The design question that makes it a unit rather
+than a one-liner is classification — our own encrypted-workbook fixture and the crash artifact share
+the CFB magic (`d0cf11e0a1b11ae1`), and legacy `.xls` does too, so "reject CFB" and "report
+`EncryptedWorkbook`" are not the same rule. Defect 2 is not reachable by that pre-screen (it lives
+inside a valid archive) and may be upstream-only.
+
+Until both are closed, the threat model's assurance row for this property reads **No**, not
+"Partially".
 
 ## 8. Resource hardening
 
@@ -79,6 +133,24 @@ Fuzz and tests should cover:
 - maximum returned diff count;
 - cancellation during long comparison;
 - large shared string tables if the reader exposes them.
+
+**Annotated M9 unit 01 (unreleased) — unmet, stated here because this is an imperative requirement,
+not a sketch.** `fuzz_self_comparison` drives `AlignmentMode` and a `Limits::hardened()`-bounded
+subset of `Limits` from its fuzz input (`fuzz/src/self_seed.rs`), covering the first two items:
+maximum sheet count and maximum cell count are both `hardened()` fields, exercised whenever a
+generated workbook's size approaches them. **The third and fourth are not covered, and the fourth
+cannot be, by construction:**
+- *Maximum returned diff count* (`max_diffs_returned`) is not driven by either target; adding it is
+  in scope for a future unit and is a small, additive change to `self_seed.rs`.
+- *Cancellation during a long comparison* needs a second thread to trip the token mid-comparison
+  (`tests/alignment_cancellation.rs` does exactly this, outside fuzzing). **A libFuzzer target has no
+  second thread of its own to drive one from** — `fuzz_target!` runs the harness function to
+  completion on the calling thread, and spawning a thread inside the harness to race a cancellation
+  against a comparison the fuzzer controls the size of would make the target's own behaviour
+  non-deterministic input-to-input, which coverage-guided fuzzing depends on not being. The honest
+  answer is that this item is not fuzzable as stated; it is tested by `tests/alignment_cancellation.rs`
+  instead, which is where the requirement is actually met.
+- *Large shared string tables*: not investigated this unit; out of scope, not named as covered.
 
 ## 9. CI integration
 
@@ -94,3 +166,13 @@ Fuzz and tests should cover:
 - At least one fuzz target is documented for maintainers.
 - Security policy states that files are untrusted input and external links are
   never followed.
+
+**Annotated M9 unit 01 (unreleased).** `try_from_bytes` names an API that no longer exists
+(`grep -rn try_from_bytes src/` finds nothing) — pre-2.0 wording, not a regression, not rewritten
+here. The equivalent malformed-bytes property (`compare_bytes` must not panic) is what
+`fuzz_open_xlsx_bytes` fuzzes, and both fuzz targets are documented in `fuzz/README.md`.
+`fuzz_self_comparison` adds a second, stronger criterion this RFC did not ask for: not merely "did
+not panic" but "gave the only correct answer" — and, reaching the reader for the first time, found
+two crashes in `calamine` neither fuzz target nor this RFC's acceptance criteria had ever exercised
+(unfixed; see the review request). Nothing here claims those crashes as covered — they are the
+newly-found gap, not the closed criterion.

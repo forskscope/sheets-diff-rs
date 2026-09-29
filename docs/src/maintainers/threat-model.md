@@ -154,6 +154,47 @@ is an out-of-memory abort, not an error a caller can handle — exactly the fail
 the *Availability of the host process* asset names — and the workbook needed
 nothing but a populated cell far from the data.
 
+**Two inputs that defeat every bound (M9 unit 01, 2026-09-29, unfixed).** The f123 paragraph above
+is not the only way to reach the *Availability of the host process* asset, and the other way needs no
+large workbook at all.
+
+**A 512-byte file provokes a single 9,261,285,372-byte allocation.** `Xlsx::new` calls
+`check_for_password_protected` before returning, which parses the bytes as a CFB (OLE2) container;
+a DIFAT-sector-count field from the CFB header reaches `Vec::with_capacity` without being checked
+against the file's actual size (`calamine` 0.36.1, `cfb.rs:224` → `:260`, from `xlsx/mod.rs:2939`).
+Reproduced from the public API: `compare_bytes` on 512 bytes, `memory allocation of 9261285372 bytes
+failed`. **Every bound this document credits is upstream of it.** `max_input_bytes` bounds the
+*input's* length — 512 bytes passes it trivially — while the allocation's size comes from a field
+*inside* that input. `max_cells_read` and `max_alignment_product` are never reached; no sheet is read.
+**`Limits::hardened()`, which this document and the README recommend for untrusted input, does not
+prevent it** — verified, same abort. It is an abort, not an `Err`, so a caller cannot handle it, and
+the file is hand-craftable: the fuzzer minimized it to 515 bytes, but nothing about it requires a
+fuzzer to construct.
+
+**A crafted worksheet panics in any build with debug assertions on** — "attempt to multiply with
+overflow" in `get_row_and_optional_column` (`xlsx/mod.rs:2838`), a base-26 column-letter run with no
+length bound. In release the multiply wraps and, on the artifact in hand, the sheet then fails to
+parse and `compare_bytes` returns `Err(sheet is malformed)`. Debug builds are not an edge case: every
+downstream `cargo test` is one.
+
+**Status and disposition.** Both frames are `calamine`'s; the broken promise is this crate's, because
+the API that aborts is `sheets_diff::compare_bytes` (RFC-028 §7). Both should go upstream. The first
+is additionally ours to close without waiting for an upstream release: `src/open.rs:185` is a single
+choke point and the CFB parser is unreachable if non-ZIP input is declined before delegating — with a
+classification question attached, since an encrypted `.xlsx`, a legacy `.xls` and this crash artifact
+all begin `d0cf11e0a1b11ae1`. **Present in every released version**, including 3.1.0; not introduced by
+any recent change, only now visible, because the fuzz target that was supposed to find it had never
+reached the code.
+
+**How this went unseen for eleven releases** is the part worth keeping. The assurance table below
+listed "No panic on arbitrary/malformed input" as *Partially* covered and cited `fuzz_open_xlsx_bytes`
+as the evidence. That target split its input at `data.len() / 2`, so no seed could be a valid
+workbook, and every run of it since 2.0.0 fuzzed the ZIP-header check and stopped. The row was
+accurate about the target existing and wrong about what it tested — the same shape as the "~15 ms"
+corrected on 2026-09-29 one section above, and as the `ContentSimilarity` and `cells_read` defects
+before it. **A named check is not evidence until something demonstrates it reaches the code it
+names.**
+
 **The bound fired after the spend.** `max_cells_read` was checked in a loop over
 the finished `Range`, so it ran only after the allocation it exists to prevent,
 and the cancellation poll lived in the same loop and could not run first either.
@@ -319,7 +360,7 @@ Said plainly, because the failure mode of a threat model is overclaiming:
 | Dependency versions come only from crates.io | Yes | `deny.toml` `[sources]` (`unknown-registry`/`unknown-git` denied), CI `deps` job |
 | License compliance | Yes | `deny.toml` `[licenses]` allowlist, CI `deps` job |
 | No `unsafe` code | Yes | `#![forbid(unsafe_code)]` in `src/lib.rs` — a compile error, not a lint |
-| No panic on arbitrary/malformed input | Partially | `fuzz_open_xlsx_bytes` (arbitrary bytes through `compare_bytes`), `fuzz_addr_roundtrip`, `fuzz_range_merge`, `fuzz_diff_options_builder` — bounded smoke runs (`-runs=20000`) in CI's `fuzz-smoke` job, not a continuous fuzzing campaign |
+| No panic on arbitrary/malformed input | **No** (2026-09-29) | Two inputs abort or panic through `compare_bytes` — see *Opening a workbook: two inputs that defeat every bound* below. Until M9 unit 01 the evidence cited here was `fuzz_open_xlsx_bytes`, which **had never executed a line past the ZIP-header check**: its corpus could not reach the reader, so this row was backed by a target that fuzzed the archive opener and nothing else. The other three targets (`fuzz_addr_roundtrip`, `fuzz_range_merge`, `fuzz_diff_options_builder`) do test what they claim; they do not touch workbook parsing. Bounded smoke runs (`-runs=20000`) in CI's `fuzz-smoke` job, not a continuous campaign |
 | Full feature-combination matrix builds and tests | Yes | CI `test` job — 5 feature combinations × 2 OSes |
 | MSRV floor is real, not merely declared | Yes | CI `msrv` job — builds at the pinned toolchain, asserts the resolved version matches |
 | Comparison output does not silently drift | Yes | The fixture corpus (`tests/fixtures/generated/*/expected.json`) — CI `tree` job additionally asserts the test suite itself never dirties the working tree |
