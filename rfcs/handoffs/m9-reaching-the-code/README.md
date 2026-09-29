@@ -23,6 +23,13 @@ configuration that runs one build twice and several checks not at all.
 
 **Order: 00 first.** The rest in any order; 04 and 06 want measuring together.
 
+**PAUSED 2026-09-29, after unit 01.** Unit 01 did what the milestone was for — it made a check
+reach the code it guards — and the check immediately found a 512-byte input that aborts the calling
+process, in every released version. That is now ahead of the rest of this queue, and the next
+release waits for it (owner, 2026-09-29):
+`rfcs/handoffs/f132-a-512-byte-file-aborts-the-process/01-decline-before-delegating.md`.
+M9 resumes at unit 02 once it ships.
+
 **Unit 00 is first for a practical reason.** It moves standing checks off the
 local machine, and M9's own units will otherwise accumulate scratch the way
 M10's did — 154 GB in `target/scratch` before the audit found it.
