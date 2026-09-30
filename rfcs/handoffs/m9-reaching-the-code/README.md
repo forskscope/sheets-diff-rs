@@ -15,13 +15,26 @@ configuration that runs one build twice and several checks not at all.
 |---|---|---|---|
 | 00 | [CI asserts the standing properties](./00-ci-asserts-the-standing-properties.md) | audit; F-2, F-3 | **First** — makes every later unit cheaper to verify |
 | 01 | [The fuzz corpus cannot reach the sheet reader](./01-the-corpus-cannot-reach-the-reader.md) | D1 | The substantive one |
-| 02 | Deviations from `project-instructions-rust.md` | B1–B4 | |
-| 03 | The remaining record corrections | C4, C6–C9, E, F-2 | |
+| 02 | [Deviations from `project-instructions-rust.md`](./02-the-rule-deviations.md) | B1–B4 | |
+| 03 | [The remaining record corrections](./03-the-records-disagree.md) | C4, C6–C9, E, F-2 | |
 | 04 ✅ | ~~`FormulaUnavailable` is pushed once per cell~~ **→ promoted to and closed as [f135](../f135-a-diagnostic-per-numeric-cell/01-say-it-once-and-mean-the-guard.md)** | O4 | Fixed 2026-09-30: guard renamed `sheet_has_formulas`, computed from whether a formula actually attached, not "the formula pass completed without error." Reports once per sheet per side with a count, not once per cell |
-| 05 | The corpus cannot reach either alignment warning | O-B | D1's shape, in the fixtures **Also owns a mixed formula/plain-numeric scenario** — f135's review found the corpus no longer reaches `formula_unavailable` at all: the two goldens that produced it were doing so by accident, on sheets with no formulas, and the four formula-bearing fixtures are two cells each with formulas on all of them. Second instance of this unit's own shape |
-| 06 | The CLI applies no `Limits` | F-3 | Measure with 04 |
+| 05 | [The corpus cannot reach either alignment warning](./05-the-corpus-cannot-reach-its-own-warnings.md) | O-B | D1's shape, in the fixtures **Also owns a mixed formula/plain-numeric scenario** — f135's review found the corpus no longer reaches `formula_unavailable` at all: the two goldens that produced it were doing so by accident, on sheets with no formulas, and the four formula-bearing fixtures are two cells each with formulas on all of them. Second instance of this unit's own shape |
+| 06 | [The CLI applies no `Limits`](./06-the-cli-bounds-nothing.md) | F-3 | Measure with 04 |
 
-**Order: 00 first.** The rest in any order; 04 and 06 want measuring together.
+**Order: 00 first.** The rest in any order; 04 and 06 wanted measuring together.
+
+**Resumed 2026-09-30. All four remaining handoffs are written**, with every item re-verified on the
+current tree rather than taken from the audit — several had moved, two were already fixed, and C4 had
+got worse. **Recommended order, by value:**
+
+1. **[06](./06-the-cli-bounds-nothing.md)** — the only one with a user-facing edge, and it is a
+   measurement before it is a change. 04 is done (as f135), so it can be measured alone now.
+2. **[05](./05-the-corpus-cannot-reach-its-own-warnings.md)** — three diagnostics no fixture
+   produces. This milestone's own shape, in the fixtures.
+3. **[03](./03-the-records-disagree.md)** — the false statements. Three items need a ruling rather
+   than a fix, and it says which.
+4. **[02](./02-the-rule-deviations.md)** — the largest churn and the least behaviour. Last on
+   purpose, and B3 stays out of scope per the ruling at m8-03's review.
 
 **PAUSED 2026-09-29, after unit 01.** Unit 01 did what the milestone was for — it made a check
 reach the code it guards — and the check immediately found a 512-byte input that aborts the calling
