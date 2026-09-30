@@ -358,18 +358,32 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------------
-  # install -- M9 unit 00. The documented install command, run for real. `cargo install sheets-diff`
-  # with no features installs nothing and exits 0, and a `cli` that stopped implying `chrono` would
-  # install a binary whose `--format json` prints `iso: null` -- both defects that shipped once and
-  # that nothing else here runs the installed binary to see.
+  # install -- M9 unit 00, extended by M9 unit 06 (F-5). The documented install command, run for
+  # real. `cargo install sheets-diff` with no features installs nothing and exits 0, and a `cli`
+  # that stopped implying `chrono` would install a binary whose `--format json` prints `iso: null`
+  # -- both defects that shipped once. Until unit 06, only the second half of that first sentence
+  # was actually run here: the job's own comment claimed the no-features path too, but no step
+  # ever installed with no features and checked it. This is the "F-5" this whole workflow's minimal-
+  # build leg is named for -- the `test` job's `no-default-features` leg (above) covers the
+  # *library*; nothing covered the *install command* a reader of the README would actually type.
   # ---------------------------------------------------------------------------
   install:
-    name: install (cargo install --features cli)
+    name: install (with and without --features cli)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo install --path . --locked (no features) installs nothing
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/sheets-diff-root-no-features"
+          cargo install --path . --locked --root "$root"
+          if [ -e "$root/bin/sheets-diff" ]; then
+            echo "::error::cargo install with no features installed a binary; it should install nothing"
+            exit 1
+          fi
 
       - name: cargo install --path . --features cli --locked
         run: cargo install --path . --features cli --locked --root "$RUNNER_TEMP/sheets-diff-root"

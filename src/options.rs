@@ -355,11 +355,36 @@ impl Limits {
     ///
     /// # Values
     ///
-    /// Chosen to comfortably accommodate an ordinary office workbook while
-    /// bounding each dimension above; they are not individually re-measured
-    /// beyond the alignment bound already justified above. If a specific
-    /// dimension proves too tight in practice, that is a finding to report, not
-    /// a default to silently loosen.
+    /// Chosen to bound each dimension above; they are not individually
+    /// re-measured beyond the alignment bound already justified above. If a
+    /// specific dimension proves too tight in practice, that is a finding to
+    /// report, not a default to silently loosen.
+    ///
+    /// # Where these values actually bind
+    ///
+    /// This section used to say the values "comfortably accommodate an ordinary
+    /// office workbook". **Measured 2026-10-01, that is too strong, and the
+    /// binding dimension is `max_cells_read`** — which counts populated cells
+    /// *cumulatively across both sides*, not per workbook. So the ceiling is
+    /// 2,500,000 populated cells per side for a symmetric pair:
+    ///
+    /// | columns | rows per side before `max_cells_read` fires |
+    /// |---:|---:|
+    /// | 7 | ~357,000 |
+    /// | 10 | ~250,000 |
+    /// | 20 | ~125,000 |
+    ///
+    /// A 500,000-row, 7-column ledger compared against its own revision reads
+    /// 7,000,014 cells and is **refused** under this preset. `max_diffs_returned`
+    /// (1,000,000) binds on the same shape once most rows differ.
+    ///
+    /// That is defensible for the job this preset has — refusing a large
+    /// unknown workbook is what hardening against untrusted input means — but it
+    /// is a different claim from "accommodates an ordinary workbook", and a
+    /// caller choosing this preset for a data-export-sized file should expect
+    /// [`SheetsDiffError::LimitExceeded`] rather than a comparison. Reported by
+    /// M9 unit 06, which is the report this section's own last sentence asks for.
+    /// The values are unchanged.
     pub fn hardened() -> Self {
         Self {
             max_sheets: Some(256),

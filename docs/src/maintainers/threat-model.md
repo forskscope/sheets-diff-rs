@@ -428,6 +428,34 @@ enormous number of sheets, cells, or diffs — this is the documented,
 deliberate trade-off, not an oversight, but it is a real gap for a caller
 who assumes `default()` means "safe."
 
+**The CLI inherits this gap and offers no way out of it (M9 unit 06, 2026-10-01).**
+`src/main.rs` builds its options with none of the four limits set and exposes
+no flag for any of them — `Limits::default()`, unconditionally, for every
+invocation. **Measured rather than assumed to be a problem**: a release
+binary comparing a realistic ledger-shaped workbook (one id/date/product/
+quantity/price/formula-total/note column set, 5% of rows edited) at 10,000 /
+100,000 / 500,000 rows (350 KB / 3.5 MB / 17.5 MB per side) shows peak RSS a
+roughly constant ~38–46× the combined input size at every point on that 50×
+range (28, 264 and 1,308 MiB), and `--format json`'s output a roughly
+constant ~0.6× the combined input — both **proportional, not the
+disproportion class f135 was**, so the CLI's default behaviour on ordinary
+large input is not itself a finding. Peak RSS was, surprisingly, not
+measurably higher for `--format json` than for the text renderer at any size,
+including a stress shape (the same 500,000-row pair with every row edited,
+1,000,000 diffs, a 422 MB JSON result) — the read/compare phase's own memory
+(holding both workbooks' cell maps) dominates before serialisation ever runs,
+so "the JSON result is built as one `String`" is real but is not, at these
+scales, the thing driving peak memory. **What the numbers do say**: the
+500,000-row shape above reads 7,000,014 cells — already past
+`Limits::hardened()`'s own `max_cells_read` (5,000,000) — and the all-edited
+stress shape emits exactly 1,000,000 diffs, `hardened()`'s own
+`max_diffs_returned` ceiling. A future CLI flag selecting `hardened()`
+wholesale would reject both as if they were hostile, which they are not; this
+is not a reason to change `hardened()`'s values (RFC-035's own measurement,
+out of this unit's scope) but it is a real cost of the simplest flag shape,
+worth weighing against per-flag alternatives when that design question is
+decided.
+
 ## Explicit non-defences
 
 Said plainly, because the failure mode of a threat model is overclaiming:
