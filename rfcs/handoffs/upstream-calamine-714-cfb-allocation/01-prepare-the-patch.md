@@ -2,8 +2,35 @@
 
 **Not a `sheets-diff` change. Work on someone else's codebase, prepared here and submitted by the
 owner** (`.git-exclude/rules/004-outward-facing-communication.md`).
-**Written:** 2026-09-29. **Scheduled:** after f133 ships. **Does not gate our release.**
-**Agreed:** owner, 2026-09-29.
+**Written:** 2026-09-29. **Amended 2026-09-30 — read §0 first. Now next: proceed.**
+**Does not gate any release of ours.** **Agreed:** owner, 2026-09-29.
+
+## 0. Amended 2026-09-30 — two allocation sites, not one, and that changes the patch
+
+**Since this was written:** f133, f134 and f135 shipped or merged, 3.2.0 is released,
+GHSA-w5x2-6474-pqp4 is published, and a RustSec advisory for our crate is open as
+[rustsec/advisory-db#3297](https://github.com/rustsec/advisory-db/pull/3297) — whose body states
+publicly that we are *not* filing against `calamine` because no fixed version exists to point at.
+This patch is what would change that, so assume the maintainer may read it in that context. It
+changes nothing about the work; be aware of it in the PR's tone.
+
+**The substantive amendment. Three independent reproductions exist, and they do not all hit the same
+`Vec::with_capacity`.** Arithmetic checked 2026-09-30:
+
+| Reproduction | requested bytes | ÷ 4 | site |
+|---|---:|---:|---|
+| **#714's own** `fat-count.xlsx` | 17,179,869,180 | `0xFFFFFFFF` (`u32::MAX`) | **`fat_len`** — `fats` at `:122` |
+| **ForskScope's** hand-built header | 9,261,023,232 | `0x8A000000` | **`fat_len`** — `fats` at `:122` |
+| **ours** (`tests/fixtures/f132/oom-artifact-515b.bin`) | 9,261,285,372 | `0x8A00FFFF` | **`difat_len`** — `difat` at `:260` |
+
+**A patch that fixes only the DIFAT site leaves both of the other two reproductions working.** The
+DIFAT one is the tempting target, because it has the obvious second bug attached (the count is read
+from `buf[62..76]`, a fourteen-byte slice, where MS-CFB puts it at `72..76`) — and that obviousness
+is exactly the trap. The FAT site at `:122` has no wrong-offset bug and is just as unbounded.
+
+This was inferred from reading the code when this handoff was written; it is now **measured, by two
+parties independently**, one of whom was not looking for it. Fix both. The tests in §3 must cover
+both, which means two artifacts or two crafted headers, not one.
 
 ## Purpose
 
@@ -89,10 +116,16 @@ that allocates nothing large) rather than an abort. Use **#714's own attached `f
 the case if their test conventions allow a fixture; otherwise construct the header in code. Match
 their existing test style — read `tests/` first and follow it rather than importing ours.
 
-**4. Verify against both artifacts.** Ours (`tests/fixtures/f132/oom-artifact-515b.bin`, 512 bytes,
-9.26 GB request) and #714's (`fat-count.xlsx`, 17.1 GB request). Both must return `Err`, under a
-memory cap in a child process — an uncapped run on a machine with lazy overcommit can survive the
-allocation and look like a pass (f132's review found exactly this).
+**4. Verify against both artifacts, and know which site each one exercises** (§0). Ours
+(`tests/fixtures/f132/oom-artifact-515b.bin`, 512 bytes, 9,261,285,372 bytes requested — the
+**DIFAT** site) and #714's (`fat-count.xlsx`, 17,179,869,180 — the **FAT** site). **Both must return
+`Err`.** If only one does, the patch is half done and the other reproduction still works.
+
+Run them **under a memory cap in a child process**. An uncapped run on a machine with lazy overcommit
+survives the allocation and returns an ordinary error, which looks exactly like a pass — f132's review
+hit this, and ForskScope then hit it independently and told us it is the reason a reader of our
+advisory could conclude they were unaffected. **A green test on an uncapped big machine proves
+nothing here**, before or after the patch, so capture the cap in the evidence.
 
 **5. Their gates, not ours.** `cargo test` across their feature sets, `cargo fmt`, `cargo clippy`.
 Do not impose our lint settings, our commit-message style, or our documentation conventions on their
