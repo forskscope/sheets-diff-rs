@@ -4,6 +4,14 @@
 
 ### Documentation
 
+- **The bug-report template now asks the question this crate most needs answered.** It was GitHub's
+  stock default — "Go to '...'", "screenshots", no way to describe a diff defect — so it now asks for
+  the exact invocation and `DiffOptions`, the two input workbooks or a minimal reproducing pair, the
+  feature combination, and, separately, **whether the crate panicked or returned an `Err`**: the
+  no-panic contract is the design goal behind four of this quarter's fixes, so a reporter who answers
+  that has done most of the triage. The "Questions / Feedback" contact link pointed at the repository
+  the reader was already on; it now points at `docs.rs/sheets-diff`.
+
 - **`Limits::hardened()`'s and `Limits::default()`'s values are now asserted by exact value, not
   just presence.** Their documented consequences — `hardened()`'s boundary table, the threat model's
   per-side row figures, `DEFAULT_MAX_ALIGNMENT_PRODUCT`'s ~0.25 s fill and ~95 MiB table size — are
