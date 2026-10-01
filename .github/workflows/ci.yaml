@@ -3,13 +3,16 @@ name: CI
 on:
   push:
     branches: [main]
-    # Release tags (2.6.0, 3.0.0, ...): the `package` job below runs only for these. Every other job
-    # runs too, which re-checks the tagged commit and is deliberate: the tag is what ships.
+    # Release tags (2.6.0, 3.0.0, ...): the `package` and `release` jobs below run only for these.
+    # Every other job runs too, which re-checks the tagged commit and is deliberate: the tag is
+    # what ships.
     tags: ["[0-9]*"]
   pull_request:
   workflow_dispatch:
 
-# RFC-034 §5.4: read-only by default. No job in this workflow needs more.
+# RFC-034 §5.4: read-only by default. Only the `release` job below needs more
+# (contents: write, to publish a GitHub Release), and it is granted that at job level, not here --
+# see that job's own `permissions:` block (github-releases-say-2.3.0 unit 01).
 permissions:
   contents: read
 
@@ -416,3 +419,56 @@ jobs:
           if not found or not all(isinstance(x, str) and x for x in found):
               sys.exit("the installed binary's --format json did not populate CellDateTime.iso: " + repr(found))
           PY
+
+  # ---------------------------------------------------------------------------
+  # release -- github-releases-say-2.3.0 unit 01. The Releases tab was hand-maintained and the
+  # habit lapsed: `releases/latest` said 2.3.0 while crates.io served 3.3.0, and sixteen tags had
+  # no release at all. The body is never hand-written -- it is extracted from CHANGELOG.md, the
+  # one place this project already keeps current, by `.github/scripts/extract-changelog-section.sh`
+  # (also used by the one-time `backfill-releases.sh` for the sixteen that predate this job).
+  #
+  # `needs:` lists every other job: a release published for a commit any gate rejected is worse
+  # than no release at all, and every job this depends on runs unconditionally on a tag push (none
+  # of them carries an `if:` that could skip them and silently satisfy `needs:` with nothing run),
+  # so this cannot pass on the strength of a job that never ran. `package` is included even though
+  # it is itself gated on tags: that gate is the same `startsWith(github.ref, 'refs/tags/')` this
+  # job uses, so on the tag pushes where this job actually runs, `package` runs too.
+  #
+  # Idempotent by construction: `gh release create` falls through to `gh release edit` on the one
+  # error that matters here (the release already exists), so re-running this job for a tag whose
+  # release already exists updates it in place rather than failing or duplicating.
+  # ---------------------------------------------------------------------------
+  release:
+    name: release (gh release, body extracted from CHANGELOG.md)
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      [test, msrv, lint, tree, deps, fuzz-smoke, doctests-nightly, public-api, install, package]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need every tag to find the highest version (below), not just this one
+
+      - name: Publish the release, body extracted from CHANGELOG.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME}"
+          body="$RUNNER_TEMP/release-notes.md"
+          .github/scripts/extract-changelog-section.sh "$version" > "$body"
+
+          # `--latest` only for the highest version tag that exists right now, not simply "this
+          # push": a hotfix tag for an older line must not displace a newer release as `Latest`.
+          highest="$(git tag --list '[0-9]*' --sort=-v:refname | head -n1)"
+          latest_flag="--latest=false"
+          if [ "$version" = "$highest" ]; then
+            latest_flag="--latest"
+          fi
+
+          gh release create "$version" --repo "${{ github.repository }}" --verify-tag \
+            --title "$version" --notes-file "$body" "$latest_flag" \
+          || gh release edit "$version" --repo "${{ github.repository }}" --verify-tag \
+            --title "$version" --notes-file "$body" "$latest_flag"

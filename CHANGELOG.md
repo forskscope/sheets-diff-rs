@@ -22,6 +22,16 @@
   rather than a contract, with why no test can pin it: filtering earlier would produce
   byte-identical output and differ only in peak memory, which this crate exposes no measurement of.
 
+- **GitHub's Releases tab said our latest version was 2.3.0.** It was hand-maintained and the habit
+  lapsed: `releases/latest` returned `2.3.0` (2026-08-16) while crates.io served `3.3.0`, and sixteen
+  tags — every 2.x after 2.3.0, and the whole of 3.x — had no release at all, so the repository's own
+  sidebar told a visitor the project last shipped in August and that a major version did not exist. A
+  new CI job publishes a release on every tag push, after every gate and after the package-dry-run
+  check, with a body **extracted from `CHANGELOG.md`** rather than written by hand — the drift this
+  project has spent a week correcting everywhere else. The sixteen missing releases are backfilled
+  separately by the project owner, from the same extractor, so they are identical in shape to every
+  release this job creates from here on.
+
 ## [3.3.0] - 2026-10-01
 
 **A correctness-and-honesty release: one defect a caller will notice, one piece of our own advice
