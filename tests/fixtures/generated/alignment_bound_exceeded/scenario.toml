@@ -1,0 +1,4 @@
+name        = "alignment_bound_exceeded_under_a_lowered_bound"
+kind        = "feature"
+description = "Two 10-row tables (product 100) under AlignmentMode::RowKey{[1]}. Not large enough to exceed the default max_alignment_product (25,000,000) -- the dedicated test lowers the bound for its one call instead of this fixture being sized for the default, the same reasoning rows 3/4 already apply to a non-default AlignmentMode. No corpus scenario produced alignment_bound_exceeded before this."
+notes       = ""

@@ -1,0 +1,4 @@
+name        = "formula_unavailable_on_a_genuinely_formula_bearing_sheet"
+kind        = "feature"
+description = "A1 is a real formula (=1+1); A2 is a plain numeric cell with no formula at all, changed 10 -> 20 between old and new. Covers formula_unavailable firing on a sheet that genuinely has a formula, which no prior scenario did (f135; RFC-036 #12)."
+notes       = ""

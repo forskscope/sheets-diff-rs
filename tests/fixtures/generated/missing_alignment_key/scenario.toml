@@ -1,0 +1,4 @@
+name        = "missing_alignment_key_under_row_key_alignment"
+kind        = "feature"
+description = "Row 3 has no cell in column A (a subtotal line). Under AlignmentMode::RowKey{[1]}, it is not dropped -- its identical content on both sides pairs it silently -- but raises missing_alignment_key, which no corpus scenario produced before this (f130's own regression lived only in tests/rowkey_keyless_rows.rs, not the corpus)."
+notes       = ""

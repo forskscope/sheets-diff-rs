@@ -18,8 +18,9 @@ configuration that runs one build twice and several checks not at all.
 | 02 | [Deviations from `project-instructions-rust.md`](./02-the-rule-deviations.md) | B1–B4 | |
 | 03 | [The remaining record corrections](./03-the-records-disagree.md) | C4, C6–C9, E, F-2 | |
 | 04 ✅ | ~~`FormulaUnavailable` is pushed once per cell~~ **→ promoted to and closed as [f135](../f135-a-diagnostic-per-numeric-cell/01-say-it-once-and-mean-the-guard.md)** | O4 | Fixed 2026-09-30: guard renamed `sheet_has_formulas`, computed from whether a formula actually attached, not "the formula pass completed without error." Reports once per sheet per side with a count, not once per cell |
-| 05 | [The corpus cannot reach either alignment warning](./05-the-corpus-cannot-reach-its-own-warnings.md) | O-B | D1's shape, in the fixtures **Also owns a mixed formula/plain-numeric scenario** — f135's review found the corpus no longer reaches `formula_unavailable` at all: the two goldens that produced it were doing so by accident, on sheets with no formulas, and the four formula-bearing fixtures are two cells each with formulas on all of them. Second instance of this unit's own shape |
-| 06 | [The CLI applies no `Limits`](./06-the-cli-bounds-nothing.md) | F-3 | Measure with 04 |
+| 05 ✅ | [The corpus cannot reach either alignment warning](./05-the-corpus-cannot-reach-its-own-warnings.md) | O-B | **Closed 2026-10-01.** Three scenarios added (rows 12–14); RFC-036 §5.4 gained the obligation that was never written. D1's shape, in the fixtures **Also owns a mixed formula/plain-numeric scenario** — f135's review found the corpus no longer reaches `formula_unavailable` at all: the two goldens that produced it were doing so by accident, on sheets with no formulas, and the four formula-bearing fixtures are two cells each with formulas on all of them. Second instance of this unit's own shape |
+| 06 ✅ | [The CLI applies no `Limits`](./06-the-cli-bounds-nothing.md) | F-3 | **Closed 2026-10-01.** Measured: proportional, not disproportionate — `src/main.rs` unchanged. Found `Limits::hardened()`'s doc overclaiming |
+| 07 | [The last four diagnostic codes no scenario reaches](./07-the-last-four-codes.md) | — | **Added 2026-10-01** from unit 05's §4, governed by RFC-036 §5.4's new bullet |
 
 **Order: 00 first.** The rest in any order; 04 and 06 wanted measuring together.
 

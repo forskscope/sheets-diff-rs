@@ -94,6 +94,32 @@ fn wb_with_formula(
     wb.save_to_buffer().unwrap()
 }
 
+/// One sheet mixing a formula cell (with a cached numeric result, so the values pass retains it
+/// before the formula pass attaches its text) and a plain numeric cell with no formula at all --
+/// the shape `formula_unavailable` is about (M9 unit 05). `wb_with_formula` above cannot express
+/// this: its "value" cell is always a string, never a plain numeric cell a formula could be
+/// confused for.
+fn wb_formula_and_plain_number(
+    formula_row: u32,
+    formula_col: u16,
+    formula: &str,
+    formula_result: f64,
+    plain_row: u32,
+    plain_col: u16,
+    plain_value: f64,
+) -> Vec<u8> {
+    let mut wb = new_workbook();
+    let ws = wb.add_worksheet();
+    ws.write_formula(
+        formula_row,
+        formula_col,
+        Formula::new(formula).set_result(formula_result.to_string()),
+    )
+    .unwrap();
+    ws.write_number(plain_row, plain_col, plain_value).unwrap();
+    wb.save_to_buffer().unwrap()
+}
+
 fn wb_empty() -> Vec<u8> {
     let mut wb = new_workbook();
     wb.add_worksheet();
@@ -901,6 +927,104 @@ fn main() {
              corpus trip-wire for the exact bug D-01 was (RFC-036 #11).",
         );
         println!("✓ iso_datetime");
+    }
+
+    // 20. Formula unavailable — a sheet with a real formula AND a plain numeric cell with no
+    //     formula at all, so `formula_unavailable` fires on a sheet that genuinely has formulas
+    //     (M9 unit 05, RFC-036 #12). No prior scenario has this shape: `formula`,
+    //     `formula_shifted_origin` and `formula_at_first_cell` are two cells each, formulas on
+    //     both, so there is no plain numeric cell for the diagnostic to count; `chart_sheet` and
+    //     `typed_values` used to produce this diagnostic too, but only because of f135's defect
+    //     (their numeric cells had no formula ANYWHERE on the sheet) -- removing that bug
+    //     correctly took it away from both, which is why neither can be reused to get it back.
+    {
+        let dir = base.join("formula_unavailable");
+        let old = wb_formula_and_plain_number(0, 0, "=1+1", 2.0, 1, 0, 10.0);
+        let new = wb_formula_and_plain_number(0, 0, "=1+1", 2.0, 1, 0, 20.0);
+        write_fixture_pair(&dir, &old, &new);
+        write_scenario(
+            &dir,
+            "formula_unavailable_on_a_genuinely_formula_bearing_sheet",
+            "feature",
+            "A1 is a real formula (=1+1); A2 is a plain numeric cell with no formula at all, \
+             changed 10 -> 20 between old and new. Covers formula_unavailable firing on a sheet \
+             that genuinely has a formula, which no prior scenario did (f135; RFC-036 #12).",
+        );
+        println!("✓ formula_unavailable");
+    }
+
+    // 21. Missing alignment key — a row with no cell in the key column, under RowKey alignment
+    //     (M9 unit 05, RFC-036 #13). Promotes `tests/rowkey_keyless_rows.rs`'s shape (f130) into
+    //     the corpus: the default-options golden sees ordinary Positional output; a dedicated
+    //     test (not this generator) applies RowKey and asserts missing_alignment_key fires.
+    {
+        let dir = base.join("missing_alignment_key");
+        let old = wb_strings(&[
+            (0, 0, "id1"),
+            (0, 1, "v1"),
+            (1, 0, "id2"),
+            (1, 1, "v2"),
+            (2, 1, "subtotal"), // no cell in column A -- the keyless row
+            (3, 0, "id4"),
+            (3, 1, "v4"),
+        ]);
+        let new = wb_strings(&[
+            (0, 0, "id1"),
+            (0, 1, "v1"),
+            (1, 0, "id2"),
+            (1, 1, "v2-changed"),
+            (2, 1, "subtotal"), // identical on both sides: pairs by content, stays silent
+            (3, 0, "id4"),
+            (3, 1, "v4"),
+        ]);
+        write_fixture_pair(&dir, &old, &new);
+        write_scenario(
+            &dir,
+            "missing_alignment_key_under_row_key_alignment",
+            "feature",
+            "Row 3 has no cell in column A (a subtotal line). Under AlignmentMode::RowKey{[1]}, \
+             it is not dropped -- its identical content on both sides pairs it silently -- but \
+             raises missing_alignment_key, which no corpus scenario produced before this (f130's \
+             own regression lived only in tests/rowkey_keyless_rows.rs, not the corpus).",
+        );
+        println!("✓ missing_alignment_key");
+    }
+
+    // 22. Alignment bound exceeded — two 10-row tables, deliberately not large: the dedicated
+    //     test lowers max_alignment_product for its one call rather than this generator
+    //     committing a fixture sized to the default 25,000,000 bound (M9 unit 05, RFC-036 #14).
+    {
+        let dir = base.join("alignment_bound_exceeded");
+        let rows = |suffix: &str| -> Vec<(u32, u16, String)> {
+            (0..10u32)
+                .flat_map(|r| {
+                    vec![
+                        (r, 0u16, format!("id{r}")),
+                        (r, 1u16, format!("v{r}{suffix}")),
+                    ]
+                })
+                .collect()
+        };
+        let build = |suffix: &str| -> Vec<u8> {
+            let owned = rows(suffix);
+            let cells: Vec<(u32, u16, &str)> =
+                owned.iter().map(|(r, c, v)| (*r, *c, v.as_str())).collect();
+            wb_strings(&cells)
+        };
+        let old = build("");
+        let new = build("-changed");
+        write_fixture_pair(&dir, &old, &new);
+        write_scenario(
+            &dir,
+            "alignment_bound_exceeded_under_a_lowered_bound",
+            "feature",
+            "Two 10-row tables (product 100) under AlignmentMode::RowKey{[1]}. Not large enough \
+             to exceed the default max_alignment_product (25,000,000) -- the dedicated test lowers \
+             the bound for its one call instead of this fixture being sized for the default, the \
+             same reasoning rows 3/4 already apply to a non-default AlignmentMode. No corpus \
+             scenario produced alignment_bound_exceeded before this.",
+        );
+        println!("✓ alignment_bound_exceeded");
     }
 
     // Encrypted-workbook fixture (M5 Handoff 03) -- a single standalone

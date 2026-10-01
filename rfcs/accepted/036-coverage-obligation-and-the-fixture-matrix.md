@@ -10,6 +10,24 @@
 matrix row 4). That mode was removed in 3.0.0 — it was `RowKey { columns: vec![1] }` under another name, and the
 corpus scenario `alignment_header_column` now covers that alignment. The matrix row stands as history.
 
+**Note added M9 unit 05 (2026-10-01) — a gap this RFC never named, not an obligation it stated and missed.**
+§5.1's definition is about *behaviour for a dimension*; it never says every `DiagnosticKind` the engine can
+construct must be producible by some scenario. Checked directly: `MissingAlignmentKey`, `AlignmentBoundExceeded`
+and `FormulaUnavailable` are absent from both this RFC's §5.2 matrix and `tests/fixtures/corpus/README.md`'s copy
+of it, and the corpus (`compare_bytes` on every `tests/fixtures/generated/*` pair, default options) produced none
+of them before this unit. **Not a violation of an existing obligation — the obligation was never written.**
+Matrix rows 12–14 close all three: 12 (`formula_unavailable`) through the ordinary default-options path; 13
+(`missing_alignment_key`) and 14 (`alignment_bound_exceeded`) through the same dedicated-non-default-options
+escape hatch rows 3/4 already established for `AlignmentMode` coverage — a committed fixture, picked up by the
+default-options golden like any other, plus a dedicated assertion in `tests/integration.rs` that applies the
+mode or bound the scenario exists to cover. **Proposed sentence for §5.4, not yet ruled on** (this unit's
+handoff: *"propose the one sentence... and let me rule"*): *"Every `DiagnosticKind` variant the engine can
+construct must be reachable by at least one scenario's assertion — through the default-options corpus path
+where possible, or the dedicated-options pattern rows 3/4 established otherwise — or be listed here as
+explicitly deferred with a reason."* Found four more codes with the same gap while checking this
+(`ambiguous_sheet_match`, `unsupported_workbook_metadata`, `defined_name_scope_unknown`,
+`duplicate_alignment_key`) — out of this unit's scope, reported in the review request, not fixed here.
+
 ## 1. Summary
 
 Define what **covered** means for this project, fix the initial set of
@@ -156,6 +174,24 @@ nothing checks.
 - The matrix lives in `tests/fixtures/corpus/README.md` alongside the
   contribution guidance, not only in this RFC, so it is visible where fixtures
   are written.
+- **Every `DiagnosticKind` variant the engine can construct must have a scenario
+  whose assertion fires on that diagnostic** — through the default-options corpus
+  path where the diagnostic's precondition is reachable there, or through the
+  dedicated-options pattern rows 3/4 established otherwise — **or be listed here
+  as explicitly deferred, with a reason.** The assertion must be on the
+  diagnostic itself, per §5.1: a scenario that merely *produces* it while
+  asserting something else does not cover it, and a scenario that produces it by
+  accident covers nothing (two goldens did exactly that for
+  `formula_unavailable` until f135 removed the accident).
+
+  *Adopted 2026-10-01, from M9 unit 05's proposal, with §5.1's "assert on the
+  thing" requirement made explicit. The set is knowable:
+  `every_code_in_the_table_is_producible_and_nothing_else_is` already enumerates
+  it. **Deferred at adoption, pending M9 unit 07:** `ambiguous_sheet_match`,
+  `unsupported_workbook_metadata`, `defined_name_scope_unknown`,
+  `duplicate_alignment_key` — found by unit 05 while closing rows 12–14, and
+  deferred rather than silently absent, which is what the second bullet above
+  asks for.*
 
 ## 6. Testing and verification
 

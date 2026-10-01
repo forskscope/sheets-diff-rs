@@ -118,6 +118,9 @@ for every row below, not just a golden comparison.
 | 9 | `chart_sheet` | the chart-sheet coverage diagnostic had never fired in any test | `chart_sheet_fixture_fires_diagnostic_and_compares_the_worksheet` |
 | 10 | `empty_cell_before_content` | a physically-present-but-empty leading `<c>` element must not anchor the range origin (confirmed against calamine's actual behaviour, not just its source) | `empty_cell_before_content_fixture_does_not_anchor_origin` |
 | 11 | `iso_datetime` | promotes RFC-035 Handoff 05's hand-built ISO-datetime reachability test into a durable corpus trip-wire | `iso_datetime_fixture_detects_change` |
+| 12 | `formula_unavailable` | `formula_unavailable` firing on a sheet that **genuinely has a formula** — the four prior formula fixtures are two cells each, formulas on both, so none had a plain numeric cell for it to count; `chart_sheet` and `typed_values` used to produce it too, but only as f135's defect (no formula anywhere on the sheet), and correctly stopped once that was fixed | `formula_unavailable_fixture_fires_on_a_genuinely_formula_bearing_sheet` |
+| 13 | `missing_alignment_key` | `missing_alignment_key` — zero coverage in the corpus before this (only a hand-built, non-corpus unit test, `tests/rowkey_keyless_rows.rs`, f130) | `missing_alignment_key_fixture_fires_under_row_key_alignment` |
+| 14 | `alignment_bound_exceeded` | `alignment_bound_exceeded` — zero coverage in the corpus before this; the default bound (25,000,000) is never approached by a committed-size fixture, so the dedicated assertion lowers it for the one call, same escape hatch rows 3/4 already use for a non-default `AlignmentMode` | `alignment_bound_exceeded_fixture_fires_under_a_lowered_bound` |
 
 Scenarios 1–9 are pure `rust_xlsxwriter` output (RFC-036 Handoff 02); 10 and
 11 are generated then XML-patched via `patch_xlsx_xml`, duplicated into
@@ -125,7 +128,25 @@ Scenarios 1–9 are pure `rust_xlsxwriter` output (RFC-036 Handoff 02); 10 and
 generator-independence reason the other builders there are duplicated
 (Handoff 03 §1) — because `rust_xlsxwriter` has no way to emit either
 pattern (a physically-present empty cell nothing was written to; a `t="d"`
-ISO-typed cell).
+ISO-typed cell). 12–14 are plain `rust_xlsxwriter` output: 12 gives a formula
+cell a cached result via `Formula::set_result` alongside an ordinary numeric
+cell; 13 is `tests/rowkey_keyless_rows.rs`'s shape (a row with no cell in the
+key column) promoted into the corpus; 14 is two 10-row tables, deliberately
+not large — `max_alignment_product` is lowered to 50 for the one dedicated
+call that needs it, rather than committing a fixture sized to the default
+25,000,000 bound.
+
+**13 and 14 need a non-default `AlignmentMode` (13) or a non-default `max_alignment_product` (14),
+and the golden mechanism (`generated_fixtures_match_golden`, `scenario.toml`) has no per-scenario
+options at all — confirmed by reading both, not assumed.** Rows 3/4 above already established the
+pattern this project uses for exactly that case: the fixture is committed like any other, picked
+up by the ordinary default-options golden like any other (under `Positional`, neither diagnostic
+fires, which is correct and expected), and a **dedicated** assertion in `tests/integration.rs`
+calls `compare_bytes_with_options` directly to exercise the mode or bound the scenario exists to
+cover. This is a committed-fixture test, not a one-off harness disconnected from the corpus — the
+same distinction rows 3/4 already draw. Adding true per-scenario options to `scenario.toml` itself,
+so a future scenario could reach a mode-dependent diagnostic through the *default*-options path, is
+a separate, larger question about the corpus machinery and not needed for these two.
 
 Full derivation, including the two findings that are *not* fixture gaps —
 `CellValue::Integer`/`Duration`/`Unsupported` cannot occur through any

@@ -1,0 +1,280 @@
+{
+  "old": {
+    "source": {
+      "kind": "Bytes",
+      "display_name": null
+    },
+    "workbook_name": null,
+    "sheet_count": 1
+  },
+  "new": {
+    "source": {
+      "kind": "Bytes",
+      "display_name": null
+    },
+    "workbook_name": null,
+    "sheet_count": 1
+  },
+  "sheets": [
+    {
+      "old_sheet": {
+        "name": "Sheet1",
+        "index": 0
+      },
+      "new_sheet": {
+        "name": "Sheet1",
+        "index": 0
+      },
+      "change": "Modified",
+      "cell_diffs": [
+        {
+          "address": {
+            "row": 1,
+            "col": 2,
+            "a1": "B1"
+          },
+          "value": {
+            "old": {
+              "Text": "v0"
+            },
+            "new": {
+              "Text": "v0-changed"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 2,
+            "col": 2,
+            "a1": "B2"
+          },
+          "value": {
+            "old": {
+              "Text": "v1"
+            },
+            "new": {
+              "Text": "v1-changed"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 3,
+            "col": 2,
+            "a1": "B3"
+          },
+          "value": {
+            "old": {
+              "Text": "v2"
+            },
+            "new": {
+              "Text": "v2-changed"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 4,
+            "col": 2,
+            "a1": "B4"
+          },
+          "value": {
+            "old": {
+              "Text": "v3"
+            },
+            "new": {
+              "Text": "v3-changed"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 5,
+            "col": 2,
+            "a1": "B5"
+          },
+          "value": {
+            "old": {
+              "Text": "v4"
+            },
+            "new": {
+              "Text": "v4-changed"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 6,
+            "col": 2,
+            "a1": "B6"
+          },
+          "value": {
+            "old": {
+              "Text": "v5"
+            },
+            "new": {
+              "Text": "v5-changed"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 7,
+            "col": 2,
+            "a1": "B7"
+          },
+          "value": {
+            "old": {
+              "Text": "v6"
+            },
+            "new": {
+              "Text": "v6-changed"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 8,
+            "col": 2,
+            "a1": "B8"
+          },
+          "value": {
+            "old": {
+              "Text": "v7"
+            },
+            "new": {
+              "Text": "v7-changed"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 9,
+            "col": 2,
+            "a1": "B9"
+          },
+          "value": {
+            "old": {
+              "Text": "v8"
+            },
+            "new": {
+              "Text": "v8-changed"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
+            "row": 10,
+            "col": 2,
+            "a1": "B10"
+          },
+          "value": {
+            "old": {
+              "Text": "v9"
+            },
+            "new": {
+              "Text": "v9-changed"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        }
+      ],
+      "compared_range": {
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          10,
+          2
+        ]
+      },
+      "alignment_summary": null,
+      "diagnostics": [],
+      "summary": {
+        "cells_changed": 10,
+        "values_changed": 10,
+        "formulas_changed": 0
+      }
+    }
+  ],
+  "workbook_changes": [],
+  "object_changes": [],
+  "diagnostics": [
+    {
+      "severity": "Info",
+      "kind": {
+        "UnsupportedWorkbookFeature": {
+          "feature": "non-cell objects"
+        }
+      },
+      "location": {
+        "stage": "Metadata",
+        "sheet_order": null,
+        "sheet_name": null,
+        "address": null
+      },
+      "message": "not compared: charts, images, comments, data validation, and conditional formatting (unavailable in calamine 0.36's API); hyperlinks, merged regions, tables, and pivot tables (available upstream, not yet used by this crate)"
+    }
+  ],
+  "summary": {
+    "sheets_added": 0,
+    "sheets_removed": 0,
+    "sheets_renamed": 0,
+    "sheets_moved": 0,
+    "sheets_changed": 1,
+    "cells_changed": 10,
+    "values_changed": 10,
+    "formulas_changed": 0,
+    "diagnostics": {
+      "warnings": 0,
+      "info": 1
+    }
+  },
+  "metrics": {
+    "sheets_read": 1,
+    "cells_read": 40,
+    "cells_compared": 20,
+    "diffs_emitted": 10,
+    "diagnostics_emitted": 1
+  }
+}

@@ -10,10 +10,10 @@ use rust_xlsxwriter::Workbook;
 use support::*;
 
 use sheets_diff::{
-    Cancellation, CellChangeKind, CellError, CellValue, DateComparePolicy, DiffEvent, DiffOptions,
-    FormulaCompareMode, SheetChange, SheetMatchingMode, SheetsDiffError, ValueDifferenceKind,
-    compare_bytes, compare_bytes_with_options, compare_paths_with_options,
-    compare_readers_with_options,
+    Cancellation, CellChangeKind, CellError, CellValue, DateComparePolicy, DiagnosticKind,
+    DiffEvent, DiffOptions, FormulaCompareMode, Severity, SheetChange, SheetMatchingMode,
+    SheetsDiffError, ValueDifferenceKind, compare_bytes, compare_bytes_with_options,
+    compare_paths_with_options, compare_readers_with_options,
     output::text::{render_summary, render_unified},
 };
 
@@ -2135,6 +2135,45 @@ fn formula_at_first_cell_fixture_negative_control() {
     assert_eq!(diff.sheets[0].cell_diffs[0].address.a1, "A1");
 }
 
+// #12 — formula_unavailable on a sheet that genuinely has a formula (M9 unit 05) -------------
+
+/// Asserts the diagnostic is actually present in the golden, not just that the golden exists
+/// (M9 unit 05 §3): a future change that silently stops emitting `formula_unavailable` on a
+/// genuinely formula-bearing sheet must fail here, not pass quietly with a regenerated golden.
+#[test]
+fn formula_unavailable_fixture_fires_on_a_genuinely_formula_bearing_sheet() {
+    let (old, new) = read_fixture_pair("formula_unavailable");
+    let diff = compare_bytes(&old, &new).unwrap();
+
+    assert_eq!(diff.sheets[0].cell_diffs.len(), 1);
+    assert_eq!(diff.sheets[0].cell_diffs[0].address.a1, "A2");
+
+    let unavailable: Vec<_> = diff.sheets[0]
+        .diagnostics
+        .iter()
+        .filter(|d| d.kind.code() == "formula_unavailable")
+        .collect();
+    assert_eq!(
+        unavailable.len(),
+        2,
+        "one per side (old read, new read): {:?}",
+        diff.sheets[0].diagnostics
+    );
+    for d in &unavailable {
+        assert_eq!(d.severity, Severity::Info);
+        assert!(
+            d.location.address.is_none(),
+            "not about one cell: {:?}",
+            d.location
+        );
+        assert!(
+            d.message.contains('1'),
+            "message should carry the count: {}",
+            d.message
+        );
+    }
+}
+
 // #3, #4 — alignment modes with zero prior coverage -------------------------
 
 #[test]
@@ -2203,6 +2242,89 @@ fn alignment_header_column_fixture_reduces_cascade() {
     assert_eq!(summary.matched_rows, 4);
     assert_eq!(summary.inserted_rows, 1);
     assert_eq!(summary.removed_rows, 0);
+}
+
+// #13, #14 — alignment diagnostics with zero prior corpus coverage (M9 unit 05) -------------
+
+/// Asserts `missing_alignment_key` is actually in the result, not just that the fixture exists.
+/// Row 3 has no cell in column A; under `Positional` (the golden above) that is invisible —
+/// nothing about this fixture's default-options comparison hints at the key column at all. Only
+/// under `RowKey` does the gap become observable, which is why this needs the dedicated-options
+/// escape hatch rows 3/4 already established, not the golden.
+#[test]
+fn missing_alignment_key_fixture_fires_under_row_key_alignment() {
+    use sheets_diff::options::AlignmentMode;
+
+    let (old, new) = read_fixture_pair("missing_alignment_key");
+    let opts = DiffOptions::builder()
+        .alignment(AlignmentMode::RowKey { columns: vec![1] })
+        .build()
+        .unwrap();
+    let diff = compare_bytes_with_options(&old, &new, opts).unwrap();
+
+    // The keyless row's identical content on both sides pairs it silently; only the keyed B2
+    // change is a real diff.
+    assert_eq!(diff.sheets[0].cell_diffs.len(), 1);
+    assert_eq!(diff.sheets[0].cell_diffs[0].address.a1, "B2");
+
+    let missing: Vec<_> = diff.sheets[0]
+        .diagnostics
+        .iter()
+        .filter(|d| d.kind.code() == "missing_alignment_key")
+        .collect();
+    assert_eq!(missing.len(), 1, "{:?}", diff.sheets[0].diagnostics);
+    assert_eq!(missing[0].severity, Severity::Warning);
+    assert!(
+        matches!(
+            missing[0].kind,
+            DiagnosticKind::MissingAlignmentKey {
+                old_count: 1,
+                new_count: 1
+            }
+        ),
+        "{:?}",
+        missing[0].kind
+    );
+}
+
+/// Asserts `alignment_bound_exceeded` is actually in the result. The fixture's two 10-row tables
+/// (product 100) never approach the default bound (25,000,000) — the point of this test is the
+/// bound, not the fixture's size, so it lowers `max_alignment_product` for this one call rather
+/// than the corpus committing a fixture sized to the real default.
+#[test]
+fn alignment_bound_exceeded_fixture_fires_under_a_lowered_bound() {
+    use sheets_diff::options::AlignmentMode;
+
+    let (old, new) = read_fixture_pair("alignment_bound_exceeded");
+    let opts = DiffOptions::builder()
+        .alignment(AlignmentMode::RowKey { columns: vec![1] })
+        .max_alignment_product(Some(50))
+        .build()
+        .unwrap();
+    let diff = compare_bytes_with_options(&old, &new, opts).unwrap();
+
+    let exceeded: Vec<_> = diff.sheets[0]
+        .diagnostics
+        .iter()
+        .filter(|d| d.kind.code() == "alignment_bound_exceeded")
+        .collect();
+    assert_eq!(exceeded.len(), 1, "{:?}", diff.sheets[0].diagnostics);
+    assert_eq!(exceeded[0].severity, Severity::Warning);
+    assert!(
+        matches!(
+            exceeded[0].kind,
+            DiagnosticKind::AlignmentBoundExceeded {
+                limit: 50,
+                observed: 100
+            }
+        ),
+        "{:?}",
+        exceeded[0].kind
+    );
+    // Degrades to positional comparison, not an error: every row's value changed, so every row
+    // still shows as a change -- the bound firing must not silently drop the comparison itself.
+    assert_eq!(diff.sheets[0].cell_diffs.len(), 10);
+    assert!(diff.sheets[0].alignment_summary.is_none());
 }
 
 // #5 — CellError comparison, zero coverage at any level before this --------

@@ -70,10 +70,15 @@ fn with_mode(mode: SheetMatchingMode) -> DiffOptions {
 // The corpus, against the 2.6.0 baseline
 // ---------------------------------------------------------------------------
 
-/// `(scenario, classification of each sheet in result order)`, generated from the 2.6.0
-/// binary's `--format json` (not typed by hand).
-/// 22 sheets over 19 scenarios; only `renamed_sheet` carries a rename.
+/// `(scenario, classification of each sheet in result order)`. The first 19 rows were generated
+/// from the 2.6.0 binary's `--format json` (not typed by hand); `alignment_bound_exceeded`,
+/// `formula_unavailable` and `missing_alignment_key` did not exist at 2.6.0 and were added by M9
+/// unit 05 (2026-10-01) with their classification as of this corpus's `compare_bytes` default
+/// options (the only options this test ever uses) -- a new baseline going forward, not a claim
+/// about what 2.6.0 would have produced for a scenario it never had.
+/// 25 sheets over 22 scenarios; only `renamed_sheet` carries a rename.
 const BASELINE_2_6_0: &[(&str, &[&str])] = &[
+    ("alignment_bound_exceeded", &["Modified"]),
     ("alignment_header_column", &["Modified"]),
     ("alignment_row_signature", &["Modified"]),
     ("chart_sheet", &["Modified", "Unchanged"]),
@@ -84,7 +89,9 @@ const BASELINE_2_6_0: &[(&str, &[&str])] = &[
     ("formula", &["Modified"]),
     ("formula_at_first_cell", &["Modified"]),
     ("formula_shifted_origin", &["Modified"]),
+    ("formula_unavailable", &["Modified"]),
     ("iso_datetime", &["Modified"]),
+    ("missing_alignment_key", &["Modified"]),
     ("non_ascii_text", &["Modified"]),
     ("renamed_sheet", &["Renamed(Medium)"]),
     ("row_insertion_cascade", &["Modified"]),
