@@ -103,7 +103,10 @@ matter to someone who already acted on the old documentation.
    - `cargo publish --dry-run` at 3.3.0, packaged list checked for `.git-exclude/` entries **and for
      the 24 new fixture files** — six new scenarios × four files (`old.xlsx`, `new.xlsx`,
      `expected.json`, `scenario.toml`), verified by `git diff --name-status 3.2.0..HEAD`, plus
-     three modified goldens; confirm they are in and nothing under `fuzz/corpus*/` is;
+     **two** modified goldens (`chart_sheet`, `typed_values`); confirm they are in and nothing
+     under `fuzz/corpus*/` is. *(This handoff first said three modified goldens. The third
+     changed file under `tests/fixtures/` is `corpus/README.md` — documentation, not a golden.
+     Corrected from the dev team's finding 2.)*
    - the documented install command at 3.3.0, with `--format json` populating `iso`;
    - **a last read of `docs/` and the CHANGELOG against each other.** Seven sweeps have found
      something every time. The likely places this cycle: any remaining claim that

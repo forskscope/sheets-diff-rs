@@ -200,18 +200,32 @@ assert!(warning.message.contains("chart sheet"));
 comparison found any cell differences — `Ok` says the comparison
 completed, not that everything was compared. Two `Warning`-severity
 diagnostics appear here (one emitted per side, since the chart sheet
-exists — unchanged — in both the old and new workbook) plus five `Info`
-diagnostics. One is emitted on **every** comparison unconditionally: a
+exists — unchanged — in both the old and new workbook) plus **one** `Info`
+diagnostic, which is emitted on **every** comparison unconditionally: a
 blanket coverage note listing everything this engine never compares
 (charts, images, comments, data validation, conditional formatting;
 hyperlinks, merged regions, tables, and pivot tables — see
 [non-goals and limitations](non-goals.md) for which of those are upstream
-gaps and which are simply not implemented yet). The other four are
-`formula_unavailable`, attached to `Sheet1` rather than to the workbook: one per
-numeric cell whose formula text could not be read, which is expected for a plain
-number. `DiffSummary::diagnostics` counts both levels — the workbook's own and
-every sheet's — so it agrees with `DiffMetrics::diagnostics_emitted`. (It used to
-count only the workbook's, and so would have said `info == 1` here.)
+gaps and which are simply not implemented yet). Neither sheet carries a
+diagnostic of its own here. `DiffSummary::diagnostics` counts both levels —
+the workbook's own and every sheet's — so it agrees with
+`DiffMetrics::diagnostics_emitted`, which is `3` for this comparison.
 `DiagnosticKind::code()`
 is the stable, programmatic identifier — this crate's own GUI-embedding
 consumer matches on it rather than the human-readable `message`.
+
+> **Corrected 2026-10-01, before the 3.3.0 cut.** Until this edit the paragraph
+> above said there were *five* `Info` diagnostics here, four of them
+> `formula_unavailable` on `Sheet1`, "one per numeric cell whose formula text
+> could not be read". That was true before 3.3.0 and is the defect 3.3.0 fixes:
+> the diagnostic fired on sheets with no formulas at all, once per numeric cell.
+> It is now at most one per sheet per side, carrying a count, and `Sheet1` has no
+> formulas, so it does not fire here at all.
+>
+> **The `assert_eq!` above was corrected when the defect was fixed; this prose was
+> not.** A compiled assertion and the sentence explaining it disagreed for one
+> release cycle, in opposite directions, on this page. The assertion could fail
+> and so it got fixed; the prose could not, and so it did not. Worth stating
+> where it happened: the fixture this example walks through,
+> `tests/fixtures/generated/chart_sheet/`, is the same one whose golden the fix
+> moved — so everything needed to notice was in the same change.

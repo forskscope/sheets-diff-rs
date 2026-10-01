@@ -158,8 +158,9 @@ fn write_cell_diff(out: &mut String, cd: &CellDiff) {
 /// A **display** threshold, and deliberately not `DiagnosticOptions::min_severity`,
 /// which is a **collection** filter applied by the engine. They answer different
 /// questions: this one decides what to show of what was collected (an `Info`
-/// diagnostic — `formula_unavailable` is pushed per numeric cell — would drown the
-/// diff), while `min_severity` decides what is kept at all and therefore what the
+/// diagnostic is routine and would drown the diff — `formula_unavailable` fires on
+/// every sheet that has formulas and any plain numeric cell), while `min_severity`
+/// decides what is kept at all and therefore what the
 /// summary counts and what a library caller sees. The renderer cannot show what
 /// `min_severity` dropped.
 const DISPLAY_THRESHOLD: Severity = Severity::Warning;
