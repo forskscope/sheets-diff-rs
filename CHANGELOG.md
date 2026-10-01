@@ -4,6 +4,13 @@
 
 ### Documentation
 
+- **`Limits::hardened()`'s and `Limits::default()`'s values are now asserted by exact value, not
+  just presence.** Their documented consequences — `hardened()`'s boundary table, the threat model's
+  per-side row figures, `DEFAULT_MAX_ALIGNMENT_PRODUCT`'s ~0.25 s fill and ~95 MiB table size — are
+  arithmetic over those constants, and the only test touching them checked `.is_some()`. Changing a
+  value would have silently falsified the documentation. The tests now name what depends on them, so
+  the failure says which claim was broken rather than only that something was.
+
 - **A promise we made now fails a build if someone breaks it.** 3.3.0's notes said
   `include_formula_cached_values` does not gate whether cached formula values are compared, and that
   we would not implement its old documented meaning. Nothing in this repository would have failed if

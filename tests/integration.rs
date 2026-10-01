@@ -1202,25 +1202,47 @@ fn row_key_alignment_reduces_cascade() {
 // v2.3 — RFC-035 resource bounds
 // ============================================================================
 
+/// Pins the exact values, not just their presence (promises-02). `hardened()`'s own doc comment
+/// derives a table from `max_cells_read` (~357,000 rows/side at 7 columns, ~250,000 at 10,
+/// ~125,000 at 20, and the worked 500,000-row/7-column example reading 7,000,014 cells and being
+/// refused) and the threat model's boundary paragraph repeats it — both go silently wrong if this
+/// constant moves and nothing here notices. The per-side row figures are half of what the raw
+/// constant alone would suggest *because* the count is cumulative across both sides, which
+/// `tests/cells_read.rs::the_count_is_cumulative_across_sheets_and_sides` already pins at small
+/// scale; this test does not re-pin that mechanism, only the constant the table's arithmetic
+/// starts from. `max_cells_compared` is a separate dimension from `max_cells_read` and happens to
+/// share today's value — asserted on its own so a change to one does not silently pass for the
+/// other.
+///
+/// If this test fails because you changed a `hardened()` value: that is allowed (RFC-035 chose
+/// these, not this test), but `hardened()`'s doc comment, the threat model's boundary paragraph,
+/// and this assertion all need to move together.
 #[test]
-fn limits_hardened_bounds_every_dimension() {
+fn limits_hardened_bounds_every_dimension_by_exact_value() {
     use sheets_diff::Limits;
+    use sheets_diff::options::DEFAULT_MAX_ALIGNMENT_PRODUCT;
     let h = Limits::hardened();
-    assert!(h.max_sheets.is_some());
-    assert!(h.max_cells_read.is_some());
-    assert!(h.max_cells_compared.is_some());
-    assert!(h.max_diffs_returned.is_some());
-    assert!(h.max_alignment_product.is_some());
-    assert!(h.max_input_bytes.is_some());
+    assert_eq!(h.max_sheets, Some(256));
+    assert_eq!(h.max_cells_read, Some(5_000_000));
+    assert_eq!(h.max_cells_compared, Some(5_000_000));
+    assert_eq!(h.max_diffs_returned, Some(1_000_000));
+    assert_eq!(h.max_alignment_product, Some(DEFAULT_MAX_ALIGNMENT_PRODUCT));
+    assert_eq!(h.max_input_bytes, Some(50 * 1024 * 1024));
 }
 
+/// Pins the exact values of `Limits::default()`'s two bounded fields (promises-02), not just that
+/// they are `Some`. `DEFAULT_MAX_ALIGNMENT_PRODUCT`'s own doc comment carries the ~95 MiB table
+/// size and ~0.25 s fill figures derived from this exact constant, and `DEFAULT_MAX_INPUT_BYTES`'s
+/// doc comment states "500 MiB" as the value itself — both go silently wrong if the constant moves
+/// and only `.is_some()` is checked.
 #[test]
 fn default_limits_bound_alignment_and_input_but_not_linear_paths() {
     use sheets_diff::Limits;
+    use sheets_diff::options::{DEFAULT_MAX_ALIGNMENT_PRODUCT, DEFAULT_MAX_INPUT_BYTES};
     let d = Limits::default();
-    // Superlinear paths (RFC-035 §5.1) are bounded by default.
-    assert!(d.max_alignment_product.is_some());
-    assert!(d.max_input_bytes.is_some());
+    // Superlinear paths (RFC-035 §5.1) are bounded by default, by this exact value.
+    assert_eq!(d.max_alignment_product, Some(DEFAULT_MAX_ALIGNMENT_PRODUCT));
+    assert_eq!(d.max_input_bytes, Some(DEFAULT_MAX_INPUT_BYTES));
     // Linear paths stay opt-in.
     assert!(d.max_sheets.is_none());
     assert!(d.max_cells_read.is_none());
