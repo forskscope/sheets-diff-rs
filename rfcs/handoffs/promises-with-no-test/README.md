@@ -28,4 +28,5 @@ they measured. This is a claim with **nothing measuring it at all**.
 
 | | Unit | Nature |
 |---|---|---|
-| 01 | [Pin the cached-value promise, and survey what else is unpinned](./01-pin-the-promise.md) | One guard, plus a reported list |
+| 01 ✅ | [Pin the cached-value promise, and survey what else is unpinned](./01-pin-the-promise.md) | One guard, plus a reported list |
+| 02 | [Pin `hardened()`'s constants](./02-pin-the-hardened-constants.md) | From 01's survey. The documented boundary is arithmetic over one unpinned constant |

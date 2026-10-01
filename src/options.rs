@@ -578,6 +578,13 @@ pub struct DiagnosticOptions {
     /// a defect in whatever emits it. (Noted 2026-09-30 by a consumer who nearly reached for this to
     /// contain the per-cell `formula_unavailable` flood fixed in 3.3.0.)
     ///
+    /// That paragraph is **advice about mechanism, not a behavioural contract**, and no test pins it
+    /// — deliberately. Filtering at the push sites instead would produce byte-identical results and
+    /// differ only in peak memory, which this crate exposes no public measurement of, so the claim
+    /// has no observable consequence to assert on. If the filter ever moves, this paragraph is what
+    /// needs revisiting; there is nothing that would fail first. Recorded here so the next survey of
+    /// unpinned promises does not re-raise it as a gap.
+    ///
     /// Set it with [`DiffOptionsBuilder::min_severity`], or assign the field:
     ///
     /// ```

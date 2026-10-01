@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Documentation
+
+- **A promise we made now fails a build if someone breaks it.** 3.3.0's notes said
+  `include_formula_cached_values` does not gate whether cached formula values are compared, and that
+  we would not implement its old documented meaning. Nothing in this repository would have failed if
+  someone did — the commitment lived in a doc comment, a CHANGELOG entry and a letter. A test now
+  asserts that a formula cell whose cached value differs produces the same `CellDiff` with the option
+  `true` and `false`, and it fails if the old meaning is implemented. Prompted by a consumer
+  observing, about their own equivalent test, that "a commitment in a letter is not a compile error."
+  `min_severity`'s "not a resource control" paragraph is also now labelled as advice about mechanism
+  rather than a contract, with why no test can pin it: filtering earlier would produce
+  byte-identical output and differ only in peak memory, which this crate exposes no measurement of.
+
 ## [3.3.0] - 2026-10-01
 
 **A correctness-and-honesty release: one defect a caller will notice, one piece of our own advice

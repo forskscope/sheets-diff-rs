@@ -307,6 +307,66 @@ fn value_and_formula_both_changed_is_one_cell_diff() {
     );
 }
 
+/// The promise in `ComparisonOptions::include_formula_cached_values`'s doc comment: a formula
+/// cell's cached value is **always** compared, whatever this option is set to. It gates one
+/// `Info` diagnostic per sheet and nothing else. **This is a deliberate commitment, not an
+/// accident.** If you landed here because a change makes this flag skip cached-value
+/// comparison, that is the *old*, incorrect documented meaning being reintroduced — see
+/// `ComparisonOptions::include_formula_cached_values`'s doc comment in `src/options.rs` and the
+/// 3.3.0 CHANGELOG entry for why a downstream consumer must never again be told this costs them
+/// a cached-value change.
+#[test]
+fn include_formula_cached_values_does_not_gate_cached_value_comparison() {
+    // Same formula text on both sides, different cached result (20 vs 999, as verified at
+    // the promise's own review). `set_result` is what lets us control the cached value
+    // directly rather than trusting what the writer happens to compute.
+    let old = wb_formula_and_plain_numbers(&[(0, 0, "=A2+A3", 20.0)], &[]);
+    let new = wb_formula_and_plain_numbers(&[(0, 0, "=A2+A3", 999.0)], &[]);
+
+    // Known risk: a non-empty diff proves nothing about cached-value comparison unless the
+    // formula *text* is identical on both sides. Default `FormulaCompareMode::RawText`
+    // compares that text, so `formula: None` here is proof it was read identical -- not an
+    // assumption about what the writer produced -- and `value: Some(..)` is proof the cached
+    // value genuinely differs.
+    let baseline = compare_bytes(&old, &new).unwrap();
+    let cell = &baseline.sheets[0].cell_diffs[0];
+    assert!(
+        cell.formula.is_none(),
+        "fixture bug: formula text must be identical on both sides, or this test proves nothing"
+    );
+    assert!(
+        cell.value.is_some(),
+        "fixture bug: the cached value must actually differ, or this test proves nothing"
+    );
+
+    let flag_true = compare_bytes_with_options(
+        &old,
+        &new,
+        DiffOptions::builder()
+            .include_formula_cached_values(true)
+            .build()
+            .unwrap(),
+    )
+    .unwrap();
+    let flag_false = compare_bytes_with_options(
+        &old,
+        &new,
+        DiffOptions::builder()
+            .include_formula_cached_values(false)
+            .build()
+            .unwrap(),
+    )
+    .unwrap();
+
+    // Not "both non-empty" -- the promise is that they are the *same*. A flag that gated
+    // cached-value comparison would make `flag_false` empty while `flag_true` is not.
+    assert_eq!(
+        flag_true.sheets[0].cell_diffs, flag_false.sheets[0].cell_diffs,
+        "include_formula_cached_values must not change whether a cached-value difference is \
+         reported -- setting it false does not hide a cached-value change, and never has"
+    );
+}
+
 // ============================================================================
 // sheet-renames
 // ============================================================================
