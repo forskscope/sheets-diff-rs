@@ -53,6 +53,14 @@
 
 ### Documentation
 
+- **The fixture corpus now produces every diagnostic the engine can emit.** Seven codes had no
+  scenario asserting them; two of those were "covered" only by accident, on sheets that could not
+  legitimately produce them. Scenarios 12–17 close all seven, each asserting the diagnostic's
+  payload rather than its code string, and RFC-036 §5.4 now carries the obligation it had never
+  stated — with an explicit allowance for deferring a code by name and reason, which went unused.
+  Also corrected: RFC-009 §5's proposed public `SheetChange` model, which differs from the shipped
+  enum in six ways and had survived two earlier units that both read that file.
+
 - **Internal layout now follows the project's own Rust rule, and two `#[allow]`s are gone.** Five
   modules' inline `#[cfg(test)] mod tests` blocks moved to `src/<module>/tests.rs`, and
   `src/output/mod.rs` became `src/output.rs` in the 2018 style. No test changed: the sorted test-name

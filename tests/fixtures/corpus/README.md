@@ -121,6 +121,9 @@ for every row below, not just a golden comparison.
 | 12 | `formula_unavailable` | `formula_unavailable` firing on a sheet that **genuinely has a formula** — the four prior formula fixtures are two cells each, formulas on both, so none had a plain numeric cell for it to count; `chart_sheet` and `typed_values` used to produce it too, but only as f135's defect (no formula anywhere on the sheet), and correctly stopped once that was fixed | `formula_unavailable_fixture_fires_on_a_genuinely_formula_bearing_sheet` |
 | 13 | `missing_alignment_key` | `missing_alignment_key` — zero coverage in the corpus before this (only a hand-built, non-corpus unit test, `tests/rowkey_keyless_rows.rs`, f130) | `missing_alignment_key_fixture_fires_under_row_key_alignment` |
 | 14 | `alignment_bound_exceeded` | `alignment_bound_exceeded` — zero coverage in the corpus before this; the default bound (25,000,000) is never approached by a committed-size fixture, so the dedicated assertion lowers it for the one call, same escape hatch rows 3/4 already use for a non-default `AlignmentMode` | `alignment_bound_exceeded_fixture_fires_under_a_lowered_bound` |
+| 15 | `ambiguous_sheet_match` | `ambiguous_sheet_match` — zero coverage in the corpus before this; a shape question, not an options one (two old sheets, two new sheets, no name in common, under the default mode) — checked against RFC-009 §8 before writing the fixture: the engine reports both `Added`/`Removed` and an ambiguity `Warning` together, which satisfies and exceeds §8's "either/or"; not a defect | `ambiguous_sheet_match_fixture_fires_under_default_options` |
+| 16 | `duplicate_alignment_key` | `duplicate_alignment_key` — zero coverage in the corpus before this; same dedicated-options pattern as 13/14, a repeated key value under `RowKey` | `duplicate_alignment_key_fixture_fires_under_row_key_alignment` |
+| 17 | `defined_name_changed` | `defined_name_scope_unknown` and `unsupported_workbook_metadata` — zero coverage in the corpus before this; both come from the same unconditional metadata pass (`meta.rs`: "there is no mode to disable or configure it with"), so one scenario (one defined name, target changed) closes both | `defined_name_changed_fixture_fires_both_metadata_codes` |
 
 Scenarios 1–9 are pure `rust_xlsxwriter` output (RFC-036 Handoff 02); 10 and
 11 are generated then XML-patched via `patch_xlsx_xml`, duplicated into
@@ -128,25 +131,34 @@ Scenarios 1–9 are pure `rust_xlsxwriter` output (RFC-036 Handoff 02); 10 and
 generator-independence reason the other builders there are duplicated
 (Handoff 03 §1) — because `rust_xlsxwriter` has no way to emit either
 pattern (a physically-present empty cell nothing was written to; a `t="d"`
-ISO-typed cell). 12–14 are plain `rust_xlsxwriter` output: 12 gives a formula
+ISO-typed cell). 12–17 are plain `rust_xlsxwriter` output: 12 gives a formula
 cell a cached result via `Formula::set_result` alongside an ordinary numeric
 cell; 13 is `tests/rowkey_keyless_rows.rs`'s shape (a row with no cell in the
 key column) promoted into the corpus; 14 is two 10-row tables, deliberately
 not large — `max_alignment_product` is lowered to 50 for the one dedicated
 call that needs it, rather than committing a fixture sized to the default
-25,000,000 bound.
+25,000,000 bound; 15 is two old and two new sheets sharing no name; 16 is
+three rows with one key value repeated; 17 is a single defined name whose
+target differs between old and new.
 
-**13 and 14 need a non-default `AlignmentMode` (13) or a non-default `max_alignment_product` (14),
-and the golden mechanism (`generated_fixtures_match_golden`, `scenario.toml`) has no per-scenario
-options at all — confirmed by reading both, not assumed.** Rows 3/4 above already established the
-pattern this project uses for exactly that case: the fixture is committed like any other, picked
-up by the ordinary default-options golden like any other (under `Positional`, neither diagnostic
-fires, which is correct and expected), and a **dedicated** assertion in `tests/integration.rs`
-calls `compare_bytes_with_options` directly to exercise the mode or bound the scenario exists to
-cover. This is a committed-fixture test, not a one-off harness disconnected from the corpus — the
-same distinction rows 3/4 already draw. Adding true per-scenario options to `scenario.toml` itself,
-so a future scenario could reach a mode-dependent diagnostic through the *default*-options path, is
-a separate, larger question about the corpus machinery and not needed for these two.
+**All seven of the codes M9 unit 05 found missing (three) and unit 07 found missing (four) are now
+covered — none were genuinely unreachable.** §5.4's "explicitly deferred" allowance went unused in
+the end; every code turned out to be a shape question once checked, not an options gap or an
+engine limitation. See RFC-036 §5.4's own annotation for the per-code reasoning.
+
+**13, 14 and 16 need a non-default `AlignmentMode` (13, 16) or a non-default `max_alignment_product`
+(14), and the golden mechanism (`generated_fixtures_match_golden`, `scenario.toml`) has no
+per-scenario options at all — confirmed by reading both, not assumed.** Rows 3/4 above already
+established the pattern this project uses for exactly that case: the fixture is committed like any
+other, picked up by the ordinary default-options golden like any other (under `Positional`, none of
+these diagnostics fire, which is correct and expected), and a **dedicated** assertion in
+`tests/integration.rs` calls `compare_bytes_with_options` directly to exercise the mode or bound
+the scenario exists to cover. This is a committed-fixture test, not a one-off harness disconnected
+from the corpus — the same distinction rows 3/4 already draw. Adding true per-scenario options to
+`scenario.toml` itself, so a future scenario could reach a mode-dependent diagnostic through the
+*default*-options path, is a separate, larger question about the corpus machinery and not needed
+for any of these three. **15 and 17 needed no dedicated options at all** — both are shape-only,
+reached through the ordinary default-options golden directly, same as 12.
 
 Full derivation, including the two findings that are *not* fixture gaps —
 `CellValue::Integer`/`Duration`/`Unsupported` cannot occur through any

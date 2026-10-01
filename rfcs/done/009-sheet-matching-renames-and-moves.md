@@ -41,6 +41,35 @@ v1 compares cells only for sheets with the same name. If a user renames a tab, t
 
 ## 5. External design
 
+> **Corrected M9 unit 07 (2026-10-01): the model below is a proposal, and the shipped public API
+> differs from it in six ways.** M10 unit 01 annotated §6 and §9 and left this section alone, which
+> was an oversight — §5 is headed *External design*, so a reader reaches for it expecting the public
+> surface, and it is the one place in this RFC where being wrong misleads about the API itself rather
+> than about an internal sketch.
+>
+> | §5 proposes | shipped |
+> |---|---|
+> | `SameName` | **does not exist** |
+> | `Ambiguous { candidates }` | **does not exist.** Ambiguity *is* reported — as `Added`/`Removed` plus an `AmbiguousSheetMatch` workbook diagnostic carrying the candidate names, which satisfies §8 — but never as a `SheetChange` variant |
+> | `Renamed { from, to, confidence }` | `Renamed { confidence, reason }` — no `from`/`to`; the names are on the pair's own `SheetRef`s |
+> | `Moved { from_index, to_index }` | bare `Moved` |
+> | `RenamedAndMoved { from, to, from_index, to_index, confidence }` | `RenamedAndMoved { confidence, reason }` |
+> | — | **`Modified`**, which this section does not propose at all |
+> | `SheetMatchingMode::CustomKeys` ("reserved or future") | **does not exist**; three modes shipped |
+>
+> **The code is not wrong here; this section is stale.** The ruling M10 unit 01 gave §6 applies
+> unchanged — a superseded design sketch is a stale paragraph, not a broken promise, and the Status
+> stays *Implemented* because §9's acceptance criteria pass. But a reader who believed this table
+> would write `match` arms that do not compile, so it is annotated rather than left to be discovered.
+>
+> **How it survived M10 unit 01 and M9 unit 07 both.** M10 unit 01 was scoped to
+> `SheetMatchReason`'s naming and followed it into §6. M9 unit 07's handoff told the dev team to
+> check `ambiguous_sheet_match` against **§8** — which they did, correctly finding §8 and the code in
+> agreement, and correctly reporting that the handoff's own claim about a
+> `SheetChange::Ambiguous` variant was unfounded. **The handoff pointed at the wrong section**; §8
+> asks for add/remove-plus-a-warning and gets it. The variant is proposed here, in §5, where nobody
+> was sent to look.
+
 Public model:
 
 ```rust

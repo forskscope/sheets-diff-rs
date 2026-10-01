@@ -193,6 +193,24 @@ nothing checks.
   deferred rather than silently absent, which is what the second bullet above
   asks for.*
 
+  *Closed, M9 unit 07 (2026-10-01) — all four, none genuinely unreachable. Each
+  was a shape question, not an options one, once checked rather than assumed:
+  `ambiguous_sheet_match` (matrix row 15) needs two unmatched sheets on each
+  side under the default mode; `duplicate_alignment_key` (row 16) needs the
+  same dedicated-`RowKey` pattern as rows 3/4/13/14; `unsupported_workbook_metadata`
+  and `defined_name_scope_unknown` (row 17, one scenario closes both — the
+  metadata pass that raises them runs unconditionally, per `meta.rs`'s own doc
+  comment) need only a workbook with one defined name, changed between old and
+  new. `ambiguous_sheet_match` was checked against RFC-009 §8 before a fixture
+  was written, per *Required implementation* 4 of the unit's handoff: the
+  engine reports **both** "leave as add/remove" and an ambiguity warning
+  together, which satisfies and exceeds §8's "either/or" — not a defect.
+  (The unit's own handoff named `SheetChange::Ambiguous` as the expected
+  mechanism; no such variant exists in this crate's model, and none is
+  needed — §8 asks for add/remove-plus-warning, which is what the two
+  existing mechanisms, `SheetChange::{Added,Removed}` and
+  `DiagnosticKind::AmbiguousSheetMatch`, already give.)*
+
 ## 6. Testing and verification
 
 This RFC *is* test policy; its verification is that the eleven scenarios exist,

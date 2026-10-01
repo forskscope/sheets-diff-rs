@@ -1,0 +1,4 @@
+name        = "ambiguous_sheet_match_two_old_two_new_no_shared_names"
+kind        = "feature"
+description = "Two old sheets (Alpha, Bravo), two new sheets (Charlie, Delta), no name in common. The default mode's conservative_rename sees more than one unmatched sheet on each side, so it is not a sole-remaining-pair rename candidate: both sides are reported Added/Removed and a workbook-level ambiguous_sheet_match Warning names all four candidates. RFC-009 §8 ('ambiguous matches must not be hidden') asks for one of the two; this gives both together. Zero corpus coverage before this."
+notes       = ""

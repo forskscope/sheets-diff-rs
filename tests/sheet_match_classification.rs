@@ -73,16 +73,24 @@ fn with_mode(mode: SheetMatchingMode) -> DiffOptions {
 /// `(scenario, classification of each sheet in result order)`. The first 19 rows were generated
 /// from the 2.6.0 binary's `--format json` (not typed by hand); `alignment_bound_exceeded`,
 /// `formula_unavailable` and `missing_alignment_key` did not exist at 2.6.0 and were added by M9
-/// unit 05 (2026-10-01) with their classification as of this corpus's `compare_bytes` default
-/// options (the only options this test ever uses) -- a new baseline going forward, not a claim
-/// about what 2.6.0 would have produced for a scenario it never had.
-/// 25 sheets over 22 scenarios; only `renamed_sheet` carries a rename.
+/// unit 05 (2026-10-01), and `ambiguous_sheet_match`, `duplicate_alignment_key` and
+/// `defined_name_changed` by M9 unit 07 (2026-10-01) — each with its classification as of this
+/// corpus's `compare_bytes` default options (the only options this test ever uses) -- a new
+/// baseline going forward, not a claim about what 2.6.0 would have produced for a scenario it
+/// never had.
+/// 31 sheets over 25 scenarios; only `renamed_sheet` carries a rename.
 const BASELINE_2_6_0: &[(&str, &[&str])] = &[
     ("alignment_bound_exceeded", &["Modified"]),
     ("alignment_header_column", &["Modified"]),
     ("alignment_row_signature", &["Modified"]),
+    (
+        "ambiguous_sheet_match",
+        &["Removed", "Removed", "Added", "Added"],
+    ),
     ("chart_sheet", &["Modified", "Unchanged"]),
     ("date_column", &["Modified"]),
+    ("defined_name_changed", &["Unchanged"]),
+    ("duplicate_alignment_key", &["Modified"]),
     ("empty_cell_before_content", &["Modified"]),
     ("empty_sheet", &["Unchanged"]),
     ("error_values", &["Modified"]),

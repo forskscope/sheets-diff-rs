@@ -120,6 +120,26 @@ fn wb_formula_and_plain_number(
     wb.save_to_buffer().unwrap()
 }
 
+/// A single sheet plus one defined name pointing at `target` (M9 unit 07).
+fn wb_defined_name(target: &str) -> Vec<u8> {
+    let mut wb = new_workbook();
+    let ws = wb.add_worksheet();
+    ws.write_string(0, 0, "x").unwrap();
+    wb.define_name("MyName", target).unwrap();
+    wb.save_to_buffer().unwrap()
+}
+
+/// One sheet, `(key, value)` rows, column A the key and column B the value (M9 unit 07).
+fn wb_keyed_rows(rows: &[(&str, f64)]) -> Vec<u8> {
+    let mut wb = new_workbook();
+    let ws = wb.add_worksheet();
+    for (r, (key, value)) in rows.iter().enumerate() {
+        ws.write_string(r as u32, 0, *key).unwrap();
+        ws.write_number(r as u32, 1, *value).unwrap();
+    }
+    wb.save_to_buffer().unwrap()
+}
+
 fn wb_empty() -> Vec<u8> {
     let mut wb = new_workbook();
     wb.add_worksheet();
@@ -1025,6 +1045,72 @@ fn main() {
              scenario produced alignment_bound_exceeded before this.",
         );
         println!("✓ alignment_bound_exceeded");
+    }
+
+    // 23. Ambiguous sheet match — two old sheets and two new sheets sharing no names, under the
+    //     default mode (M9 unit 07, RFC-036 #15). A shape question, not an options one: this needs
+    //     no non-default AlignmentMode or bound, just two unmatched sheets on each side. Closes
+    //     ambiguous_sheet_match, zero corpus coverage before this.
+    {
+        let dir = base.join("ambiguous_sheet_match");
+        let cell: &[(u32, u16, &str)] = &[(0, 0, "x")];
+        let old = wb_sheets(&[("Alpha", cell), ("Bravo", cell)]);
+        let new = wb_sheets(&[("Charlie", cell), ("Delta", cell)]);
+        write_fixture_pair(&dir, &old, &new);
+        write_scenario(
+            &dir,
+            "ambiguous_sheet_match_two_old_two_new_no_shared_names",
+            "feature",
+            "Two old sheets (Alpha, Bravo), two new sheets (Charlie, Delta), no name in common. \
+             The default mode's conservative_rename sees more than one unmatched sheet on each \
+             side, so it is not a sole-remaining-pair rename candidate: both sides are reported \
+             Added/Removed and a workbook-level ambiguous_sheet_match Warning names all four \
+             candidates. RFC-009 §8 ('ambiguous matches must not be hidden') asks for one of the \
+             two; this gives both together. Zero corpus coverage before this.",
+        );
+        println!("✓ ambiguous_sheet_match");
+    }
+
+    // 24. Duplicate alignment key — a repeated key value under RowKey, needing the dedicated-
+    //     options pattern rows 3/4/13/14 already use (M9 unit 07, RFC-036 #16).
+    {
+        let dir = base.join("duplicate_alignment_key");
+        let old = wb_keyed_rows(&[("k1", 1.0), ("k1", 2.0), ("k2", 3.0)]);
+        let new = wb_keyed_rows(&[("k1", 1.0), ("k1", 2.5), ("k2", 3.0)]);
+        write_fixture_pair(&dir, &old, &new);
+        write_scenario(
+            &dir,
+            "duplicate_alignment_key_under_row_key_alignment",
+            "feature",
+            "Key \"k1\" appears twice on both sides (rows 0 and 1), key \"k2\" once. Under \
+             AlignmentMode::RowKey{[1]} this raises duplicate_alignment_key (old_count=1, \
+             new_count=1 -- one distinct key repeated on each side), the same dedicated-options \
+             escape hatch rows 3/4/13/14 already use for a non-default AlignmentMode. Zero corpus \
+             coverage before this.",
+        );
+        println!("✓ duplicate_alignment_key");
+    }
+
+    // 25. Defined name changed — closes both defined_name_scope_unknown and
+    //     unsupported_workbook_metadata at once (M9 unit 07, RFC-036 #17). Metadata comparison
+    //     runs unconditionally (meta.rs's own doc comment: "there is no mode to disable or
+    //     configure it with"), so this is a shape question too, under default options.
+    {
+        let dir = base.join("defined_name_changed");
+        let old = wb_defined_name("Sheet1!$A$1");
+        let new = wb_defined_name("Sheet1!$A$2");
+        write_fixture_pair(&dir, &old, &new);
+        write_scenario(
+            &dir,
+            "defined_name_target_changed",
+            "feature",
+            "One defined name (\"MyName\"), target changed between old and new. Raises \
+             defined_name_scope_unknown (Info, once, since a defined name is present at all) and \
+             unsupported_workbook_metadata (Info, category defined_name_changed:myname). Neither \
+             code had corpus coverage before this; both come from the same unconditional metadata \
+             pass, so one scenario closes both.",
+        );
+        println!("✓ defined_name_changed");
     }
 
     // Encrypted-workbook fixture (M5 Handoff 03) -- a single standalone

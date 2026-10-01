@@ -2327,6 +2327,111 @@ fn alignment_bound_exceeded_fixture_fires_under_a_lowered_bound() {
     assert!(diff.sheets[0].alignment_summary.is_none());
 }
 
+// #15, #16, #17 — the last three M9 codes with zero prior corpus coverage ------------------
+
+/// `ambiguous_sheet_match` through the ordinary default-options golden -- no dedicated options
+/// needed, since this is a shape question, not an options one (M9 unit 07).
+#[test]
+fn ambiguous_sheet_match_fixture_fires_under_default_options() {
+    let (old, new) = read_fixture_pair("ambiguous_sheet_match");
+    let diff = compare_bytes(&old, &new).unwrap();
+
+    // Both old sheets Removed, both new sheets Added -- RFC-009 §8 asks for one of
+    // "leave as add/remove" or "an ambiguity warning"; this gives both together.
+    let removed: Vec<_> = diff
+        .sheets
+        .iter()
+        .filter(|s| matches!(s.change, SheetChange::Removed))
+        .collect();
+    let added: Vec<_> = diff
+        .sheets
+        .iter()
+        .filter(|s| matches!(s.change, SheetChange::Added))
+        .collect();
+    assert_eq!(removed.len(), 2, "{:?}", diff.sheets);
+    assert_eq!(added.len(), 2, "{:?}", diff.sheets);
+
+    let warnings: Vec<_> = diff
+        .diagnostics
+        .iter()
+        .filter(|d| d.kind.code() == "ambiguous_sheet_match")
+        .collect();
+    assert_eq!(warnings.len(), 1, "{:?}", diff.diagnostics);
+    assert_eq!(warnings[0].severity, Severity::Warning);
+    match &warnings[0].kind {
+        DiagnosticKind::AmbiguousSheetMatch { candidates } => {
+            let mut names: Vec<&str> = candidates.iter().map(|r| r.name.as_str()).collect();
+            names.sort();
+            assert_eq!(names, ["Charlie", "Delta"], "{candidates:?}");
+        }
+        other => panic!("not AmbiguousSheetMatch: {other:?}"),
+    }
+}
+
+/// `duplicate_alignment_key` under the dedicated-options pattern rows 3/4/13/14 already use.
+#[test]
+fn duplicate_alignment_key_fixture_fires_under_row_key_alignment() {
+    use sheets_diff::options::AlignmentMode;
+
+    let (old, new) = read_fixture_pair("duplicate_alignment_key");
+    let opts = DiffOptions::builder()
+        .alignment(AlignmentMode::RowKey { columns: vec![1] })
+        .build()
+        .unwrap();
+    let diff = compare_bytes_with_options(&old, &new, opts).unwrap();
+
+    let dups: Vec<_> = diff.sheets[0]
+        .diagnostics
+        .iter()
+        .filter(|d| d.kind.code() == "duplicate_alignment_key")
+        .collect();
+    assert_eq!(dups.len(), 1, "{:?}", diff.sheets[0].diagnostics);
+    assert_eq!(dups[0].severity, Severity::Warning);
+    assert!(
+        matches!(
+            dups[0].kind,
+            DiagnosticKind::DuplicateAlignmentKey {
+                old_count: 1,
+                new_count: 1
+            }
+        ),
+        "{:?}",
+        dups[0].kind
+    );
+}
+
+/// `defined_name_scope_unknown` and `unsupported_workbook_metadata` through the ordinary
+/// default-options golden -- both come from the same unconditional metadata pass (`meta.rs`
+/// has no option to disable it), so one scenario closes both at once.
+#[test]
+fn defined_name_changed_fixture_fires_both_metadata_codes() {
+    let (old, new) = read_fixture_pair("defined_name_changed");
+    let diff = compare_bytes(&old, &new).unwrap();
+
+    assert!(
+        diff.diagnostics.iter().any(
+            |d| matches!(d.kind, DiagnosticKind::DefinedNameScopeUnknown)
+                && d.severity == Severity::Info
+        ),
+        "{:?}",
+        diff.diagnostics
+    );
+
+    let changed: Vec<_> = diff
+        .diagnostics
+        .iter()
+        .filter(|d| d.kind.code() == "unsupported_workbook_metadata")
+        .collect();
+    assert_eq!(changed.len(), 1, "{:?}", diff.diagnostics);
+    assert_eq!(changed[0].severity, Severity::Info);
+    match &changed[0].kind {
+        DiagnosticKind::UnsupportedWorkbookMetadata { category } => {
+            assert_eq!(category, "defined_name_changed:myname");
+        }
+        other => panic!("not UnsupportedWorkbookMetadata: {other:?}"),
+    }
+}
+
 // #5 — CellError comparison, zero coverage at any level before this --------
 
 #[test]

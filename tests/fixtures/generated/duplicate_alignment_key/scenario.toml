@@ -1,0 +1,4 @@
+name        = "duplicate_alignment_key_under_row_key_alignment"
+kind        = "feature"
+description = "Key \"k1\" appears twice on both sides (rows 0 and 1), key \"k2\" once. Under AlignmentMode::RowKey{[1]} this raises duplicate_alignment_key (old_count=1, new_count=1 -- one distinct key repeated on each side), the same dedicated-options escape hatch rows 3/4/13/14 already use for a non-default AlignmentMode. Zero corpus coverage before this."
+notes       = ""

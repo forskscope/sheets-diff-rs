@@ -1,0 +1,4 @@
+name        = "defined_name_target_changed"
+kind        = "feature"
+description = "One defined name (\"MyName\"), target changed between old and new. Raises defined_name_scope_unknown (Info, once, since a defined name is present at all) and unsupported_workbook_metadata (Info, category defined_name_changed:myname). Neither code had corpus coverage before this; both come from the same unconditional metadata pass, so one scenario closes both."
+notes       = ""

@@ -84,7 +84,7 @@ fn corpus() -> Vec<(String, WorkbookDiff)> {
         let name = dir.file_name().unwrap().to_string_lossy().into_owned();
         out.push((name, compare_bytes(&old, &new).unwrap()));
     }
-    assert_eq!(out.len(), 22, "the corpus has 22 scenarios");
+    assert_eq!(out.len(), 25, "the corpus has 25 scenarios");
     out
 }
 

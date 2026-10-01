@@ -1,0 +1,115 @@
+{
+  "old": {
+    "source": {
+      "kind": "Bytes",
+      "display_name": null
+    },
+    "workbook_name": null,
+    "sheet_count": 1
+  },
+  "new": {
+    "source": {
+      "kind": "Bytes",
+      "display_name": null
+    },
+    "workbook_name": null,
+    "sheet_count": 1
+  },
+  "sheets": [
+    {
+      "old_sheet": {
+        "name": "Sheet1",
+        "index": 0
+      },
+      "new_sheet": {
+        "name": "Sheet1",
+        "index": 0
+      },
+      "change": "Unchanged",
+      "cell_diffs": [],
+      "compared_range": {
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          1,
+          1
+        ]
+      },
+      "alignment_summary": null,
+      "diagnostics": [],
+      "summary": {
+        "cells_changed": 0,
+        "values_changed": 0,
+        "formulas_changed": 0
+      }
+    }
+  ],
+  "workbook_changes": [],
+  "object_changes": [],
+  "diagnostics": [
+    {
+      "severity": "Info",
+      "kind": {
+        "UnsupportedWorkbookFeature": {
+          "feature": "non-cell objects"
+        }
+      },
+      "location": {
+        "stage": "Metadata",
+        "sheet_order": null,
+        "sheet_name": null,
+        "address": null
+      },
+      "message": "not compared: charts, images, comments, data validation, and conditional formatting (unavailable in calamine 0.36's API); hyperlinks, merged regions, tables, and pivot tables (available upstream, not yet used by this crate)"
+    },
+    {
+      "severity": "Info",
+      "kind": "DefinedNameScopeUnknown",
+      "location": {
+        "stage": "Metadata",
+        "sheet_order": null,
+        "sheet_name": null,
+        "address": null
+      },
+      "message": "defined-name scope is unavailable in calamine 0.36; names are matched by normalized name only"
+    },
+    {
+      "severity": "Info",
+      "kind": {
+        "UnsupportedWorkbookMetadata": {
+          "category": "defined_name_changed:myname"
+        }
+      },
+      "location": {
+        "stage": "Metadata",
+        "sheet_order": null,
+        "sheet_name": null,
+        "address": null
+      },
+      "message": "defined name 'myname' target changed: 'Sheet1!$A$1' → 'Sheet1!$A$2'"
+    }
+  ],
+  "summary": {
+    "sheets_added": 0,
+    "sheets_removed": 0,
+    "sheets_renamed": 0,
+    "sheets_moved": 0,
+    "sheets_changed": 0,
+    "cells_changed": 0,
+    "values_changed": 0,
+    "formulas_changed": 0,
+    "diagnostics": {
+      "warnings": 0,
+      "info": 3
+    }
+  },
+  "metrics": {
+    "sheets_read": 1,
+    "cells_read": 2,
+    "cells_compared": 1,
+    "diffs_emitted": 0,
+    "diagnostics_emitted": 3
+  }
+}

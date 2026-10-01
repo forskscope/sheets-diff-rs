@@ -1,0 +1,260 @@
+{
+  "old": {
+    "source": {
+      "kind": "Bytes",
+      "display_name": null
+    },
+    "workbook_name": null,
+    "sheet_count": 2
+  },
+  "new": {
+    "source": {
+      "kind": "Bytes",
+      "display_name": null
+    },
+    "workbook_name": null,
+    "sheet_count": 2
+  },
+  "sheets": [
+    {
+      "old_sheet": {
+        "name": "Alpha",
+        "index": 0
+      },
+      "new_sheet": null,
+      "change": "Removed",
+      "cell_diffs": [
+        {
+          "address": {
+            "row": 1,
+            "col": 1,
+            "a1": "A1"
+          },
+          "value": {
+            "old": {
+              "Text": "x"
+            },
+            "new": "Empty",
+            "reason": "TypeChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        }
+      ],
+      "compared_range": {
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          1,
+          1
+        ]
+      },
+      "alignment_summary": null,
+      "diagnostics": [],
+      "summary": {
+        "cells_changed": 1,
+        "values_changed": 1,
+        "formulas_changed": 0
+      }
+    },
+    {
+      "old_sheet": {
+        "name": "Bravo",
+        "index": 1
+      },
+      "new_sheet": null,
+      "change": "Removed",
+      "cell_diffs": [
+        {
+          "address": {
+            "row": 1,
+            "col": 1,
+            "a1": "A1"
+          },
+          "value": {
+            "old": {
+              "Text": "x"
+            },
+            "new": "Empty",
+            "reason": "TypeChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        }
+      ],
+      "compared_range": {
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          1,
+          1
+        ]
+      },
+      "alignment_summary": null,
+      "diagnostics": [],
+      "summary": {
+        "cells_changed": 1,
+        "values_changed": 1,
+        "formulas_changed": 0
+      }
+    },
+    {
+      "old_sheet": null,
+      "new_sheet": {
+        "name": "Charlie",
+        "index": 0
+      },
+      "change": "Added",
+      "cell_diffs": [
+        {
+          "address": {
+            "row": 1,
+            "col": 1,
+            "a1": "A1"
+          },
+          "value": {
+            "old": "Empty",
+            "new": {
+              "Text": "x"
+            },
+            "reason": "TypeChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        }
+      ],
+      "compared_range": {
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          1,
+          1
+        ]
+      },
+      "alignment_summary": null,
+      "diagnostics": [],
+      "summary": {
+        "cells_changed": 1,
+        "values_changed": 1,
+        "formulas_changed": 0
+      }
+    },
+    {
+      "old_sheet": null,
+      "new_sheet": {
+        "name": "Delta",
+        "index": 1
+      },
+      "change": "Added",
+      "cell_diffs": [
+        {
+          "address": {
+            "row": 1,
+            "col": 1,
+            "a1": "A1"
+          },
+          "value": {
+            "old": "Empty",
+            "new": {
+              "Text": "x"
+            },
+            "reason": "TypeChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        }
+      ],
+      "compared_range": {
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          1,
+          1
+        ]
+      },
+      "alignment_summary": null,
+      "diagnostics": [],
+      "summary": {
+        "cells_changed": 1,
+        "values_changed": 1,
+        "formulas_changed": 0
+      }
+    }
+  ],
+  "workbook_changes": [],
+  "object_changes": [],
+  "diagnostics": [
+    {
+      "severity": "Warning",
+      "kind": {
+        "AmbiguousSheetMatch": {
+          "candidates": [
+            {
+              "name": "Charlie",
+              "index": 0
+            },
+            {
+              "name": "Delta",
+              "index": 1
+            }
+          ]
+        }
+      },
+      "location": {
+        "stage": "Match",
+        "sheet_order": null,
+        "sheet_name": null,
+        "address": null
+      },
+      "message": "2 removed and 2 added sheets could not be confidently matched; treating all as Added/Removed"
+    },
+    {
+      "severity": "Info",
+      "kind": {
+        "UnsupportedWorkbookFeature": {
+          "feature": "non-cell objects"
+        }
+      },
+      "location": {
+        "stage": "Metadata",
+        "sheet_order": null,
+        "sheet_name": null,
+        "address": null
+      },
+      "message": "not compared: charts, images, comments, data validation, and conditional formatting (unavailable in calamine 0.36's API); hyperlinks, merged regions, tables, and pivot tables (available upstream, not yet used by this crate)"
+    }
+  ],
+  "summary": {
+    "sheets_added": 2,
+    "sheets_removed": 2,
+    "sheets_renamed": 0,
+    "sheets_moved": 0,
+    "sheets_changed": 0,
+    "cells_changed": 4,
+    "values_changed": 4,
+    "formulas_changed": 0,
+    "diagnostics": {
+      "warnings": 1,
+      "info": 1
+    }
+  },
+  "metrics": {
+    "sheets_read": 4,
+    "cells_read": 4,
+    "cells_compared": 4,
+    "diffs_emitted": 4,
+    "diagnostics_emitted": 2
+  }
+}
