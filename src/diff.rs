@@ -343,7 +343,6 @@ fn run_pipeline(
 // Per-sheet processing
 // ---------------------------------------------------------------------------
 
-#[allow(clippy::too_many_arguments)]
 fn process_sheet_pair(
     pair: &MatchedPair,
     old_wb: &mut OpenedWorkbook,
@@ -355,7 +354,7 @@ fn process_sheet_pair(
 ) -> Result<SheetDiff, SheetsDiffError> {
     let mut sheet_diag: Vec<Diagnostic> = Vec::new();
 
-    let (old_map, old_start, old_end) = match &pair.old_sheet {
+    let old: SheetReadResult = match &pair.old_sheet {
         Some(s) => read_sheet_cells(
             old_wb,
             s,
@@ -366,7 +365,7 @@ fn process_sheet_pair(
         )?,
         None => (CellMap::new(), None, None),
     };
-    let (new_map, new_start, new_end) = match &pair.new_sheet {
+    let new: SheetReadResult = match &pair.new_sheet {
         Some(s) => read_sheet_cells(
             new_wb,
             s,
@@ -379,12 +378,8 @@ fn process_sheet_pair(
     };
     build_sheet_diff(
         pair,
-        old_map,
-        old_start,
-        old_end,
-        new_map,
-        new_start,
-        new_end,
+        old,
+        new,
         opts,
         total_diffs,
         total_cells_compared,
@@ -392,15 +387,10 @@ fn process_sheet_pair(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 fn build_sheet_diff(
     pair: &MatchedPair,
-    old_map: CellMap,
-    old_start: Option<(u32, u32)>,
-    old_end: Option<(u32, u32)>,
-    new_map: CellMap,
-    new_start: Option<(u32, u32)>,
-    new_end: Option<(u32, u32)>,
+    (old_map, old_start, old_end): SheetReadResult,
+    (new_map, new_start, new_end): SheetReadResult,
     opts: &DiffOptions,
     total_diffs: &mut u64,
     total_cells_compared: &mut u64,

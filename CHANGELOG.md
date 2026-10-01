@@ -53,6 +53,17 @@
 
 ### Documentation
 
+- **Internal layout now follows the project's own Rust rule, and two `#[allow]`s are gone.** Five
+  modules' inline `#[cfg(test)] mod tests` blocks moved to `src/<module>/tests.rs`, and
+  `src/output/mod.rs` became `src/output.rs` in the 2018 style. No test changed: the sorted test-name
+  inventory is identical before and after under all five feature combinations. `build_sheet_diff`
+  took eleven arguments behind `#[allow(clippy::too_many_arguments)]`; six of them were two
+  `(CellMap, Option<(u32,u32)>, Option<(u32,u32)>)` triples, which is exactly the `SheetReadResult`
+  alias `read_sheet_cells` already returns, so it now takes two and the function body is unchanged.
+  The second `#[allow]`, on a seven-argument function, turned out to be dead — clippy's threshold is
+  *more than* seven. `src/` now carries no `#[allow]` at all, which is what CI's lint comment has
+  always claimed. No public API change.
+
 - **RFC-035 moved to `done/` and the handoff-directory naming rule rewritten to describe what the
   project does.** RFC-035's own Status field was the only signal still calling it unshipped; every
   other reference said 2.3.0. Moving it broke six live links, now fixed. And `rfcs/README.md`
