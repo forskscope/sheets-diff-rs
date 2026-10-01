@@ -94,7 +94,7 @@ produced the 2.2.0 phantom feature.
 
 ### M2 — 2.3.0, "trustworthy results and a defensible posture" — ✅ **COMPLETE 2026-08-16**
 
-Governed by **RFC-035** ([accepted](./rfcs/accepted/035-resource-safety-and-supply-chain-governance.md))
+Governed by **RFC-035** ([implemented in 2.3.0](./rfcs/done/035-resource-safety-and-supply-chain-governance.md))
 for the new policy decisions, plus existing RFCs for the dependency migration
 and the correctness defects. Execution queue:
 [`rfcs/handoffs/035-…/README.md`](./rfcs/handoffs/035-resource-safety-and-supply-chain-governance/README.md).

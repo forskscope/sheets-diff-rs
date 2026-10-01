@@ -70,7 +70,7 @@ incidentally. That is the deeper defect, and it is why this unit is not a rename
 - `docs/src/maintainers/threat-model.md` — the *Sheet reading* section
 - `docs/src/api-guide.md`, `docs/src/semantics.md` if either asserts on it
 - **Every golden under `tests/fixtures/`**
-- `rfcs/done/033-*.md`, `rfcs/accepted/035-*.md`
+- `rfcs/done/033-*.md`, `rfcs/done/035-*.md`
 - `CHANGELOG.md`
 
 ## Non-change scope

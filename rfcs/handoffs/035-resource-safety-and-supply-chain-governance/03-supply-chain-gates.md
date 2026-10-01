@@ -1,6 +1,6 @@
 # Handoff 03 — Supply-chain gates
 
-**Governing RFC.** [RFC-035](../../accepted/035-resource-safety-and-supply-chain-governance.md) §5.5
+**Governing RFC.** [RFC-035](../../done/035-resource-safety-and-supply-chain-governance.md) §5.5
 **Roadmap.** M2, decision D3
 **Sequence.** After unit 02 (merged). Independent of unit 04 — either order.
 

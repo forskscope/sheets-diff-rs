@@ -95,6 +95,14 @@ Exit codes:
 5 = internal error
 ```
 
+> **Corrected M9 unit 03 (2026-10-01).** `src/main.rs` never emits 4 or 5; a cancellation, a
+> `LimitExceeded`, an invalid-options error and every other non-open/read failure all map to **2**
+> (`exit_code_for`), and the CLI's own `--help` text already describes exactly that — 0/1/2/3, with
+> 2's description explicitly covering "a resource limit was hit ... or an internal bug". The five-way
+> split above was this RFC's original proposal and was never built this way; nothing regressed. The
+> table stands as history of the sketch, not as the current contract — see `--help`'s own exit-code
+> text, or `exit_code_for` in `src/main.rs`, for what the CLI actually returns.
+
 ## 6. Internal design
 
 CLI implementation should live in `src/bin/sheets-diff.rs` or a small CLI module that imports the library crate as an external consumer would.

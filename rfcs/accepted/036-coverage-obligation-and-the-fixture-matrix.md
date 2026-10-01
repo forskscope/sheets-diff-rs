@@ -1,6 +1,6 @@
 # RFC-036 — Coverage Obligation and the Fixture Matrix
 
-**Status.** Accepted (2026-08-16) — cleared for implementation; track A units 02–03 are live.
+**Status.** Accepted (2026-08-16) — and **deliberately still `accepted/` rather than `done/`**, ruled M9 unit 03 (2026-10-01): §5.3's coverage obligation is a standing rule with no finished state, and §5.4 gained a new normative sentence as recently as 2026-10-01, which is not something that happens to a historical record. The original eleven-scenario matrix shipped at M3; rows 12–14 were added by M9 unit 05. (The previous wording here — "track A units 02–03 are live" — referred to a tracking scheme that predates M4 and was stale on any reading.)
 **Target:** M3
 **Created:** 2026-08-16
 **Extends:** RFC-015, RFC-030

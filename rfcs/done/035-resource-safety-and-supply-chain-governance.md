@@ -1,6 +1,6 @@
 # RFC-035 — Resource Safety and Supply-Chain Governance
 
-**Status.** Accepted (2026-08-16) — cleared for implementation; units 03–06 are live.
+**Status.** **Implemented (2.3.0)** — moved to `done/` by M9 unit 03 (2026-10-01). Every other signal already said so: `rfcs/README.md` called it "delivered in 2.3.0", its handoff queue reads as finished, and the index marked the handoffs done. Only this field disagreed, and it had said "units 03–06 are live" since 2026-08-16. Its §9 risk item and the `max_alignment_product` figure it justifies were corrected on 2026-09-29 (see the annotation in §9).
 **Target:** M2 / 2.3.0
 **Created:** 2026-08-16
 **Amends:** RFC-012, RFC-016, RFC-024, RFC-026

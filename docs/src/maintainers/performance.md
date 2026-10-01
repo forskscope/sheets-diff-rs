@@ -129,6 +129,21 @@ total memory by roughly two orders of magnitude over the raw XML bytes at
 every size measured. Removing the copy would save single-digit percent of
 peak at realistic scale, not half of it.
 
+> **Provenance note, added M9 unit 03 (2026-10-01).** The table above and the
+> "~450 bytes/cell" figure are M7 Handoff 01's point-in-time measurement (see
+> the methodology table at the top of this page: this whole page is
+> `benches/memory.rs` output, not a guarded test, and not re-run by CI).
+> **Re-run on the current tree while checking this**: `compare_paths` settles
+> to 427–431 B/cell at 10k–300k cells (was 442–448 B/cell as committed), and
+> `compare_bytes`'s extra-over-`compare_paths` comes out to 2.7–4.9% (was
+> stated as 2.6–4.8%). The exact byte counts drifted by single-digit percent
+> — expected for an unguarded, allocator- and environment-sensitive figure,
+> not a regression — but **the conclusion this section draws is unchanged**:
+> `compare_bytes`'s copy costs low single digits of total peak, not half of
+> it. Treat the table as "this is what it was" (2026-09, M7), not as current
+> to the day; re-run `cargo build --release --bench memory` for today's
+> number if the exact figure matters for a decision.
+
 ---
 
 ## Q2 — where does peak memory actually go?

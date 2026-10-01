@@ -90,8 +90,11 @@ sheets-diff old.xlsx new.xlsx --format unified
 - **Conservative by default.** Sheet rename detection only fires when exactly
   one old and one new sheet are unmatched. Ambiguous matches surface as
   `Added`/`Removed` plus a diagnostic.
-- **`calamine` 0.36 pinned.** The `Data` enum variant set is the grounding
-  for all `CellValue` conversions.
+- **`calamine` 0.36.x, resolved by the lockfile.** `Cargo.toml` declares the
+  usual caret range (`"0.36"`); nothing here relies on picking up a patch
+  release automatically, and `Cargo.lock` is what actually fixes the version
+  a build gets. The `Data` enum variant set is the grounding for all
+  `CellValue` conversions.
 - **Superlinear paths are bounded by default; linear paths stay opt-in.**
   `Limits::default()` bounds the row-alignment product
   (`max_alignment_product`, empirically set so the worst case stays around a

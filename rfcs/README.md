@@ -35,10 +35,23 @@ file moves. The v2 series continues from 036; 033 is
 [reconstructed](./done/033-public-model-lexicon.md) — see the restoration
 notes below.
 
-Implementation companion documents live under
-[`handoffs/NNN-slug/`](./handoffs/). They have no lifecycle state of their own —
-it is inherited from the matching RFC — and they must not redefine it. The
-active roadmap is [`ROADMAP.md`](../ROADMAP.md).
+Implementation companion documents live under [`handoffs/<key>/`](./handoffs/),
+keyed to whatever governs the work. `NNN-slug/` when one RFC governs it; the
+forms in use otherwise are `mN-slug/` for a milestone whose units span several
+RFCs or none, `fNNN-slug/` for a standalone defect response, `release-X.Y.Z/`
+for a release-preparation package, and `upstream-<party>-<ref>/` for a patch
+prepared for a dependency's own repository. That list is what exists, not a
+closed set. **The rule is the next sentence: a directory that is not
+`NNN-slug/` states why in its own README.** They have no lifecycle state of
+their own — it is inherited from the matching RFC, where there is one — and
+they must not redefine it. The active roadmap is
+[`ROADMAP.md`](../ROADMAP.md).
+
+*Rewritten M9 unit 03 (2026-10-01). The previous sentence named `NNN-slug/`
+alone, and 21 of the handoff directories were not that — every one of them
+self-explaining its departure in its own README, which is the practice this now
+describes. Renaming them was rejected: most are governed by no single RFC, and
+the paths are quoted across the review record.*
 
 ## Proposed
 
@@ -52,8 +65,8 @@ Design settled; implementation may start.
 |----|-------|------|----------|
 | 022 | [Styles and Formatting Diff Policy](./accepted/022-styles-and-formatting-diff-policy.md) | `FormatCompareMode` rejects every non-`Ignore` mode; no style diff layer exists. Blocked upstream — calamine keeps `mod formats` private through 0.36. | — |
 | 025 | [Deterministic Parallel Execution](./accepted/025-deterministic-parallel-execution.md) | Implementation removed 2026-08-15 (it never compiled, and parallelised the wrong phase); design retained and amended with a re-introduction gate. | [yes](./handoffs/025-deterministic-parallel-execution/) — done |
-| 035 | [Resource Safety and Supply-Chain Governance](./accepted/035-resource-safety-and-supply-chain-governance.md) | Accepted 2026-08-16. Bounded-by-default policy, supply-chain gating, threat model. Roadmap M2 — delivered in 2.3.0. | [yes](./handoffs/035-resource-safety-and-supply-chain-governance/) — done |
 | 036 | [Coverage Obligation and the Fixture Matrix](./accepted/036-coverage-obligation-and-the-fixture-matrix.md) | Accepted 2026-08-16. Defines *covered* as an assertion property, fixes eleven scenarios, and obliges behaviour changes to arrive with an assertion. Roadmap M3. | [yes](./handoffs/030-extended-fixture-generators-and-corpus-management/) — **live** |
+| 037 | [v3 Scope](./accepted/037-v3-scope.md) | Accepted 2026-09-25, §3 reopened twice the same day at the owner's direction. The closed list of v3 removals and renames; delivered in 3.0.0. Three §7 questions remain open and block dependent handoffs, which is why this stays here. | no — its units ran under [`m10-the-names-become-true/`](./handoffs/m10-the-names-become-true/) |
 
 ## Implemented
 
@@ -62,6 +75,7 @@ Design settled; implementation may start.
 | ID | Title | Shipped in |
 |----|-------|------------|
 | 000 | [RFC lifecycle policy](./done/000-rfc-lifecycle-policy.md) | 1.2.0 |
+| 035 | [Resource Safety and Supply-Chain Governance](./done/035-resource-safety-and-supply-chain-governance.md) | 2.3.0 |
 
 ### v2 series
 

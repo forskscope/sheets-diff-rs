@@ -1,6 +1,6 @@
 # Handoff 04 — Resource bounds and `forbid(unsafe_code)`
 
-**Governing RFC.** [RFC-035](../../accepted/035-resource-safety-and-supply-chain-governance.md) §5.1–5.6
+**Governing RFC.** [RFC-035](../../done/035-resource-safety-and-supply-chain-governance.md) §5.1–5.6
 **Roadmap.** M2, risk R6
 **Sequence.** After unit 02 (merged). Independent of unit 03 — either order.
 Unit 05 depends on this one; both touch `align.rs`.

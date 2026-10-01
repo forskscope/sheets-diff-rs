@@ -553,7 +553,9 @@ All surfaced during M2; none currently fixed.
   wrong: measured, `compare_bytes` peaks **2.6–4.8% above `compare_paths`** at
   10,000 cells and up. The raw input bytes do roughly double, but they are only
   2.4–2.6% of peak — peak is dominated by the ~450 B/cell normalised
-  representation both entry points build identically. Among costs we control, the
+  representation both entry points build identically (re-checked M9 unit 03,
+  2026-10-01: current figure 427–431 B/cell, same conclusion — see
+  `performance.md`'s provenance note on the same table). Among costs we control, the
   largest was `cell_map_to_align`'s clone of every `CellValue` (+33% of peak, paid
   only by non-`Positional` alignment modes). **That clone no longer exists:** M7
   Handoff 04 (2.5.0) deleted it.

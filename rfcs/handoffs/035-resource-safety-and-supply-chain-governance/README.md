@@ -1,7 +1,7 @@
 # Handoffs — M2: the 2.3.0 security and integrity release
 
 Execution queue for roadmap milestone **M2**. Most units are governed by
-[RFC-035](../../accepted/035-resource-safety-and-supply-chain-governance.md);
+[RFC-035](../../done/035-resource-safety-and-supply-chain-governance.md);
 the dependency migration and the correctness defects are governed by RFCs
 already in `done/`, noted per unit. Handoffs have no lifecycle state of their
 own and must not redefine their governing RFC.

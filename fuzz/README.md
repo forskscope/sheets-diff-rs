@@ -81,8 +81,11 @@ at `-runs=20000`. **Restore it here in the same change that closes #694.**
 there; both stay out anyway, for one remaining, still-open `calamine` defect that is not either
 unit's to fix — see the quarantine README.
 
-Normal CI compiles the fuzz targets but does not run them (would be too slow).
-Run fuzzing manually or in a nightly workflow with a time budget, e.g.:
+**CI does run all four targets, every push — this is `fuzz-smoke`, described above, not a
+compile-only check.** `fuzz_open_xlsx_bytes` replays the committed corpus (`-runs=0`); the other
+three mutate at `-runs=20000`. What CI does *not* do is a time-budgeted campaign: a smoke run is
+bounded by iteration count, not wall-clock minutes, and explores far less than the manual form
+below. Run that manually or in a nightly workflow when more coverage is wanted, e.g.:
 
 ```sh
 cargo fuzz run fuzz_open_xlsx_bytes -- -max_total_time=300

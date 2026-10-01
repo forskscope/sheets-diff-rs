@@ -108,7 +108,6 @@ use std::path::Path;
 /// Compare two workbooks given their filesystem paths.
 ///
 /// Uses [`DiffOptions::default()`].
-/// Compare two workbooks given their filesystem paths.
 ///
 /// # Path handling
 ///

@@ -154,29 +154,22 @@ fn conservative_rename(
         (1, 1) => {
             let old = old_remaining[0];
             let new = new_remaining[0];
-            let (change, confidence) = if old.index == new.index {
-                (
-                    SheetChange::Renamed {
-                        confidence: MatchConfidence::Medium,
-                        reason: SheetMatchReason::SameIndex,
-                    },
-                    MatchConfidence::Medium,
-                )
+            let change = if old.index == new.index {
+                SheetChange::Renamed {
+                    confidence: MatchConfidence::Medium,
+                    reason: SheetMatchReason::SameIndex,
+                }
             } else {
                 // Formed by elimination: the names differ, the indices differ, and
                 // the two sheets are paired only because each is the sole unmatched
                 // sheet on its side. No content is compared and no index matched, so
                 // this is the weakest pairing the matcher makes — do not read it as
                 // "the index matched" (the arm above) or as anything about content.
-                (
-                    SheetChange::RenamedAndMoved {
-                        confidence: MatchConfidence::Low,
-                        reason: SheetMatchReason::SoleRemainingPair,
-                    },
-                    MatchConfidence::Low,
-                )
+                SheetChange::RenamedAndMoved {
+                    confidence: MatchConfidence::Low,
+                    reason: SheetMatchReason::SoleRemainingPair,
+                }
             };
-            let _ = confidence; // used inside change arms
             pairs.push(MatchedPair {
                 old_sheet: Some(old.clone()),
                 new_sheet: Some(new.clone()),

@@ -1,6 +1,6 @@
 # Handoff 06 — Threat model, advisory policy, and honest disclosure
 
-**Governing RFC.** [RFC-035](../../accepted/035-resource-safety-and-supply-chain-governance.md) §5.7–5.8, RFC-016
+**Governing RFC.** [RFC-035](../../done/035-resource-safety-and-supply-chain-governance.md) §5.7–5.8, RFC-016
 **Roadmap.** M2, decision D4 — *"a sufficient threat model is required, not a minimal one"*
 **Sequence.** Last. It documents what the other units actually built.
 

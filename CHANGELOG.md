@@ -51,6 +51,37 @@
   (a numeric cell with no attached formula, on a sheet that genuinely has at least one formula) are
   unchanged; only the volume and shape are. See *Security* above.
 
+### Documentation
+
+- **RFC-035 moved to `done/` and the handoff-directory naming rule rewritten to describe what the
+  project does.** RFC-035's own Status field was the only signal still calling it unshipped; every
+  other reference said 2.3.0. Moving it broke six live links, now fixed. And `rfcs/README.md`
+  required handoff directories to be named `NNN-slug/` while **21** of them are not — each already
+  explaining its own departure in its own README. The rule now names the forms in use, says the list
+  is not closed, and states the actual requirement: a directory that is not `NNN-slug/` says why in
+  its README. RFC-036 stays in `accepted/` deliberately, since §5.4 gained a normative sentence this
+  week, and RFC-037 — absent from the index entirely rather than misdescribed — now has a row.
+
+- **Six records corrected against the code and against each other (M9 unit 03); none change
+  behaviour.** `fuzz/README.md` said CI "does not run" the fuzz targets directly beneath the
+  paragraph that had just explained `fuzz-smoke` running all four, at `-runs=0`/`-runs=20000` —
+  now says so. `performance.md`'s "~450 bytes/cell" is dated and re-checked: re-measuring on the
+  current tree gives 427–431 B/cell and a 2.7–4.9% `compare_bytes` overhead (was committed as
+  442–448 B/cell, 2.6–4.8%) — same conclusion, drifted by single-digit percent, as expected of an
+  unguarded point-in-time figure. `README.md` said `calamine` 0.36 is "pinned"; `Cargo.toml`
+  carries the ordinary caret range and nothing relies on an automatic patch bump, so it now says
+  "0.36.x, resolved by the lockfile." RFC-013 §5's exit-code table named codes 4 and 5; `src/main.rs`
+  has never emitted either — everything maps to 0/1/2/3, matching the CLI's own `--help` text —
+  annotated as the original proposal, not the shipped contract. A dead `let _ = confidence;` binding
+  (`src/matcher.rs`) and a doc comment repeating one line of itself (`src/lib.rs`) are gone; `git
+  diff src/` has no behavioural change. The bug report template asked how the user "started the
+  server" — this crate has none — now asks how `sheets-diff` was invoked. Two more items from the
+  same audit were already fixed before this unit started (a dead binding in `src/matcher.rs` f133
+  removed, and a doubled position fetch in `src/diff.rs` that the streaming-read rewrite already
+  eliminated) and needed no change. RFC lifecycle questions for RFC-035/036/037 and the eighteen
+  handoff directories that don't match `NNN-slug/` are reported, not resolved, in this unit's review
+  request — both are rulings for the architect, not a documentation fix.
+
 ## [3.2.0] - 2026-09-29
 
 **Security and correctness release. Two of the three fixed defects were present in shipped
