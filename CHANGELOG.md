@@ -2,6 +2,47 @@
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-10-01
+
+**A correctness-and-honesty release: one defect a caller will notice, one piece of our own advice
+that cost nothing but looked like it should, and a milestone's worth of making the records and the
+checks say what is true.** A plain numeric workbook with **no formulas anywhere** produced one
+`Info` diagnostic per numeric cell, **on by default**: measured, a 666 KiB workbook of 20,000 rows
+× 10 columns produced 400,000 of them and a 158.9 MiB serialised result, against 1,870 bytes with
+the diagnostic's guard working as intended. **The shape changes, not just the count**: a caller
+matching on `formula_unavailable` used to get one entry per numeric cell with an `address`; it is
+now one entry per sheet per side, `address: None`, with the count in the message — anyone counting
+these or reading a per-cell address sees different data after this release. **Separately, if you
+set `include_formula_cached_values = false` on our own recommendation — given while that flood was
+still unfixed — it cost you nothing: the option never controlled whether cached formula values are
+compared, only this diagnostic's gate, and the documentation said otherwise until now.** Found by
+ForskScope, reading our code after we gave them that advice. `Limits::hardened()`'s own
+documentation is corrected too: it claimed to "comfortably accommodate an ordinary office
+workbook," but `max_cells_read` counts populated cells cumulatively **across both sides**, so a
+500,000-row, seven-column pair compared against its own revision — an ordinary ledger, not a
+hostile file — reads 7,000,014 cells and is refused under this preset; found by M9 unit 06's own
+measurement, not assumed.
+
+**One defect stays open, said plainly:** a crafted worksheet panics in builds with debug
+assertions on ([calamine#694](https://github.com/tafia/calamine/issues/694)). Release builds
+return an ordinary `Err`, but every downstream `cargo test` is a debug build, so this is live
+there today.
+
+**This is a minor release, not a patch, despite `cargo public-api` reporting nothing against
+3.2.0 at all — simplified or not.** `formula_unavailable`'s shape change is a real behavioural
+difference for any caller matching on it, and the `include_formula_cached_values` correction is
+advice we published being corrected, not a silent doc tidy — both are reasons a careful reader
+needs the version to move, even though no type or signature did.
+
+**And the records.** M9's seven units made the fuzz corpus reach the sheet reader, made the
+fixture corpus produce every diagnostic the engine can emit (25 scenarios, up from 19), removed
+`src/`'s last two `#[allow(clippy::too_many_arguments)]`, moved five inline test modules to the
+project's own stated layout, and corrected six records that disagreed with the code or with each
+other — including RFC-035's lifecycle, the handoff-naming convention 21 directories had already
+abandoned, and RFC-009's original public `SheetChange` sketch, which differed from the shipped
+enum in six ways and had gone unannotated through two earlier units that each read that file
+looking for exactly this kind of thing.
+
 ### Security
 
 - **Fixed: a plain numeric workbook with no formulas anywhere produced one `Info` diagnostic per
@@ -52,6 +93,15 @@
   unchanged; only the volume and shape are. See *Security* above.
 
 ### Documentation
+
+- **Two descriptions of `formula_unavailable` corrected before this release went out.**
+  `docs/src/semantics.md` walked a reader through the old per-cell shape — "five `Info`
+  diagnostics… the other four are `formula_unavailable`… one per numeric cell" — on the very fixture
+  whose golden the fix moved, and `src/output/text.rs`'s `DISPLAY_THRESHOLD` doc comment described
+  the same diagnostic in the present tense as "pushed per numeric cell". The `assert_eq!` on that
+  documentation page *was* corrected when the defect was fixed, and the sentence beneath it was not,
+  so a compiled assertion and the prose explaining it disagreed for one release cycle. The page now
+  records that, where it happened.
 
 - **The fixture corpus now produces every diagnostic the engine can emit.** Seven codes had no
   scenario asserting them; two of those were "covered" only by accident, on sheets that could not
