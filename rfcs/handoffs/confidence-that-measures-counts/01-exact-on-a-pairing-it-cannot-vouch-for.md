@@ -122,13 +122,34 @@ no single meaning to write down. So the unit has to add the missing value.
 *"Nothing positive links the two sheets… treat it as the weakest kind of rename."* Row alignment
 ships the confidence alone. **Build the row-alignment analogue:** something on `AlignmentSummary`
 that says *why* the confidence is what it is. Keyless rows present; duplicate keys present;
-signatures that could not be told apart; too few rows matched.
+signatures that could not be told apart; too few rows matched. **Note that two of those are
+ambiguity and two are not** — see the set question below; the distinction is load-bearing, not
+presentational.
+
+**One of those four needs `the-row-that-vanishes/01` to land first.** "Signatures that could not be
+told apart" cannot be reported today, because a row with no cell in any sampled column does not get
+an ambiguous signature — it gets no signature and disappears from the comparison entirely. Take that
+unit first; this one then has a real condition to report rather than an imagined one.
 
 Open questions, which is why this is a proposal and not an instruction:
 
-- **One value or several?** The causes co-occur — a sheet can have keyless rows *and* duplicate keys.
-  A single enum then has to pick, which is how `Medium` got into this state. A set is honest and
-  costs more surface. **Propose, with the reasoning.**
+- **One value or several? Answered: a set.** The consumer's gate treats the causes differently, so a
+  single value would lose what they need:
+
+  > *"**Ambiguity** — duplicate keys, signatures that could not be told apart… We would refuse the
+  > aligned result on this regardless of how good the numbers look. **Too few rows matched** — we
+  > would not refuse on this, because the cell count already reflects it… A single value that
+  > reported *too few matched* while *duplicate keys* also applied would hide the veto behind the one
+  > we ignore — which is the shape of the `Medium` problem, one level along."*
+
+  **That last sentence is the design constraint.** A single value picks a winner among co-occurring
+  causes, and the cause it suppresses is the one a consumer vetoes on. So: a set, or any shape where
+  **"was this pairing ambiguous?" is answerable on its own**, which is their stated minimum if the
+  set costs more surface than we want. Ambiguity must not be something a consumer has to infer from
+  the absence of something else.
+
+  You still own the expression — a set of variants, a struct of flags, a bitset-like accessor. Propose
+  it, and make the ambiguity question a first-class one in whatever you choose.
 - **Does `confidence` survive as a separate field?** It may be that the reason subsumes it and
   `confidence` becomes derived; it may be that the ordinal is still what a consumer wants to
   threshold on. The consumer's words suggest both: *"`Exact` we will trust and `Low` we will not"*,
