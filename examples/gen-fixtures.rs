@@ -1113,6 +1113,31 @@ fn main() {
         println!("✓ defined_name_changed");
     }
 
+    // 26. Missing row signature -- a row with no cell in the sampled column, under RowSignature
+    //     alignment (the-row-that-vanishes/01, RFC-036 #18). The signature analogue of scenario 21:
+    //     through 3.3.0, such a row had no entry in the signature map at all and vanished from the
+    //     comparison entirely -- not mis-paired, not warned about, simply never looked at, with
+    //     alignment_summary reporting Exact. A dedicated test (not this generator) applies
+    //     RowSignature and asserts missing_row_signature fires and the row's own change is reported.
+    {
+        let dir = base.join("missing_row_signature");
+        let old = wb_strings(&[(0, 0, "K"), (0, 1, "a"), (1, 1, "before")]);
+        let new = wb_strings(&[(0, 0, "K"), (0, 1, "a"), (1, 1, "AFTER")]);
+        write_fixture_pair(&dir, &old, &new);
+        write_scenario(
+            &dir,
+            "missing_row_signature_under_row_signature_alignment",
+            "feature",
+            "Row 2 has no cell in column A (the sampled column). Under \
+             AlignmentMode::RowSignature{sample_columns: Some([1])}, it is not dropped -- it is \
+             unmapped from the signature, cannot pair with its counterpart (its content changed), \
+             and is reported as a removal plus an insertion -- but raises missing_row_signature, \
+             which no corpus scenario produced before this (the-row-that-vanishes/01's own \
+             regression lived only in tests/rowsignature_unmapped_rows.rs, not the corpus).",
+        );
+        println!("✓ missing_row_signature");
+    }
+
     // Encrypted-workbook fixture (M5 Handoff 03) -- a single standalone
     // negative-input file, like `not_a_zip.xlsx`, not an old/new scenario
     // pair, so it does not go under `base` or get a `scenario.toml`.

@@ -37,6 +37,7 @@ const TABLE: &[&str] = &[
     "alignment_bound_exceeded",
     "duplicate_alignment_key",
     "missing_alignment_key",
+    "missing_row_signature",
 ];
 
 // ---------------------------------------------------------------------------
@@ -84,7 +85,7 @@ fn corpus() -> Vec<(String, WorkbookDiff)> {
         let name = dir.file_name().unwrap().to_string_lossy().into_owned();
         out.push((name, compare_bytes(&old, &new).unwrap()));
     }
-    assert_eq!(out.len(), 25, "the corpus has 25 scenarios");
+    assert_eq!(out.len(), 26, "the corpus has 26 scenarios");
     out
 }
 
@@ -110,6 +111,15 @@ fn row_key_opts(product: Option<u64>) -> DiffOptions {
     DiffOptions::builder()
         .max_alignment_product(product)
         .alignment(AlignmentMode::RowKey { columns: vec![1] })
+        .build()
+        .unwrap()
+}
+
+fn row_signature_opts() -> DiffOptions {
+    DiffOptions::builder()
+        .alignment(AlignmentMode::RowSignature {
+            sample_columns: Some(vec![1]),
+        })
         .build()
         .unwrap()
 }
@@ -184,6 +194,18 @@ fn synthetic() -> Vec<(&'static str, WorkbookDiff)> {
                 wb_strings(&[(0, 0, "id1"), (1, 1, "note"), (2, 0, "id3")]),
                 wb_strings(&[(0, 0, "id1"), (1, 1, "note"), (2, 0, "id3")]),
                 row_key_opts(None),
+            )
+            .unwrap(),
+        ),
+        (
+            "missing_row_signature",
+            // Row 2 has no cell in the sampled column (A), and its own content changes: unmatched
+            // by signature, reported as removed + inserted rather than absent
+            // (the-row-that-vanishes/01).
+            compare_bytes_with_options(
+                wb_strings(&[(0, 0, "K"), (0, 1, "a"), (1, 1, "before")]),
+                wb_strings(&[(0, 0, "K"), (0, 1, "a"), (1, 1, "AFTER")]),
+                row_signature_opts(),
             )
             .unwrap(),
         ),

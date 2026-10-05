@@ -1,0 +1,4 @@
+name        = "missing_row_signature_under_row_signature_alignment"
+kind        = "feature"
+description = "Row 2 has no cell in column A (the sampled column). Under AlignmentMode::RowSignature{sample_columns: Some([1])}, it is not dropped -- it is unmapped from the signature, cannot pair with its counterpart (its content changed), and is reported as a removal plus an insertion -- but raises missing_row_signature, which no corpus scenario produced before this (the-row-that-vanishes/01's own regression lived only in tests/rowsignature_unmapped_rows.rs, not the corpus)."
+notes       = ""

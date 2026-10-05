@@ -701,6 +701,18 @@ pub enum DiagnosticKind {
         old_count: usize,
         new_count: usize,
     },
+    /// Under `AlignmentMode::RowSignature { sample_columns: Some(cols) }`, rows that have no cell in
+    /// any sampled column produce no signature and cannot be matched by signature. They are not
+    /// dropped: rows with the same values in the same columns on both sides are paired with one
+    /// another, and the rest are reported as removed (old side) or inserted (new side), so a changed
+    /// row reaches the comparison as a whole-row change, the same rescue `MissingAlignmentKey`
+    /// describes for `RowKey`. The counts are of unsampled rows per side, before pairing. Never
+    /// raised with `sample_columns: None`: every cell then contributes to its row's signature, so no
+    /// row can be excluded from it.
+    MissingRowSignature {
+        old_count: usize,
+        new_count: usize,
+    },
 }
 
 impl DiagnosticKind {
@@ -740,6 +752,7 @@ impl DiagnosticKind {
             DiagnosticKind::AlignmentBoundExceeded { .. } => "alignment_bound_exceeded",
             DiagnosticKind::DuplicateAlignmentKey { .. } => "duplicate_alignment_key",
             DiagnosticKind::MissingAlignmentKey { .. } => "missing_alignment_key",
+            DiagnosticKind::MissingRowSignature { .. } => "missing_row_signature",
         }
     }
 }

@@ -176,6 +176,17 @@ pub enum AlignmentMode {
     /// Match rows by a hash of selected cell values (content similarity).
     /// `sample_columns` limits which columns contribute to the signature;
     /// `None` means all columns.
+    ///
+    /// **With `sample_columns: Some(cols)`, a row with no cell in any sampled column cannot be
+    /// matched by signature.** It is not skipped. Rows with the same values in the same columns on
+    /// both sides are paired with one another, in row order, and compared like any matched pair;
+    /// the rest are reported as removed (old side) or inserted (new side), so a change in such a
+    /// row is still seen, as a whole-row change — the same rescue `RowKey` describes for a row
+    /// missing its key. A `missing_row_signature` warning gives the count per side, and the
+    /// sheet's alignment confidence is at most `Medium`. A sampled column that no row populates
+    /// therefore matches nothing and reports every row that differs. With `sample_columns: None`
+    /// every cell contributes to its row's signature, so no row can ever be excluded and this
+    /// warning never fires.
     RowSignature { sample_columns: Option<Vec<u32>> },
 }
 

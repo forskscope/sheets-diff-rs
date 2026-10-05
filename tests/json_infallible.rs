@@ -34,7 +34,7 @@ fn corpus() -> Vec<(String, WorkbookDiff)> {
             compare_bytes(&o, &n).unwrap(),
         ));
     }
-    assert_eq!(out.len(), 25);
+    assert_eq!(out.len(), 26);
     out
 }
 

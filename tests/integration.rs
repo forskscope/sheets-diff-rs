@@ -2369,6 +2369,60 @@ fn missing_alignment_key_fixture_fires_under_row_key_alignment() {
     );
 }
 
+/// Asserts `missing_row_signature` is actually in the result, not just that the fixture exists —
+/// the signature analogue of the test above (the-row-that-vanishes/01). Row 2 has no cell in
+/// column A; under `Positional` (the golden above) that is invisible. Under `RowSignature` with
+/// `sample_columns: Some([1])`, row 2 has no entry in the signature map and is unmapped: its
+/// content changed, so it cannot pair with its counterpart, and it surfaces as a removal plus an
+/// insertion at `B2` rather than vanishing.
+#[test]
+fn missing_row_signature_fixture_fires_under_row_signature_alignment() {
+    use sheets_diff::options::AlignmentMode;
+
+    let (old, new) = read_fixture_pair("missing_row_signature");
+    let opts = DiffOptions::builder()
+        .alignment(AlignmentMode::RowSignature {
+            sample_columns: Some(vec![1]),
+        })
+        .build()
+        .unwrap();
+    let diff = compare_bytes_with_options(&old, &new, opts).unwrap();
+
+    // Both the old value leaving and the new value arriving are reported, at the same address:
+    // exactly two entries, one Removed and one Added. Asserting only "all at B2" would be
+    // satisfied by the Removed half alone, and that is the half-reported change this test exists
+    // to catch.
+    let cells = &diff.sheets[0].cell_diffs;
+    assert_eq!(cells.len(), 2, "{cells:?}");
+    assert!(cells.iter().all(|c| c.address.a1 == "B2"), "{cells:?}");
+    let mut kinds: Vec<CellChangeKind> = cells.iter().map(|c| c.change_kind()).collect();
+    kinds.sort_by_key(|k| format!("{k:?}"));
+    assert_eq!(
+        kinds,
+        vec![CellChangeKind::Added, CellChangeKind::Removed],
+        "{cells:?}"
+    );
+
+    let missing: Vec<_> = diff.sheets[0]
+        .diagnostics
+        .iter()
+        .filter(|d| d.kind.code() == "missing_row_signature")
+        .collect();
+    assert_eq!(missing.len(), 1, "{:?}", diff.sheets[0].diagnostics);
+    assert_eq!(missing[0].severity, Severity::Warning);
+    assert!(
+        matches!(
+            missing[0].kind,
+            DiagnosticKind::MissingRowSignature {
+                old_count: 1,
+                new_count: 1
+            }
+        ),
+        "{:?}",
+        missing[0].kind
+    );
+}
+
 /// Asserts `alignment_bound_exceeded` is actually in the result. The fixture's two 10-row tables
 /// (product 100) never approach the default bound (25,000,000) — the point of this test is the
 /// bound, not the fixture's size, so it lowers `max_alignment_product` for this one call rather

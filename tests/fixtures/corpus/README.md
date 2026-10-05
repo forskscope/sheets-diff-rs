@@ -124,6 +124,7 @@ for every row below, not just a golden comparison.
 | 15 | `ambiguous_sheet_match` | `ambiguous_sheet_match` — zero coverage in the corpus before this; a shape question, not an options one (two old sheets, two new sheets, no name in common, under the default mode) — checked against RFC-009 §8 before writing the fixture: the engine reports both `Added`/`Removed` and an ambiguity `Warning` together, which satisfies and exceeds §8's "either/or"; not a defect | `ambiguous_sheet_match_fixture_fires_under_default_options` |
 | 16 | `duplicate_alignment_key` | `duplicate_alignment_key` — zero coverage in the corpus before this; same dedicated-options pattern as 13/14, a repeated key value under `RowKey` | `duplicate_alignment_key_fixture_fires_under_row_key_alignment` |
 | 17 | `defined_name_changed` | `defined_name_scope_unknown` and `unsupported_workbook_metadata` — zero coverage in the corpus before this; both come from the same unconditional metadata pass (`meta.rs`: "there is no mode to disable or configure it with"), so one scenario (one defined name, target changed) closes both | `defined_name_changed_fixture_fires_both_metadata_codes` |
+| 18 | `missing_row_signature` | `missing_row_signature` — the signature analogue of 13; zero coverage in the corpus before this (only a hand-built, non-corpus unit test, `tests/rowsignature_unmapped_rows.rs`, the-row-that-vanishes/01). Through 3.3.0 a row with no cell in the sampled column did not warn — it vanished from the comparison entirely, with `alignment_summary` reporting `Exact` | `missing_row_signature_fixture_fires_under_row_signature_alignment` |
 
 Scenarios 1–9 are pure `rust_xlsxwriter` output (RFC-036 Handoff 02); 10 and
 11 are generated then XML-patched via `patch_xlsx_xml`, duplicated into
@@ -139,16 +140,19 @@ not large — `max_alignment_product` is lowered to 50 for the one dedicated
 call that needs it, rather than committing a fixture sized to the default
 25,000,000 bound; 15 is two old and two new sheets sharing no name; 16 is
 three rows with one key value repeated; 17 is a single defined name whose
-target differs between old and new.
+target differs between old and new; 18 is `tests/rowsignature_unmapped_rows.rs`'s
+reproduction (a row with no cell in the sampled column, whose own content changes)
+promoted into the corpus, the same move 13 made for `tests/rowkey_keyless_rows.rs`.
 
 **All seven of the codes M9 unit 05 found missing (three) and unit 07 found missing (four) are now
 covered — none were genuinely unreachable.** §5.4's "explicitly deferred" allowance went unused in
 the end; every code turned out to be a shape question once checked, not an options gap or an
 engine limitation. See RFC-036 §5.4's own annotation for the per-code reasoning.
 
-**13, 14 and 16 need a non-default `AlignmentMode` (13, 16) or a non-default `max_alignment_product`
-(14), and the golden mechanism (`generated_fixtures_match_golden`, `scenario.toml`) has no
-per-scenario options at all — confirmed by reading both, not assumed.** Rows 3/4 above already
+**13, 14, 16 and 18 need a non-default `AlignmentMode` (13, 16, 18) or a non-default
+`max_alignment_product` (14), and the golden mechanism (`generated_fixtures_match_golden`,
+`scenario.toml`) has no per-scenario options at all — confirmed by reading both, not assumed.**
+Rows 3/4 above already
 established the pattern this project uses for exactly that case: the fixture is committed like any
 other, picked up by the ordinary default-options golden like any other (under `Positional`, none of
 these diagnostics fire, which is correct and expected), and a **dedicated** assertion in

@@ -117,6 +117,7 @@ pub fn compute_row_mapping(
             new_cells,
             sample_columns.as_deref(),
             cancellation,
+            sheet,
             diagnostics,
         )?)),
     }
@@ -202,8 +203,8 @@ fn row_key_alignment(
     // reaches the comparison as a whole-row change and is not lost. Pairing a *changed* keyless row
     // with its counterpart would be better still and needs a design (which neighbour; what when the
     // counts differ between sides); it is not done here.
-    let old_keyless = keyless_rows(old_cells, &old_keys);
-    let new_keyless = keyless_rows(new_cells, &new_keys);
+    let old_keyless = unmapped_rows(old_cells, &old_keys);
+    let new_keyless = unmapped_rows(new_cells, &new_keys);
 
     let mut mapping = lcs_match(old_keys, new_keys, cancellation)?;
 
@@ -267,11 +268,83 @@ fn row_signature_alignment(
     new_cells: &CellMap,
     sample_cols: Option<&[u32]>,
     cancellation: Option<&dyn Cancellation>,
-    _diagnostics: &mut Vec<Diagnostic>,
+    sheet: &SheetRef,
+    diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<RowMapping, SheetsDiffError> {
     let old_sigs = compute_row_signatures(old_cells, sample_cols);
     let new_sigs = compute_row_signatures(new_cells, sample_cols);
-    lcs_match(old_sigs, new_sigs, cancellation)
+
+    // A row with no cell in any sampled column gets no entry in `compute_row_signatures`'s map, so
+    // without this it would be in none of `lcs_match`'s matched/removed/inserted, its cells would
+    // never be compared, and the summary would call the alignment exact -- f130's defect, on the
+    // path f130 did not touch (the-row-that-vanishes/01). `sample_cols: None` samples every cell,
+    // so no row can be excluded; `unmapped_rows` is then always empty and this block is a no-op.
+    let old_unmapped = unmapped_rows(old_cells, &old_sigs);
+    let new_unmapped = unmapped_rows(new_cells, &new_sigs);
+
+    let mut mapping = lcs_match(old_sigs, new_sigs, cancellation)?;
+
+    if !old_unmapped.is_empty() || !new_unmapped.is_empty() {
+        let (old_count, new_count) = (old_unmapped.len(), new_unmapped.len());
+        // Same pairing rule as the RowKey rescue, and for the same reason: an unchanged row with no
+        // sampled cell must not become a removal plus an insertion, so rows with identical content
+        // on both sides are paired with one another in row order first; what is left over is a real
+        // difference and is reported as removed / inserted.
+        let (paired, old_rest, new_rest) =
+            pair_identical_rows(old_cells, new_cells, old_unmapped, new_unmapped);
+        let n_paired = paired.len();
+
+        diagnostics.push(Diagnostic {
+            severity: Severity::Warning,
+            kind: DiagnosticKind::MissingRowSignature {
+                old_count,
+                new_count,
+            },
+            location: sheet_location(sheet),
+            message: format!(
+                "{old_count} row(s) in old and {new_count} in new have no cell in any sampled \
+                 column and cannot be matched by signature; {n_paired} pair(s) of rows with \
+                 identical values were matched to each other, and the other {} old / {} new \
+                 row(s) are reported as removed / inserted rather than compared with a counterpart",
+                old_rest.len(),
+                new_rest.len()
+            ),
+        });
+
+        mapping.matched.extend(paired);
+        mapping.removed.extend(old_rest);
+        mapping.removed.sort_unstable();
+        mapping.inserted.extend(new_rest);
+        mapping.inserted.sort_unstable();
+
+        let (n_matched, n_removed, n_inserted) = (
+            mapping.matched.len(),
+            mapping.removed.len(),
+            mapping.inserted.len(),
+        );
+        mapping.summary = AlignmentSummaryData {
+            inserted_rows: n_inserted,
+            removed_rows: n_removed,
+            matched_rows: n_matched,
+            // Same clamp as the RowKey rescue, and for the same reason (`src/align.rs:251`'s
+            // comment, verbatim): rows placed by their content alone, or not at all, are neither
+            // `High` nor `Exact`-worthy -- so a sheet with any unsampled row is at most `Medium`,
+            // however many of them paired. Without this, a sheet where *every* row is unsampled and
+            // happens to be identical on both sides (the degenerate case, test 5) would content-pair
+            // every row and report `Exact` -- vacuously true about the counts, and exactly as
+            // untrustworthy a claim as RowKey's pre-f130 behaviour, since nothing here was matched by
+            // an actual signature. Whether an ambiguous-but-harmless pairing should be reported
+            // *differently* from a genuinely under-matched one is
+            // confidence-that-measures-counts/01's question; reusing this existing clamp is not
+            // inventing a new answer to it, only applying the one RowKey already shipped.
+            confidence: match confidence_for(n_matched, n_removed, n_inserted) {
+                MatchConfidence::Exact | MatchConfidence::High => MatchConfidence::Medium,
+                lower => lower,
+            },
+        };
+    }
+
+    Ok(mapping)
 }
 
 // ---------------------------------------------------------------------------
@@ -388,13 +461,19 @@ fn extract_row_keys(cells: &CellMap, key_cols: &[u32]) -> BTreeMap<u32, RowKey> 
     rows
 }
 
-/// The rows of `cells` that `extract_row_keys` did not key: those with a cell, but none in any key
-/// column. In ascending row order. (A row with no cell at all is not in `cells` and is not a row
-/// of this sheet as far as any comparison is concerned.)
-fn keyless_rows(cells: &CellMap, keyed: &BTreeMap<u32, RowKey>) -> Vec<u32> {
+/// The rows of `cells` that `mapped` has no entry for: present in the sheet, but excluded from
+/// whatever per-row key or signature `mapped` was built from — a row with a cell, but none in any
+/// key column (`extract_row_keys`), or none in any sampled column (`compute_row_signatures`). In
+/// ascending row order. (A row with no cell at all is not in `cells` and is not a row of this sheet
+/// as far as any comparison is concerned.)
+///
+/// Shared by both alignment paths rather than duplicated: the check is the same regardless of what
+/// built `mapped` — "is this row's number a key in this map?" — and two near-identical rescues is
+/// how one of them goes unfixed while the other is maintained (the-row-that-vanishes/01).
+fn unmapped_rows(cells: &CellMap, mapped: &BTreeMap<u32, RowKey>) -> Vec<u32> {
     let mut rows: Vec<u32> = Vec::new();
     for (r, _) in cells.keys() {
-        if !keyed.contains_key(r) && rows.last() != Some(r) {
+        if !mapped.contains_key(r) && rows.last() != Some(r) {
             rows.push(*r);
         }
     }

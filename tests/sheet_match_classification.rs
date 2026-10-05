@@ -78,7 +78,7 @@ fn with_mode(mode: SheetMatchingMode) -> DiffOptions {
 /// corpus's `compare_bytes` default options (the only options this test ever uses) -- a new
 /// baseline going forward, not a claim about what 2.6.0 would have produced for a scenario it
 /// never had.
-/// 31 sheets over 25 scenarios; only `renamed_sheet` carries a rename.
+/// 32 sheets over 26 scenarios; only `renamed_sheet` carries a rename.
 const BASELINE_2_6_0: &[(&str, &[&str])] = &[
     ("alignment_bound_exceeded", &["Modified"]),
     ("alignment_header_column", &["Modified"]),
@@ -100,6 +100,7 @@ const BASELINE_2_6_0: &[(&str, &[&str])] = &[
     ("formula_unavailable", &["Modified"]),
     ("iso_datetime", &["Modified"]),
     ("missing_alignment_key", &["Modified"]),
+    ("missing_row_signature", &["Modified"]),
     ("non_ascii_text", &["Modified"]),
     ("renamed_sheet", &["Renamed(Medium)"]),
     ("row_insertion_cascade", &["Modified"]),
