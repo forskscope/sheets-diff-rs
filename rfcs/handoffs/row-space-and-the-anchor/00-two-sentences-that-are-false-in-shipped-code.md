@@ -59,8 +59,13 @@ on a 5-row list in the README.
 
 ## Change scope
 
-- `src/model.rs` — the `CellDiff` doc comment.
-- `src/output/view.rs` — `ChangeAnchor`'s doc comment, and `next_after`/`previous_before`.
+- `src/model.rs` — **two separate places:** the `CellDiff` doc comment, **and
+  `SheetDiff.alignment_summary`'s field doc at ~`:884`** (sentence 2 above). The second was added to
+  the descriptive section on 2026-10-06 and not to this one, which is why the first pass through
+  this unit missed it. Leave `src/model.rs:543`'s *"Reserved until RFC-022"* alone — that one is true.
+- `src/output/view.rs` — `ChangeAnchor`'s doc comment, `next_after`/`previous_before`, and
+  `CellChangeRow::anchor`'s field doc, which carries the same false claim on the field a navigation
+  consumer reads first.
 - `CHANGELOG.md` — a patch entry.
 - `docs/src/` — anywhere the same claim is repeated in the book. **Sweep for it**; do not assume
   `src/` is the only place either sentence appears.
@@ -86,12 +91,22 @@ conversion is safe.
 **2. Delete or correct the sentence about `output::view::CellChangeRow` following "the same rule".**
 It does not. Do not promise what unit 02 will do.
 
+**2b. Correct `SheetDiff.alignment_summary`'s field doc** (`src/model.rs` ~`:884`), which reads
+*"Reserved until RFC-011."* RFC-011 is in `rfcs/done/` and the field is populated. Say what it
+carries, and add **one sentence on why it is `None` under `Positional`**: no alignment ran, so there
+are no alignment decisions to summarise. That sentence matters beyond accuracy — it means confidence
+cannot be compared across a positional leg and an aligned leg of the same comparison, which a
+consumer had to work out from the source.
+
 **3. Make `ChangeAnchor`'s doc true.** It is not an identifier. Say what it is — a deterministic
 sort position — and say plainly that two change rows can share one anchor under non-`Positional`
 alignment, with the consequence spelled out: `next_after` and `previous_before` can fail to advance.
 
 **4. Say it on the methods too**, not only on the type. Someone reading `next_after`'s one-line doc
 will not look up `ChangeAnchor`.
+
+**4b. Keep the CHANGELOG entry at the file's prevailing wrap width.** The `### Documentation` entry
+wraps wider than the `### Security` entry above it; match the narrower one.
 
 **5. Write for someone who has already hit it.** The person most likely to read these words is
 debugging a navigation button that stopped working. Give them the cause in the first sentence.

@@ -122,6 +122,12 @@ is right, and worth avoiding if it is not.
 - `tests/integration.rs` — the shared reproduction helper and the dedicated assertions.
 - `tests/fixtures/generated/*/expected.json` — all 25, blessed.
 - `docs/src/semantics.md` — row placement beside the alignment section.
+- `docs/src/maintainers/threat-model.md` ~`:535` — it already says *"Two correctly-computed diffs can
+  share a display address"*, which is the one place in the book that admitted what `CellDiff`'s own
+  doc denied. Its suggested disambiguator is *"via which `CellChangeKind` applies"*, and that is
+  **wrong**: `change_kind()` returns `Added`/`Removed`/`Modified` and says nothing about row space,
+  so two `Modified` changes at one address stay indistinguishable by it. Replace the hint with
+  `row_placement`. Found by unit 00's sweep and left for this unit, correctly.
 - `rfcs/done/033-public-model-lexicon.md` §5 — it pins `CellDiff`'s exact shape.
 - `docs/src/migration/` — a note for consumers who were told to collapse by address.
 
