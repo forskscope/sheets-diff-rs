@@ -3,7 +3,9 @@
 **Unit:** row-space-and-the-anchor 00. **Added 2026-10-05.**
 **Scoped by:** the architect, from `.git-exclude/decisions/006-the-row-space-field.md` §8.3.
 **Semver:** patch. **Documentation only — not one line of behaviour.**
-**Target release:** 3.3.1, if the owner cuts it. Take this unit **before** 01 and 02.
+**Release: 3.3.1**, decided by the owner 2026-10-05 — this unit **and**
+`the-row-that-vanishes/01` (a changed cell that is never reported), as two separate reviews in one
+release. **That unit goes first**; this one is still ahead of 01 and 02 of this milestone.
 
 ## Purpose
 
@@ -112,8 +114,10 @@ decision record's §5 has the three candidates I rejected and why; read it befor
 **2. The claim may appear in more places than the two named.** `docs/src/` has a semantics chapter
 and a migration guide. Grep for the claim, not for the sentence — a paraphrase is just as wrong.
 
-**3. A patch that changes a doc still needs a release to reach anyone**, since docs.rs builds from
-the published crate. That is the owner's call, not yours; write the CHANGELOG entry as if it ships.
+**3. The release is decided, so the CHANGELOG entry is real.** 3.3.1 carries this unit and
+`the-row-that-vanishes/01`. Write your entries under that heading without restructuring the section
+around them — the other unit adds its own, and whichever of you lands second should not be rewriting
+the first one's wording.
 
 ## Required evidence
 

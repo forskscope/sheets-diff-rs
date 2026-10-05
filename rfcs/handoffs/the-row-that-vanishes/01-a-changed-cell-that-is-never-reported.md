@@ -4,6 +4,10 @@
 **Severity: this is the worst class of defect this product can have** — a diff tool reporting no
 difference where a cell changed. Take it before every other open unit.
 **Semver:** patch. A defect fix; no API moves.
+**Release: 3.3.1**, decided by the owner 2026-10-05. It carries this unit **and**
+`row-space-and-the-anchor/00` (two false doc comments). **Separate reviews, one release** — do not
+combine the two into one review request, and do not wait for 00 before submitting this.
+**This unit goes first** of everything currently open.
 
 ## The defect
 
@@ -139,9 +143,12 @@ is the finding; f130 plus this unit is twice, and twice is a pattern.
 5. Whether the rescue is shared with `keyless_rows`, stated with the reasoning.
 6. No golden moves. The corpus compares under default options; if one moves, stop and report.
 7. `cargo public-api` shows nothing, or only an additive `DiagnosticKind` variant — detached
-   worktree, not a stash.
+   worktree, not a stash. (Unit 00's criterion of an *empty* `public-api` diff is that unit's alone;
+   it is not a property of the release.)
 8. Gates green, rule 003, one scratch dir, deleted. Nothing committed.
-9. A `CHANGELOG.md` entry that says a changed cell could go unreported, in those words. **Not
+9. A `CHANGELOG.md` entry under the 3.3.1 heading that says a changed cell could go unreported, in
+   those words. Unit 00 adds its own entries under the same heading; leave room for them rather than
+   restructuring the section. **Not
    "improved row signature alignment".** Anyone who used this mode with `sample_columns` needs to
    read that entry and know whether it affected them.
 

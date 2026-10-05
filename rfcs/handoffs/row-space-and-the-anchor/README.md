@@ -2,8 +2,9 @@
 
 **Added 2026-10-05.** **Scoped by:** the architect, from
 `.git-exclude/decisions/006-the-row-space-field.md`.
-**Target releases:** unit 00 is a documentation-only patch (3.3.1, if the owner cuts it); units 01
-and 02 are minor (3.4.0). The owner holds the schedule.
+**Target releases:** unit 00 is documentation-only and ships in **3.3.1**, decided by the owner
+2026-10-05, alongside `the-row-that-vanishes/01` — separate reviews, one release, and that unit goes
+first. Units 01 and 02 are minor (3.4.0); the owner holds that schedule.
 **Revised 2026-10-05**, after the consumer's reply — decision 006 §8. Unit 01's shape changed and a
 third unit was added. If you are holding an earlier copy of unit 01, re-read it.
 
