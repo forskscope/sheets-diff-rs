@@ -17,7 +17,18 @@
 set -euo pipefail
 
 repo="${REPO:?set REPO=owner/name, e.g. forskscope/sheets-diff-rs}"
-latest_version="3.3.0"
+
+# Which release GitHub currently calls `latest`, asked rather than assumed. This was once the
+# literal string "3.3.0", written when 3.3.0 was the newest version in existence. By the time the
+# backfill actually ran, 3.4.0 had shipped and had its own release from the tag-gated workflow --
+# so the hardcoded value would have passed `--latest` for 3.3.0 and silently demoted 3.4.0. A
+# constant naming "today's latest" stops being true the next time anything ships.
+#
+# `latest` on GitHub is a property, not a derivation, so it has to be set deliberately for exactly
+# one release and left alone for the rest. The rule below: pass `--latest` only if the newest
+# release this script is creating is also newer than whatever is latest now; otherwise every
+# backfilled release gets an explicit `--latest=false` and the existing latest is untouched.
+latest_now="$(gh api "repos/$repo/releases/latest" --jq .tag_name 2>/dev/null || echo "")"
 
 # Ascending version order. Every tag listed here already exists (`git tag --list`) and already
 # has a CHANGELOG.md section (verified at review time) -- the sixteen this directory's README
@@ -35,18 +46,25 @@ fi
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# The highest version this run would create, by version sort rather than array position.
+newest_in_set="$(printf '%s\n' "${versions[@]}" | sort -V | tail -1)"
+
 for v in "${versions[@]}"; do
   body="$(mktemp)"
   "$script_dir/extract-changelog-section.sh" "$v" > "$body"
 
-  # --latest only for 3.3.0 (today's actual latest); explicitly --latest=false for every other
-  # backfilled release, rather than relying on gh's "automatic based on date and version" default
-  # -- these sixteen are all created within moments of each other, so creation order is not a
-  # proxy for version order here.
-  if [ "$v" = "$latest_version" ]; then
-    latest_flag="--latest"
-  else
-    latest_flag="--latest=false"
+  # Explicit `--latest=false` on every backfilled release, rather than relying on gh's "automatic
+  # based on date and version" default -- these are all created within moments of each other, so
+  # creation order is no proxy for version order. `--latest` is passed only when this script is
+  # creating something newer than the release GitHub currently calls latest, which it is not when
+  # a newer version has already shipped and published its own release.
+  latest_flag="--latest=false"
+  if [ -n "$latest_now" ] && [ "$v" = "$newest_in_set" ]; then
+    # Highest of the two by version sort; if that is ours, we may claim latest.
+    highest="$(printf '%s\n%s\n' "$v" "$latest_now" | sort -V | tail -1)"
+    if [ "$highest" = "$v" ] && [ "$v" != "$latest_now" ]; then
+      latest_flag="--latest"
+    fi
   fi
 
   cmd=(gh release create "$v" --repo "$repo" --verify-tag --title "$v" --notes-file "$body" "$latest_flag")
