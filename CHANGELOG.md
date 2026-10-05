@@ -2,6 +2,53 @@
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-10-06
+
+**One behaviour changed, and it is a defect fix: under `AlignmentMode::RowSignature { sample_columns:
+Some(cols) }`, a changed cell could go unreported.** A row with no cell in any sampled column was
+silently left out of the comparison, so a real change in that row produced no difference and no
+diagnostic, and the sheet's alignment summary said `Exact`. **If you use `RowSignature` with
+`sample_columns` set, re-check any result you trusted.** `sample_columns: None` was never affected.
+The defect is f130's: the same failure `RowKey` had for keyless rows, fixed there in 3.1.0. It recurred
+on the signature path because the two rescues were written separately. Both now share one helper, so
+they cannot drift apart unnoticed. Such a row is now paired with an identical row where the two match,
+and reported as removed and inserted where it changed; the sheet's confidence is at most `Medium`
+whenever this applies; and a new `missing_row_signature` warning gives the count on each side.
+
+**Documentation corrections, which change no behaviour.** The `CellDiff` documentation said one address
+carries one entry, and told consumers migrating from a per-facet model to collapse to one row per
+address. That holds under `Positional` alignment only. Under `RowKey` or `RowSignature`, collapsing by
+address merges distinct changes and loses one. `ChangeAnchor` is a sort position, not an identifier,
+and `DiffView::next_after` and `DiffView::previous_before` can fail to advance when two change rows
+share one. Both methods now say so. **There is no replacement for them in this release**, and none is
+promised here.
+
+**Why a minor.** This release adds public API: `DiagnosticKind::MissingRowSignature`. On this
+`#[non_exhaustive]` enum the addition is non-breaking, but it is new surface, so it is a minor release.
+
+**Credit.** ForskScope asked whether `RowSignature` could produce the keyless-row condition, since they
+do not use `RowKey`. Reading the code to answer them is what found the dropped change, and their
+forty-row case is the shape of the regression test. They also checked and reported that the `view.rs`
+navigation defect reaches none of their code, which is why its documentation was corrected here and its
+fix deferred.
+
+### Security
+
+- **Fixed: under `AlignmentMode::RowSignature { sample_columns: Some(cols) }`, a changed cell could
+  go unreported.** A row with no cell in any sampled column had no entry in the signature map at
+  all — not mis-paired, not warned about, simply never looked at — so a real change in that row
+  produced zero cell diffs, zero diagnostics, and an `alignment_summary` claiming `Exact`: a
+  positive assertion that the pairing was perfect. This is f130's defect (the identical failure on
+  `AlignmentMode::RowKey`, fixed in 3.1.0) on the one alignment path f130 did not touch. Such rows are
+  now rescued exactly as `RowKey`'s keyless rows already were: rows with identical content on both
+  sides pair with one another so an unchanged spacer stays silent, and the rest are reported as
+  removed (old side) / inserted (new side), so a changed row reaches the comparison as a whole-row
+  change. A new `missing_row_signature` diagnostic (`Warning`) names the count per side, and the
+  sheet's alignment confidence is now at most `Medium` whenever this rescue runs — the same `Exact`
+  it previously (and wrongly) reported. **Only `sample_columns: Some(...)` is affected; `None` was
+  always correct.** If you use `RowSignature` with `sample_columns` set, re-check any result you
+  trusted: a sheet this reaches would previously have told you nothing changed when something did.
+
 ### Documentation
 
 - **The bug-report template now asks the question this crate most needs answered.** It was GitHub's
@@ -39,6 +86,19 @@
   project has spent a week correcting everywhere else. The sixteen missing releases are backfilled
   separately by the project owner, from the same extractor, so they are identical in shape to every
   release this job creates from here on.
+
+- **Documentation corrected: one address does not always carry one `CellDiff`, and `ChangeAnchor` is
+  not an identifier.** `CellDiff`'s documentation said one address carries one entry, and told
+  consumers migrating from a per-facet model to collapse to one row per address. That holds under
+  `Positional` alignment only. Under `RowKey` or `RowSignature` one address can carry two
+  `CellDiff`s, each a distinct change numbered in a different row space; collapsing by address
+  merges them and loses one. The same false claim appeared in the README and the v1-to-v2 migration
+  guide, and is corrected in all three. `output::view::CellChangeRow`'s documentation said it
+  follows the same one-row-per-address rule; it has one row per `CellDiff`, and the claim is
+  removed. `ChangeAnchor` was documented as a stable identifier for a change row. It is a sort
+  position, and under `RowKey` or `RowSignature` two change rows can share one, so
+  `DiffView::next_after` and `DiffView::previous_before` can fail to advance. Both methods now say
+  so, and the cause is stated first. No behaviour changed; this entry corrects documentation only.
 
 ## [3.3.0] - 2026-10-01
 
