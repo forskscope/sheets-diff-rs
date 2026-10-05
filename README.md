@@ -83,8 +83,11 @@ sheets-diff old.xlsx new.xlsx --format unified
 
 ## Design Notes
 
-- **One `CellDiff` per address.** Value and formula changes are independent
-  sub-fields; no duplicate-address entries.
+- **One `CellDiff` per address under `Positional` alignment.** Value and formula
+  changes at one address are independent sub-fields of that entry. Under `RowKey`
+  or `RowSignature` one address can carry more than one `CellDiff`, each a
+  distinct change; read the `CellDiff` documentation before keying anything by
+  address.
 - **`#[non_exhaustive]` everywhere.** Adding fields or variants in v2.x is
   additive — no forced semver bump for struct consumers.
 - **Conservative by default.** Sheet rename detection only fires when exactly

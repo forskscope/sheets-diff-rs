@@ -16,7 +16,7 @@ v2 equivalent.
 | `diff.cell_diffs` | `diff.sheets[i].cell_diffs` |
 | `SheetDiff { old: Option<String>, new: Option<String> }` | `SheetDiff { change: SheetChange, old_sheet, new_sheet, … }` |
 | `CellDiff { old: Option<String>, new: Option<String>, kind: CellDiffKind }` | `CellDiff { value: Option<ValueChange>, formula: Option<FormulaChange>, … }` |
-| `CellDiffKind::Value / Formula` (two entries per address) | One `CellDiff` per address; `value` and `formula` are independent sub-fields |
+| `CellDiffKind::Value / Formula` (two entries per address) | One `CellDiff` per address under `Positional` alignment, with `value` and `formula` as independent sub-fields. Under `RowKey` or `RowSignature` one address can carry more than one `CellDiff`; keep them all, do not collapse by address |
 | `println!` warnings from the library | `WorkbookDiff.diagnostics: Vec<Diagnostic>` |
 | panic on bad input | `Err(SheetsDiffError::…)` |
 | `unified_diff()` | `sheets_diff::output::text::render_unified(&diff)` |
@@ -108,9 +108,14 @@ for cell in &diff.cell_diffs {
 }
 ```
 
-### v2: one entry per address, two sub-fields
+### v2: one entry per address under `Positional`, two sub-fields
 
-v2 merges both into a single `CellDiff`:
+v2 merges both facets into a single `CellDiff`. That is one entry per address only
+under the default `Positional` alignment. Under `RowKey` or `RowSignature`, one
+address can carry more than one `CellDiff`, and each is a separate change: a row
+paired across the sheets is numbered in the old sheet, and an inserted row in the
+new one, so the same address can appear for two different rows. The example below
+keeps every entry rather than keying by address, so it is correct in every mode.
 
 ```rust,no_run
 // v2

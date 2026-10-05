@@ -35,12 +35,14 @@ impl Default for ViewFilter {
 }
 
 // ---------------------------------------------------------------------------
-// Stable change anchor (for virtualized tables / navigation)
+// Change-row sort position (not an identifier -- see `ChangeAnchor` below)
 // ---------------------------------------------------------------------------
 
-/// A stable, deterministic identifier for a single change row.
-///
-/// Ordering matches the canonical `(sheet_index, row, col)` sort.
+/// The `(sheet_index, row, col)` sort position of a change row. **It is not an identifier.**
+/// Under `RowKey` or `RowSignature`, two change rows can carry the same anchor, because a row
+/// number is in whichever row space its change was numbered in (see [`CellDiff`]).
+/// Under `Positional` it is unique. [`DiffView::next_after`] and [`DiffView::previous_before`]
+/// find their argument by anchor equality, so with a colliding anchor they can fail to advance.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct ChangeAnchor {
@@ -55,7 +57,7 @@ pub struct ChangeAnchor {
 
 /// A single row in the flat change list presented to a GUI table.
 pub struct CellChangeRow<'a> {
-    /// Stable anchor for navigation and virtualized table positioning.
+    /// The change row's sort position. Not unique under `RowKey` or `RowSignature`; see [`ChangeAnchor`].
     pub anchor: ChangeAnchor,
     pub sheet_name: &'a str,
     pub address: &'a CellAddress,
@@ -212,6 +214,11 @@ impl<'a> DiffView<'a> {
     }
 
     /// Return the anchor immediately after `current`, or `None` if at end.
+    ///
+    /// **Can fail to advance.** `current` is found by anchor equality. When two change rows share
+    /// its anchor (possible under `RowKey` or `RowSignature`; see [`ChangeAnchor`]), this matches the
+    /// first of them and returns the second, so called with either one it returns the later one, and
+    /// a forward loop stops at the pair instead of moving past it.
     pub fn next_after(&self, current: &ChangeAnchor, filter: &ViewFilter) -> Option<ChangeAnchor> {
         let mut past = false;
         for row in self.rows(filter).into_iter() {
@@ -226,6 +233,11 @@ impl<'a> DiffView<'a> {
     }
 
     /// Return the anchor immediately before `current`, or `None` if at start.
+    ///
+    /// **Can skip a change.** `current` is found by anchor equality. When two change rows share its
+    /// anchor (possible under `RowKey` or `RowSignature`; see [`ChangeAnchor`]), this matches the first
+    /// of them, so asked about the later one it returns the predecessor of the earlier one, and the
+    /// earlier row is skipped.
     pub fn previous_before(
         &self,
         current: &ChangeAnchor,

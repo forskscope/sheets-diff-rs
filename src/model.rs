@@ -523,14 +523,22 @@ pub enum CellChangeKind {
 
 /// A merged per-cell diff entry (RFC-033 §5).
 ///
-/// **One `CellDiff` per logical address.** This is the intended consumer model:
-/// a value change and a formula change at the same address are *facets of one
-/// change*, carried in the independent `value` and `formula` sub-fields, not
-/// two separate entries. The `output::view::CellChangeRow` projection follows
-/// the same rule (one row per address, with `formula_changed` / `old_formula` /
-/// `new_formula` describing the formula facet). Consumers migrating from a
-/// per-facet model should collapse to one row per address rather than preserve
-/// the split.
+/// **Under `Positional` alignment, one `CellDiff` per address. Under `RowKey` or
+/// `RowSignature`, one address can carry more than one.**
+///
+/// Within a single `CellDiff`, a value change and a formula change at one address
+/// are facets of one change, carried in the independent `value` and `formula`
+/// sub-fields. That holds in every alignment mode.
+///
+/// Under `RowKey` or `RowSignature`, two `CellDiff`s can carry the same address
+/// and still be distinct changes. Each is numbered in the row space of the side it
+/// describes, and the two sides' numbers are independent: a row paired across the
+/// sheets is numbered in the old sheet, and a row inserted into the new sheet is
+/// numbered in the new sheet, so one number can name two different rows.
+/// **Collapsing by address merges those changes and loses one of them.** Keep the
+/// `cell_diffs` sequence as it arrives, and key a map by address only under
+/// `Positional`. A future minor release will carry the row numbers each change is
+/// numbered in, so the two can be told apart without that rule.
 ///
 /// `change_kind()` is derived from the sub-fields, not stored.
 #[non_exhaustive]
@@ -881,7 +889,10 @@ pub struct SheetDiff {
     /// Cell diffs sorted by `(row, col)`.
     pub cell_diffs: Vec<CellDiff>,
     pub compared_range: ComparedRange,
-    /// Reserved until RFC-011.
+    /// How this sheet's rows were paired, populated under every non-`Positional` alignment mode.
+    /// `None` under `Positional`, because no alignment runs there, so there are no alignment
+    /// decisions to summarise; for the same reason, confidence cannot be compared between a
+    /// positional leg and an aligned leg of the same comparison.
     pub alignment_summary: Option<AlignmentSummary>,
     pub diagnostics: Vec<Diagnostic>,
     pub summary: SheetSummary,
