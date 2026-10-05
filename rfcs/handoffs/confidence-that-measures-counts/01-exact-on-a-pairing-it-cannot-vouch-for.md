@@ -1,11 +1,11 @@
 # Handoff 01 — `Exact` on a pairing it cannot vouch for
 
-**Unit:** confidence-that-measures-counts 01. **Added 2026-10-06.**
+**Unit:** confidence-that-measures-counts 01. **Added 2026-10-05.**
 **Scoped by:** the architect. **Read `README.md` in this directory first** — it carries both
 reproductions and the measured output.
 **Semver: minor.** Settled — A-04 means this unit adds public API, so the question of whether the
 behaviour change alone would have been a patch no longer arises.
-**Revised 2026-10-06** after the consumer's reply: *Required implementation* 5 is new and is the
+**Revised the same day** after the consumer's reply: *Required implementation* 5 is new and is the
 largest part of the unit.
 
 ## Purpose

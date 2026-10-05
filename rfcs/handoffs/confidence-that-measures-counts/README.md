@@ -1,6 +1,6 @@
 # Confidence that measures counts
 
-**Added 2026-10-06.** **Scoped by:** the architect.
+**Added 2026-10-05.** **Scoped by:** the architect.
 **Found via:** ForskScope's letter of 2026-10-06 §1, which named the condition abstractly as a
 future risk. **It is not a future risk. A shipped mode meets it today.**
 
@@ -19,7 +19,7 @@ we ship — is not. `RowKey` and `RowSignature` both pair some rows exactly and 
 within one sheet, and the sheet-level value does not average the two claims: **it reports the
 higher one.**
 
-## What was measured, 2026-10-06, on 3.3.0
+## What was measured, 2026-10-05, on 3.3.0
 
 **`RowKey`, duplicate keys on both sides, every row paired:**
 
@@ -93,7 +93,7 @@ covers them. The clamp was never extended, and the signature path has no clamp a
 | **A-03** | `AlignmentSummary.confidence` has no field doc. `MatchConfidence`'s only doc says *"How confident the **sheet-matching** algorithm is about a non-exact pairing"* — a different subject (RFC-009 sheet matching), and no variant carries a doc. Nothing tells a consumer what `Exact` claims about rows. |
 | **A-04** | **`Medium` is a catch-all for unrelated claims, so it cannot be documented as it stands.** Measured below. Unit 01 would add a third claim to it. |
 
-### A-04, measured 2026-10-06
+### A-04, measured 2026-10-05
 
 `RowKey { columns: vec![1] }`, three sheets:
 
@@ -134,7 +134,7 @@ whichever reports fewer changed cells, and tell the user which alignment was kep
 mode: the one that never warns. If any part of their user-facing story leans on our diagnostics,
 there are none on that path — and the confidence it reports alongside can be `Exact` on a guess.
 
-**Tell them before this ships, not after.** The letter of 2026-10-06 did, and their reply changed
+**Tell them before this ships, not after.** The letter of 2026-10-05 did, and their reply changed
 their own design: their tie-breaker was *"keep whichever reports fewer changed cells"*, and they
 realised reading our measurement that **the rule is biased toward mis-pairings** — `RowSignature`
 pairs by similarity, so a mis-pairing produces a *small* cell diff by construction, and "fewer cells

@@ -1,6 +1,6 @@
 # Handoff 02 — A mode that never warns
 
-**Unit:** confidence-that-measures-counts 02. **Added 2026-10-06.**
+**Unit:** confidence-that-measures-counts 02. **Added 2026-10-05.**
 **Scoped by:** the architect. **Read `README.md` first, and take unit 01 before this.**
 **Semver:** minor — a new `DiagnosticKind` variant is additive on a `#[non_exhaustive]` enum.
 
