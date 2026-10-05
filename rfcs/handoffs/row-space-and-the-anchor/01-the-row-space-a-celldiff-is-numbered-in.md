@@ -182,18 +182,30 @@ and new numbers are both 1, which is what tests 3 and 4 need.
    `address.row`.
 6. **`RowSignature` alignment** also produces paired and unpaired placements, with correct numbers.
    `RowKey` is not the only non-default mode, and a fix that only worked for one would pass 1–5.
-8. **A test that behaves like the documented consumer.** This one is the point of the unit, so read
-   it twice. `CellDiff`'s doc comment describes a consumer model — one entry per logical address —
-   and **nothing we run has ever consumed it.** That is why the instruction could be wrong for a
-   whole release without a single test failing. Write the consumer the corrected doc describes:
-   build a map keyed by whatever the doc says identifies a change, insert every `CellDiff` from the
-   reproduction, and assert nothing is overwritten and the entry count equals `cell_diffs.len()`.
-   It must fail if the key omits the row placement. Name it so a reader knows it is pinning a
-   sentence, and put the sentence in a comment above it. **I have told the consumer in writing that
-   we are going to have this test** — it is not optional, and a passing variant that would still
-   pass with the placement dropped from the key does not satisfy it.
+8. **Two tests that behave like the documented consumer** — the point of the unit, so read this
+   twice. `CellDiff`'s doc comment describes a consumer model, and **nothing we run has ever
+   consumed it.** That is why the instruction could be wrong for a whole release without a single
+   test failing.
 
-9. **Failing-first for 1, 2, 4, 6 and 8**, by short-circuiting the specific mapping arm — one edit at a
+   **8a — the corrected model is lossless.** Build the consumer unit 00's corrected paragraph
+   describes: key every `CellDiff` from the reproduction by whatever the doc says identifies a
+   change, and assert nothing is overwritten and the entry count equals `cell_diffs.len()`. It must
+   fail if the key omits the row placement.
+
+   **8b — the old instruction loses a change, permanently asserted.** Implement the instruction we
+   published — key by address alone, collapse — and assert that it **drops an entry**. Name it after
+   the instruction and quote the old sentence in a comment above it.
+
+   Why 8b rather than a transient red commit: the consumer asked whether we would *"make it fail
+   loudly or make it pass by correcting the sentence first"*, and said they would keep it failing
+   for one commit so the test's own history records that the instruction was wrong. We cannot land a
+   red commit on `main` — the gates are the gates — but we can do better than history. **8b records
+   the fact in the suite itself, permanently and in the present tense**, where a reader finds it
+   without running `git log`. It also keeps earning its place: if addresses ever become unique — the
+   v4 anchor work could do it — 8b fails and tells whoever did it that the doc can now be
+   simplified. A fact in a test that still runs beats a fact in a commit message.
+
+9. **Failing-first for 1, 2, 4, 6 and 8a**, by short-circuiting the specific mapping arm — one edit at a
    time, `cmp`-verified restore between each, never two live at once. A test that passes against a
    mutation that should break it is the thing we keep finding.
 
@@ -201,8 +213,9 @@ and new numbers are both 1, which is what tests 3 and 4 need.
 
 1. The field and enum land with the agreed names and payloads, exhaustive, on `CellDiff`.
 2. Fed from the discriminant plus the lookups, per the table — not inferred.
-3. All nine tests, each with its failing-first demonstration where required — test 8 included, and
-   demonstrated to fail with the placement dropped from the key.
+3. All nine tests (8a and 8b both), each with its failing-first demonstration where required — 8a
+   demonstrated to fail with the placement dropped from the key, and 8b named after the instruction
+   it pins.
 4. All 25 goldens blessed, the diff read, and the uniform `ComparedPositionally` result confirmed
    and reported.
 5. Unit 00's corrected paragraph still true afterwards.
@@ -247,8 +260,9 @@ Under `.git-exclude/review-request/row-space-01-the-row-placement/evidence/`:
 
 1. The `CoordKey` + lookups → `RowPlacement` threading as a diff, showing it comes from the
    discriminant and not from the `Option`s.
-2. Each of the nine tests, with its failing-first mutation and the `cmp`-verified restore. For
-   test 8, also the run with the row placement dropped from the key, showing it fails.
+2. Each of the nine tests, with its failing-first mutation and the `cmp`-verified restore. For 8a,
+   also the run with the row placement dropped from the key, showing it fails. For 8b, the dropped
+   entry it observes, by address.
 3. The golden diff: that all 25 moved, uniformly `ComparedPositionally`, with the number matching
    `address.row`.
 4. `cargo public-api` output from a detached worktree.
@@ -265,7 +279,7 @@ Under `.git-exclude/review-request/row-space-01-the-row-placement/evidence/`:
 - Whether the mapping table in *Required implementation* 2 was total in practice, or whether you
   found a `CoordKey` and lookup combination it does not cover. If you found one, that is a finding
   about the engine, not about this table.
-- For test 8: what you used as the key, and whether the corrected doc comment was precise enough to
+- For 8a: what you used as the key, and whether the corrected doc comment was precise enough to
   write the test from. **If you had to guess what identifies a change, the doc is still wrong** —
   report that as a finding against unit 00's wording rather than choosing a key and moving on. The
   whole value of that test is that the prose and the code say the same thing.
