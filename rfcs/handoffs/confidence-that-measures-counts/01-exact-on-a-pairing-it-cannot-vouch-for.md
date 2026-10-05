@@ -51,6 +51,7 @@ artefacts of an ambiguous pairing — the rows were reordered — while the summ
 - `rfcs/accepted/` or `rfcs/done/011-*` — wherever row alignment's confidence is specified. **Find
   it before you change behaviour**; if the RFC specifies the current rule, that is a finding and the
   RFC changes with the code, in the same unit.
+- `src/options.rs` — `AlignmentMode::RowSignature`'s doc comment; see *Required implementation* 6.
 - `CHANGELOG.md`.
 
 ## Non-change scope
@@ -139,6 +140,25 @@ Open questions, which is why this is a proposal and not an instruction:
 addition on the strength of one consumer's requirement, and I would rather over-discuss it than
 ship a second value that needs a third.
 
+**6. Warn about the hazard in `AlignmentMode::RowSignature`'s own documentation.** The consumer's
+finding, which we have no claim on:
+
+> *"Our tie-breaker is fewer changed cells wins. That is not neutral. It preferentially selects
+> mis-pairings, because making the two sheets look more alike than they are is exactly what a
+> mis-pairing does."*
+
+It generalises past their cascade: **any rule that selects an alignment by the size of the diff it
+produces is selecting for similarity matching's characteristic error.** And we created the
+conditions — `RowSignature` is documented as *"Reduces cascades after row insertion/deletion"*, so
+the obvious way to use two modes is to keep whichever reduced the cascade more. That is the
+documented purpose being used as the selection criterion, and it is unsafe for a reason only visible
+from inside the matcher.
+
+Put it in `src/options.rs` on `AlignmentMode::RowSignature`: a mis-pairing produces a *smaller* diff
+than the truth, so diff size is not a safe way to choose between alignments; gate on the confidence
+and its reason instead. **I have told the consumer in writing that this is going there** — it is not
+optional, and it does not belong only in a CHANGELOG entry.
+
 ## Required tests
 
 1. **`RowKey` with duplicate keys does not report `Exact`** — the README's first reproduction,
@@ -171,6 +191,8 @@ ship a second value that needs a third.
    per-variant docs that say what a consumer should do — the `SheetMatchReason` standard, not a
    restatement of the variant name.
 4c. The A-04 keyless sheet and nothing-matched sheet are distinguishable through the public API.
+4d. `AlignmentMode::RowSignature`'s doc carries the selection hazard from *Required
+   implementation* 6.
 5. The governing RFC located, and reconciled with the code if it disagreed.
 6. The six tests, with failing-first where required.
 7. No golden moves. The corpus compares under default options and `alignment_summary` is `None` for
