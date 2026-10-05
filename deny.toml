@@ -27,13 +27,54 @@ feature-depth = 1
 # -- RUSTSEC-2026-0204, crossbeam-epoch via criterion -> rayon -> rayon-core
 # -> crossbeam-deque -- turned out to cost nothing to fix: a single
 # non-breaking lockfile update (`cargo update -p crossbeam-epoch`, 0.9.18 ->
-# 0.9.20; no Cargo.toml edit, no conflict). Blocking was free here, so the
-# `ignore` list below is empty. If a future dev-only advisory is NOT this
-# cheap, the decision still stands: a reasoned, expiry-dated `ignore` entry
-# is the correct escape hatch (RFC-035 §5.7), not loosening this section.
+# 0.9.20; no Cargo.toml edit, no conflict). Blocking was free there. If a
+# dev-only advisory is NOT this cheap, the decision still stands: a reasoned
+# `ignore` entry naming the single advisory id is the correct escape hatch
+# (RFC-035 §5.7), not loosening this section.
+#
+# This comment used to say "expiry-dated". cargo-deny 0.20.2 accepts only
+# `id` and `reason` in an `ignore` entry -- `expires` is rejected with
+# `error[unexpected-keys]`, confirmed against the tool rather than assumed.
+# A date in the `reason` string is enforced by nothing, and an exemption that
+# claims an expiry nothing checks is precisely the shape this project spent
+# a quarter deleting. So an entry states the **condition** under which it is
+# valid instead, which a reader can verify in seconds. If a calendar expiry
+# is wanted, it needs a CI step that fails once the date passes; until there
+# is one, this file does not claim to have one.
+#
+# ---------------------------------------------------------------------------
+# The one entry below, assessed per RFC-035 §5.7:
+#
+# 1. Trigger: the gate failed. No manual watch was needed, which is what
+#    this file is for.
+# 2. Reachability from untrusted workbook input: **none.**
+#    RUSTSEC-2026-0317 is *this project's own advisory* -- the 512-byte
+#    workbook that could provoke a multi-gigabyte allocation in 3.1.0 and
+#    earlier, which we filed with RustSec so that anyone still on an old
+#    version is warned by their own `cargo audit`. It matches our own
+#    `sheets-diff-v1_2` dev-dependency (`= 1.2.0`), whose sole consumer is
+#    `benches/v1_2_comparison.rs`. That benchmark builds its own workbooks
+#    in-process (`make_dense`, `make_sparse`); no file, no caller input, and
+#    nothing a consumer of the published crate ever receives.
+# 3. Response: not a bump. Being 1.2.0 is the entire purpose of the pin --
+#    the advisory's own "upgrade to >=3.2.0" would delete the measurement
+#    the dev-dependency exists to make. So: a documented exception, named by
+#    id, not silence.
+# 4. Consumer notification: discharged when the advisory was published. The
+#    affected range is <=3.1.0; no known consumer is on it.
+#
+# **Valid only while that remains true.** Three conditions, all checkable by
+# reading two files: `sheets-diff-v1_2` is dev-only in `Cargo.toml`;
+# `benches/v1_2_comparison.rs` is its only consumer; that benchmark feeds it
+# nothing but workbooks it generates itself. If any of the three stops
+# holding, this entry stops being justified and goes -- and if the
+# dev-dependency goes, the entry goes with it rather than sitting here
+# covering nothing.
 # ---------------------------------------------------------------------------
 [advisories]
-ignore = []
+ignore = [
+    { id = "RUSTSEC-2026-0317", reason = "Our own advisory, matching our own `= 1.2.0` dev-only pin. Sole consumer is benches/v1_2_comparison.rs, which generates its workbooks in-process -- unreachable from untrusted input, and absent from anything a consumer receives. A bump would defeat the pin's purpose (measuring v1.2). Assessed per RFC-035 §5.7; see the comment above for the three conditions this depends on." },
+]
 
 # ---------------------------------------------------------------------------
 # licenses -- allowlist consistent with Apache-2.0 distribution. Every
