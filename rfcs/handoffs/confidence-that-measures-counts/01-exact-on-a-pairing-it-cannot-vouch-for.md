@@ -3,12 +3,22 @@
 **Unit:** confidence-that-measures-counts 01. **Added 2026-10-06.**
 **Scoped by:** the architect. **Read `README.md` in this directory first** — it carries both
 reproductions and the measured output.
-**Semver:** a behaviour change, not an API change. My read is minor; **the owner decides.**
+**Semver: minor.** Settled — A-04 means this unit adds public API, so the question of whether the
+behaviour change alone would have been a patch no longer arises.
+**Revised 2026-10-06** after the consumer's reply: *Required implementation* 5 is new and is the
+largest part of the unit.
 
 ## Purpose
 
-`AlignmentSummary.confidence` reports `Exact` for pairings the engine cannot vouch for. Make it
-report what the pairing actually supports.
+`AlignmentSummary.confidence` reports `Exact` for pairings the engine cannot vouch for, and its
+other values do not mean one thing each. Make it report what the pairing actually supports, and say
+what it is reporting.
+
+**A consumer will gate on this.** ForskScope's cascade keeps whichever alignment reports fewer
+changed cells; reading our measurement they found that rule is **biased toward mis-pairings**, since
+`RowSignature` pairs by similarity and a mis-pairing therefore produces a small diff by
+construction. They are replacing the rule with one that gates on `confidence`. This unit is a
+precondition for that being correct, not a refinement of it.
 
 ## The defect in one line
 
@@ -87,6 +97,48 @@ No variant has a doc comment. Give the field a doc saying what it claims **about
 each variant one. **This is why the defect survived:** a value nothing documents is a value nothing
 can contradict. Write the docs you would need to catch this reading them.
 
+**5. Give the value a meaning a consumer can act on — which needs more than a doc comment.**
+
+Measured (README, A-04), under `RowKey`:
+
+| sheet | `inserted / removed / matched` | changes | `confidence` |
+|---|---|---|---|
+| every row keyed, every row matched | 0 / 0 / 2 | 0 | `Exact` |
+| one keyless spacer row, otherwise identical | 0 / 0 / 2 | 0 | `Medium` |
+| every row keyed, nothing matched | 2 / 2 / 0 | 8 | `Medium` |
+
+**`Medium` is the catch-all for at least two unrelated claims** — "some rows were placed by content
+alone" and "barely anything matched" — and your clamp adds a third. Rows two and three are the most
+dissimilar outcomes in the table and share a value; rows one and two have identical counts and
+different values, so `confidence` cannot be derived or checked from the summary it arrives in.
+
+The consumer asked for *"what `Medium` means we should do"*, and said the middle is where their
+cascade will spend its time. **That request cannot be met by writing prose**, because `Medium` has
+no single meaning to write down. So the unit has to add the missing value.
+
+**The precedent is in the same file.** Sheet matching ships `MatchConfidence` *and*
+`SheetMatchReason`, *"set alongside"* it, whose variants carry actionable prose —
+*"Nothing positive links the two sheets… treat it as the weakest kind of rename."* Row alignment
+ships the confidence alone. **Build the row-alignment analogue:** something on `AlignmentSummary`
+that says *why* the confidence is what it is. Keyless rows present; duplicate keys present;
+signatures that could not be told apart; too few rows matched.
+
+Open questions, which is why this is a proposal and not an instruction:
+
+- **One value or several?** The causes co-occur — a sheet can have keyless rows *and* duplicate keys.
+  A single enum then has to pick, which is how `Medium` got into this state. A set is honest and
+  costs more surface. **Propose, with the reasoning.**
+- **Does `confidence` survive as a separate field?** It may be that the reason subsumes it and
+  `confidence` becomes derived; it may be that the ordinal is still what a consumer wants to
+  threshold on. The consumer's words suggest both: *"`Exact` we will trust and `Low` we will not"*,
+  so the ordering is load-bearing. **Do not remove the field** — that is breaking, and not yours.
+- **Do not add variants to `MatchConfidence`.** It is shared with sheet matching, and new variants
+  would appear there too. If you think that is nonetheless the right answer, say so and stop.
+
+**This is the part of the unit I most want to see as a paragraph before a diff.** It is a public API
+addition on the strength of one consumer's requirement, and I would rather over-discuss it than
+ship a second value that needs a third.
+
 ## Required tests
 
 1. **`RowKey` with duplicate keys does not report `Exact`** — the README's first reproduction,
@@ -100,7 +152,14 @@ can contradict. Write the docs you would need to catch this reading them.
 4. **The keyless clamp still holds** — f130's behaviour, unchanged. Find its existing test and
    confirm it still passes rather than writing a second one.
 5. **Whatever you decide for sub-question 2**, asserted either way, with the decision in a comment.
-6. **Failing-first for 1, 2 and 3.**
+6. **The three A-04 sheets, each asserting the reason as well as the confidence.** The keyless sheet
+   and the nothing-matched sheet must be **distinguishable** afterwards — that is the measurable
+   outcome of *Required implementation* 5, and the test that proves `Medium` is no longer a
+   catch-all. A fix that leaves those two sheets indistinguishable has not done the unit.
+7. **A sheet with two co-occurring causes** — keyless rows and duplicate keys together — asserting
+   whatever your proposal says happens. If you chose a single value, this test records what it
+   discards.
+8. **Failing-first for 1, 2, 3 and 6.**
 
 ## Acceptance criteria
 
@@ -108,6 +167,10 @@ can contradict. Write the docs you would need to catch this reading them.
 2. No sheet containing an ambiguous pairing reports `Exact`; unambiguous pairings still do.
 3. Both sub-questions answered explicitly, including whether `Low` was previously unreachable.
 4. `AlignmentSummary.confidence` and every `MatchConfidence` variant documented, for rows.
+4b. The reason value from *Required implementation* 5 landed, proposed in writing first, with
+   per-variant docs that say what a consumer should do — the `SheetMatchReason` standard, not a
+   restatement of the variant name.
+4c. The A-04 keyless sheet and nothing-matched sheet are distinguishable through the public API.
 5. The governing RFC located, and reconciled with the code if it disagreed.
 6. The six tests, with failing-first where required.
 7. No golden moves. The corpus compares under default options and `alignment_summary` is `None` for
@@ -120,6 +183,10 @@ can contradict. Write the docs you would need to catch this reading them.
 - Do not change the matcher. Only what we claim about it.
 - Do not clamp everything to `Medium` and call it conservative. Test 3 exists for that.
 - Do not add a per-row confidence field.
+- Do not add variants to `MatchConfidence`; it is shared with sheet matching.
+- Do not remove or retype `AlignmentSummary.confidence`. Breaking, and not this unit's.
+- Do not answer the consumer's "what should I do at `Medium`" by writing a doc comment that asserts
+  a single meaning. We measured that there is not one. Add the value that carries the claim.
 - Do not leave the docs for later. A-03 is the reason A-01 survived; fixing the behaviour and
   leaving the undocumented field is fixing the instance and keeping the cause.
 
