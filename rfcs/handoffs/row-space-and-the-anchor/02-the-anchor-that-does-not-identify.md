@@ -92,9 +92,10 @@ fail on current `main` for the right reason, and its failure message must name t
 - it is **additive** — no existing signature changes.
 
 A positional cursor over the filtered list is the obvious candidate; so is returning an index
-alongside each row. **Propose before building**, and say what a GUI does with it to restore
-scroll position across a re-diff, because that is what `ChangeAnchor` was for and your replacement
-has to serve it.
+alongside each row. **Propose before building, via rule 005** —
+`.git-exclude/proposal/row-space-02-the-anchor/README.md`, answered in `REPLY.md`, no review cycle.
+Say what a GUI does with it to restore scroll position across a re-diff, because that is what
+`ChangeAnchor` was for and your replacement has to serve it.
 
 **3. Deprecate `next_after` and `previous_before`** with `#[deprecated]` naming the replacement,
 per RFC-031 §7. **Leave their behaviour alone** — see *The constraint* above. A deprecated method

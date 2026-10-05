@@ -73,8 +73,16 @@ assertion fires on the diagnostic's payload, not on its `code()`.
 in terms someone can check in a year. A removed parameter on a private function is not an API
 change; leaving a misleading `_diagnostics` in place is a trap for the next reader.
 
-**4. Propose before implementing.** One paragraph: which outcome, and if a diagnostic, its code,
-payload and message.
+**4. Propose before implementing, via rule 005** —
+`.git-exclude/proposal/confidence-02-a-mode-that-never-warns/README.md`. One paragraph: which
+outcome, and if a diagnostic, its code, payload and message. If the answer needs the code written
+first, say so and write it (rule 005's last section).
+
+**Note what has changed under you:** `the-row-that-vanishes/01` added
+`DiagnosticKind::MissingRowSignature` to this path, so the signature mode is no longer
+diagnostic-silent and `_diagnostics` is no longer underscore-prefixed. **Re-establish this unit's
+premise before scoping it** — what remains is whether *ambiguity* among signatures warrants its own
+diagnostic, which is a narrower question than the one this handoff was written for.
 
 ## Required tests
 

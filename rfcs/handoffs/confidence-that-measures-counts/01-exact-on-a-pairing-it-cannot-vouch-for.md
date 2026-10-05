@@ -87,8 +87,11 @@ Two sub-questions to answer explicitly rather than by implication:
   content comparison the matcher does not do. **Pick the conservative, cheap answer and say you
   picked it** — do not build the clever one.
 
-**3. Propose before implementing.** Send me the rule in one paragraph and the two sub-answers before
-you change `src/align.rs`. This changes a value consumers may branch on and I would rather argue
+**3. Propose before implementing, via rule 005** —
+`.git-exclude/proposal/confidence-01-exact-on-a-guess/README.md`, answered in `REPLY.md` beside it,
+no review cycle. The rule in one paragraph and the two sub-answers, before you change
+`src/align.rs`. **If either sub-question cannot be answered without writing the code, say so and
+write it** — rule 005's last section; a proposal that forces a guess is worse than none. This changes a value consumers may branch on and I would rather argue
 about a paragraph than a diff.
 
 **4. Fix A-03 — the undocumented promise.** `AlignmentSummary.confidence` has no field doc, and
@@ -157,7 +160,8 @@ Open questions, which is why this is a proposal and not an instruction:
 - **Do not add variants to `MatchConfidence`.** It is shared with sheet matching, and new variants
   would appear there too. If you think that is nonetheless the right answer, say so and stop.
 
-**This is the part of the unit I most want to see as a paragraph before a diff.** It is a public API
+**This is the part of the unit I most want to see as a paragraph before a diff** — same channel,
+rule 005. It is a public API
 addition on the strength of one consumer's requirement, and I would rather over-discuss it than
 ship a second value that needs a third.
 
@@ -174,6 +178,10 @@ conditions — `RowSignature` is documented as *"Reduces cascades after row inse
 the obvious way to use two modes is to keep whichever reduced the cascade more. That is the
 documented purpose being used as the selection criterion, and it is unsafe for a reason only visible
 from inside the matcher.
+
+**That doc has grown since this handoff was written.** `the-row-that-vanishes/01` added a paragraph
+to `AlignmentMode::RowSignature` covering unsampled rows, the `missing_row_signature` warning and
+the confidence clamp. Yours is **additive to that**, not a replacement: read what is there first.
 
 Put it in `src/options.rs` on `AlignmentMode::RowSignature`: a mis-pairing produces a *smaller* diff
 than the truth, so diff size is not a safe way to choose between alignments; gate on the confidence
