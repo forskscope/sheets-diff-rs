@@ -3,9 +3,10 @@
 **Unit:** row-space-and-the-anchor 00. **Added 2026-10-05.**
 **Scoped by:** the architect, from `.git-exclude/decisions/006-the-row-space-field.md` §8.3.
 **Semver:** patch. **Documentation only — not one line of behaviour.**
-**Release: 3.3.1**, decided by the owner 2026-10-05 — this unit **and**
+**Release: 3.4.0**, decided by the owner 2026-10-06 — this unit **and**
 `the-row-that-vanishes/01` (a changed cell that is never reported), as two separate reviews in one
-release. **That unit goes first**; this one is still ahead of 01 and 02 of this milestone.
+release. It is a minor because that unit adds a `DiagnosticKind` variant; **this unit is still
+documentation only and its own `cargo public-api` diff must still be empty.** **That unit goes first**; this one is still ahead of 01 and 02 of this milestone.
 
 ## Purpose
 
@@ -138,7 +139,7 @@ returns exactly two hits, one true and one false — that one is settled. The ot
 prose and may be paraphrased elsewhere. `docs/src/` has a semantics chapter
 and a migration guide. Grep for the claim, not for the sentence — a paraphrase is just as wrong.
 
-**3. The release is decided, so the CHANGELOG entry is real.** 3.3.1 carries this unit and
+**3. The release is decided, so the CHANGELOG entry is real.** 3.4.0 carries this unit and
 `the-row-that-vanishes/01`. Write your entries under that heading without restructuring the section
 around them — the other unit adds its own, and whichever of you lands second should not be rewriting
 the first one's wording.
