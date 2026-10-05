@@ -3,7 +3,10 @@
 **Unit:** row-space-and-the-anchor 02. **Added 2026-10-05.**
 **Scoped by:** the architect, from `.git-exclude/decisions/006-the-row-space-field.md` §5.
 **Semver:** minor — additive only. **The real repair is a major and is deferred to v4 by decision.**
-**Read `README.md` in this directory first**, and take unit 01 before this one.
+**Read `README.md` in this directory first**, and take units 00 and 01 before this one.
+**Revised 2026-10-05:** the documentation half of this unit moved into unit 00, a doc-only patch —
+the consumer's point, which I accepted, was *"the deprecation can take its window; the sentence
+should not."* What remains here is the replacement route and the deprecation.
 
 ## Purpose
 
@@ -98,14 +101,17 @@ per RFC-031 §7. **Leave their behaviour alone** — see *The constraint* above.
 that hangs is bad; a deprecated method that silently skips a change is worse, and we say so in the
 doc rather than papering over it.
 
-**4. Tell the truth in the docs**, in `ChangeAnchor`'s doc comment and on both deprecated methods:
-an anchor is **not unique** under non-`Positional` alignment, because two rows in different row
-spaces can share `(row, col)`; these two methods can therefore fail to advance; the reliable routes
-are the new one and `CellDiff::row_space`. Point at unit 01's field by name.
+**4. Extend the docs unit 00 corrected.** Unit 00 already made `ChangeAnchor`'s doc and both
+methods' docs state that an anchor is not unique and that these methods can fail to advance — do
+not rewrite that from scratch, and do not weaken it. Add the two things unit 00 could not say: the
+replacement route by name, and `CellDiff::row_placement` as the reliable way to tell two changes at
+one address apart. If unit 00's wording is wrong or incomplete, say so rather than silently
+replacing it; it shipped to users and I reviewed it.
 
-**5. `src/model.rs:526` says `CellChangeRow` follows the "one row per address" rule.** Unit 01 was
-told not to leave that sentence asserting something you had not delivered. Whatever it says when you
-start, make it true or make it accurate — and say which.
+**5. `src/model.rs:526` said `CellChangeRow` follows the "one row per address" rule.** Unit 00
+corrected or removed that sentence, and unit 01 was told to keep its replacement true. Check what it
+says when you start. If your new route changes whether it is accurate, update it — and say which of
+the three units ended up owning that sentence, because it has now passed through all of them.
 
 **6. Record the deferred repair** in the v4 scope: `ChangeAnchor` carries the row space, and the
 `view.rs` types get `#[non_exhaustive]` so the next fix of this class is a minor. That second half
@@ -150,6 +156,12 @@ those structs were left open to literal construction.
 
 ## Known risks
 
+**0. No consumer we know of uses this API.** The consumer who prompted this work checked and
+reported that `DiffView`, `ChangeAnchor`, `next_after`, `previous_before` and `output::view` appear
+nowhere in their codebase, and asked us not to weigh the deprecation trade on their behalf. They
+agree with the ranking anyway. Read that as freedom to get the replacement right rather than fast —
+not as licence to leave the hang in place.
+
 **1. The replacement route is a design decision, not a mechanical one.** `ChangeAnchor` exists so a
 GUI can restore position across a re-diff. An index into a filtered list does not survive a re-diff.
 If your proposal does not serve that use, say so plainly — "this does not replace anchors for
@@ -188,4 +200,6 @@ Under `.git-exclude/review-request/row-space-02-the-anchor/evidence/`:
 - The exact new wording of `ChangeAnchor`'s doc.
 - Whether you think the v4 repair is the right call or whether we should break it sooner. You are
   closer to the code than I am, and if holding a known-broken method through a deprecation window is
-  the wrong trade, I would rather hear it now than after 3.4.0 ships.
+  the wrong trade, I would rather hear it now than after 3.4.0 ships. Note that the consumer, told
+  the reasoning, independently agreed with the ranking — but they do not use the API, so their
+  agreement is about the principle and not about the cost.
