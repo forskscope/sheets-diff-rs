@@ -1,4 +1,4 @@
-# Handoff 00 — Two sentences that are false in shipped code
+# Handoff 00 — Three sentences that are false in shipped code
 
 **Unit:** row-space-and-the-anchor 00. **Added 2026-10-05.**
 **Scoped by:** the architect, from `.git-exclude/decisions/006-the-row-space-field.md` §8.3.
@@ -13,7 +13,10 @@ Two published doc comments in 3.3.0 state things that are not true. One of them 
 do something that produces a wrong answer. Correcting prose carries no behaviour risk, and there is
 no reason a consumer reading our docs between now and 3.4.0 should be given the wrong instruction.
 
-## The two sentences
+## The three sentences
+
+**Revised 2026-10-06:** a third was found while answering a consumer's remark. It was two when this
+handoff was written; the title and the criteria below are updated.
 
 **1. `src/model.rs:526` — this is the dangerous one.** On `CellDiff`, in bold:
 
@@ -27,7 +30,24 @@ follows that instruction merges two distinct changes into one.** We have direct 
 being read: a consumer told us they read it and did not follow it *"by luck rather than
 judgement"*, because their conversion pushes into a vector instead of keying by address.
 
-**2. `src/output/view.rs:40` — `ChangeAnchor`'s doc:**
+**2. `src/model.rs:884` — `SheetDiff.alignment_summary`'s field doc, in full:**
+
+> *"Reserved until RFC-011."*
+
+**RFC-011 is in `rfcs/done/` and the field is populated.** It carries a real `AlignmentSummary`
+under every non-`Positional` mode, and a consumer gating on it has been reading a field our own doc
+calls reserved. The type's doc above it is correct (`None` when the mode is `Positional`); the
+field's is simply stale.
+
+While you are there: **say why it is `None`.** `Positional` performs no alignment, so there are no
+alignment decisions to summarise — which a consumer told us they had to work out from the code, and
+which matters because it means confidence cannot be compared across a positional leg and an aligned
+leg of the same comparison. One sentence.
+
+Do **not** touch `src/model.rs:543`'s *"Reserved until RFC-022."* — RFC-022 is still in
+`rfcs/accepted/` and blocked upstream, so that one is true.
+
+**3. `src/output/view.rs:40` — `ChangeAnchor`'s doc:**
 
 > *"A stable, deterministic identifier for a single change row."*
 
@@ -87,8 +107,10 @@ None, and that is deliberate — there is no behaviour here. Two things instead:
 
 ## Acceptance criteria
 
-1. Neither sentence states anything false, and `CellDiff`'s paragraph no longer instructs a consumer
-   into a merge.
+1. None of the three states anything false, and `CellDiff`'s paragraph no longer instructs a
+   consumer into a merge.
+1b. `alignment_summary` is no longer described as reserved, and says why it is `None` under
+   `Positional`. `src/model.rs:543` is untouched.
 2. Both deprecated-to-be methods carry the warning in their own docs.
 3. The book swept; every repetition found and fixed, or confirmed there are none.
 4. `cargo public-api` diff **empty**.
@@ -98,7 +120,7 @@ None, and that is deliberate — there is no behaviour here. Two things instead:
 
 ## Prohibited shortcuts
 
-- Do not soften either sentence into vagueness. "May not be unique in some cases" helps nobody. Name
+- Do not soften any of the three into vagueness. "May not be unique in some cases" helps nobody. Name
   the modes, name the cause.
 - Do not change behaviour "while you are in there", however small and however obviously right. A
   patch whose `public-api` diff is empty and whose `git diff` is prose only is the point of this
@@ -111,7 +133,9 @@ None, and that is deliberate — there is no behaviour here. Two things instead:
 in a minor, with a replacement route alongside — because there is no correct patch for it. The
 decision record's §5 has the three candidates I rejected and why; read it before proposing one.
 
-**2. The claim may appear in more places than the two named.** `docs/src/` has a semantics chapter
+**2. The claim may appear in more places than the three named.** `grep -rn "Reserved until" src/`
+returns exactly two hits, one true and one false — that one is settled. The other two claims are
+prose and may be paraphrased elsewhere. `docs/src/` has a semantics chapter
 and a migration guide. Grep for the claim, not for the sentence — a paraphrase is just as wrong.
 
 **3. The release is decided, so the CHANGELOG entry is real.** 3.3.1 carries this unit and

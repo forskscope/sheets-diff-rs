@@ -21,11 +21,17 @@ old:  A="K", B="a"          new:  A="K", B="a"
       (no A),  B="before"          (no A),  B="AFTER"
 ```
 
-| mode | summary | diagnostics | cell diffs |
-|---|---|---|---|
-| `RowSignature { sample_columns: Some([1]) }` | 0 / 0 / 1, **`Exact`** | **0** | **0** |
-| `RowSignature { sample_columns: None }` | 1 / 1 / 1, `Medium` | 0 | 2 — `B2 Removed`, `B2 Added` |
-| `RowKey { columns: [1] }` | 1 / 1 / 1, `Medium` | 1 | 2 — `B2 Removed`, `B2 Added` |
+| mode | inserted / removed / **matched** | confidence | diagnostics | cell diffs |
+|---|---|---|---|---|
+| `RowSignature { sample_columns: Some([1]) }` | 0 / 0 / **1** | **`Exact`** | **0** | **0** |
+| `RowSignature { sample_columns: None }` | 1 / 1 / **1** | `Medium` | 0 | 2 — `B2 Removed`, `B2 Added` |
+| `RowKey { columns: [1] }` | 1 / 1 / **1** | `Medium` | 1 | 2 — `B2 Removed`, `B2 Added` |
+
+The column order is `AlignmentSummary`'s own field order — `inserted_rows`, `removed_rows`,
+`matched_rows` — **not** matched-first. The first version of this table gave the three numbers under
+a bare heading of "summary"; the consumer read them matched-first, re-measured, and reported a
+discrepancy that does not exist. Three numbers without their names, in a thread about markers
+credited with more than they measured. Label the order wherever these appear.
 
 `before` → `AFTER` is a real change in a real cell. The first row of that table reports **nothing**:
 no diff, no diagnostic, and an alignment summary claiming `Exact` — a positive assertion that the
@@ -127,6 +133,13 @@ is the finding; f130 plus this unit is twice, and twice is a pattern.
 4. **An unchanged row with no sampled cells does not become a removal plus an insertion**, if that
    is what your rescue decides — the RowKey path's reasoning applied here. Assert whatever you chose
    and put the choice in a comment.
+4b. **A forty-row sheet, sampled on two columns, with one spacer row populated only in a third,
+   whose value changes.** The consumer built this to check the defect was not an artefact of a
+   two-row sheet; it is not. Pre-fix it reports `matched: 40`, `Exact`, and **zero** cell diffs.
+   **This is the better regression test and it should be the one that carries the unit**, because
+   `matched: 40` with `Exact` is a summary a consumer believes, where a two-row sheet can be
+   dismissed as degenerate. Assert the change is reported, the count, and that `Exact` is gone.
+
 5. **A sheet where every row lacks a sampled cell.** The degenerate case: no row has a signature at
    all. Assert it does something sane rather than panicking, dividing by zero or reporting `Exact`
    over an empty mapping.
