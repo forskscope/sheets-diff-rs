@@ -137,7 +137,13 @@ is the finding; f130 plus this unit is twice, and twice is a pattern.
    and put the choice in a comment.
 4b. **A forty-row sheet, sampled on two columns, with one spacer row populated only in a third,
    whose value changes.** The consumer built this to check the defect was not an artefact of a
-   two-row sheet; it is not. Pre-fix it reports `matched: 40`, `Exact`, and **zero** cell diffs.
+   two-row sheet; it is not. Pre-fix it reports `matched: 39`, `Exact`, and **zero** cell diffs.
+
+   *(Corrected 2026-10-06. This first said `matched: 40`, which was a mis-transcription: the
+   consumer's sheet was **41** rows — forty sampled plus the spacer — giving 40 matched. On a
+   literal forty-row sheet the spacer is one of the forty, so 39 match. The dev team measured 39,
+   flagged the inconsistency between my two numbers, and deduced the 41-row case correctly without
+   measuring it. The property tested is identical either way, so the delivered test stands.)*
    **This is the better regression test and it should be the one that carries the unit**, because
    `matched: 40` with `Exact` is a summary a consumer believes, where a two-row sheet can be
    dismissed as degenerate. Assert the change is reported, the count, and that `Exact` is gone.
