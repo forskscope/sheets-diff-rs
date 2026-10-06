@@ -10,7 +10,8 @@ use std::fmt::Write as _;
 use crate::diff::CellMap;
 use crate::error::SheetsDiffError;
 use crate::model::{
-    Diagnostic, DiagnosticKind, DiagnosticLocation, DiffStage, MatchConfidence, Severity, SheetRef,
+    ConfidenceReason, Diagnostic, DiagnosticKind, DiagnosticLocation, DiffStage, MatchConfidence,
+    Severity, SheetRef,
 };
 use crate::options::{AlignmentMode, Cancellation};
 
@@ -27,6 +28,7 @@ pub struct AlignmentSummaryData {
     pub removed_rows: usize,
     pub matched_rows: usize,
     pub confidence: MatchConfidence,
+    pub reasons: Vec<ConfidenceReason>,
 }
 
 // ---------------------------------------------------------------------------
@@ -100,27 +102,36 @@ pub fn compute_row_mapping(
         }
     }
 
-    match mode {
-        AlignmentMode::Positional => Ok(None),
+    let mapping = match mode {
+        AlignmentMode::Positional => return Ok(None),
 
-        AlignmentMode::RowKey { columns } => Ok(Some(row_key_alignment(
+        AlignmentMode::RowKey { columns } => row_key_alignment(
             old_cells,
             new_cells,
             columns,
             cancellation,
             sheet,
             diagnostics,
-        )?)),
+        )?,
 
-        AlignmentMode::RowSignature { sample_columns } => Ok(Some(row_signature_alignment(
+        AlignmentMode::RowSignature { sample_columns } => row_signature_alignment(
             old_cells,
             new_cells,
             sample_columns.as_deref(),
             cancellation,
             sheet,
             diagnostics,
-        )?)),
+        )?,
+    };
+
+    // Every mode's mapping leaves here, so this is the one place the invariant is checked. The check
+    // is debug-only: `cfg!` is a compile-time constant, so release builds neither run nor panic on it.
+    if cfg!(debug_assertions)
+        && let Some(violation) = row_mapping_violation(old_cells, new_cells, &mapping)
+    {
+        panic!("alignment invariant violated: {violation}");
     }
+    Ok(Some(mapping))
 }
 
 /// `Err(Cancelled)` if a cancellation token is configured and has fired.
@@ -206,6 +217,10 @@ fn row_key_alignment(
     let old_keyless = unmapped_rows(old_cells, &old_keys);
     let new_keyless = unmapped_rows(new_cells, &new_keys);
 
+    let content_placed = !old_keyless.is_empty() || !new_keyless.is_empty();
+    let ambiguous =
+        (!old_dups.is_empty() || !new_dups.is_empty()).then_some(ConfidenceReason::DuplicateKeys);
+
     let mut mapping = lcs_match(old_keys, new_keys, cancellation)?;
 
     if !old_keyless.is_empty() || !new_keyless.is_empty() {
@@ -236,26 +251,9 @@ fn row_key_alignment(
         mapping.removed.sort_unstable();
         mapping.inserted.extend(new_rest);
         mapping.inserted.sort_unstable();
-
-        let (n_matched, n_removed, n_inserted) = (
-            mapping.matched.len(),
-            mapping.removed.len(),
-            mapping.inserted.len(),
-        );
-        mapping.summary = AlignmentSummaryData {
-            inserted_rows: n_inserted,
-            removed_rows: n_removed,
-            matched_rows: n_matched,
-            // `High` says the pairing is reliable apart from a few real insertions and removals.
-            // Rows placed by their content alone, or not at all, are neither — so a sheet with any
-            // keyless row is at most `Medium`, however many of them paired.
-            confidence: match confidence_for(n_matched, n_removed, n_inserted) {
-                MatchConfidence::Exact | MatchConfidence::High => MatchConfidence::Medium,
-                lower => lower,
-            },
-        };
     }
 
+    finish_summary(&mut mapping, content_placed, ambiguous);
     Ok(mapping)
 }
 
@@ -281,6 +279,38 @@ fn row_signature_alignment(
     // so no row can be excluded; `unmapped_rows` is then always empty and this block is a no-op.
     let old_unmapped = unmapped_rows(old_cells, &old_sigs);
     let new_unmapped = unmapped_rows(new_cells, &new_sigs);
+
+    // The one detection of repeated signatures on each side. It feeds the `DuplicateSignatures` reason and the
+    // `duplicate_row_signature` warning below, so the two cannot disagree.
+    //
+    // The warning fires under `sample_columns: None` too, and that is not noise. A signature is built from
+    // `cell.value.display_string()` and nothing else (`compute_row_signatures`): a cell's formula never
+    // contributes. So rows with identical signatures can differ in their formulas even when every cell is
+    // sampled, and pairing them by position can attribute a formula change to the wrong row. The signature is a
+    // rendering of the cell, not the cell. Do not remove this warning on the argument that `None` makes identical
+    // signatures identical rows: that argument is wrong.
+    let old_dups = find_duplicate_keys(&old_sigs);
+    let new_dups = find_duplicate_keys(&new_sigs);
+    if !old_dups.is_empty() || !new_dups.is_empty() {
+        diagnostics.push(Diagnostic {
+            severity: Severity::Warning,
+            kind: DiagnosticKind::DuplicateRowSignature {
+                old_count: old_dups.len(),
+                new_count: new_dups.len(),
+            },
+            location: sheet_location(sheet),
+            message: format!(
+                "duplicate row signatures detected ({} distinct signature(s) repeated in old, {} in new); \
+                 rows with identical content are paired in row order, so their pairing among themselves is \
+                 positional",
+                old_dups.len(),
+                new_dups.len()
+            ),
+        });
+    }
+    let content_placed = !old_unmapped.is_empty() || !new_unmapped.is_empty();
+    let ambiguous = (!old_dups.is_empty() || !new_dups.is_empty())
+        .then_some(ConfidenceReason::DuplicateSignatures);
 
     let mut mapping = lcs_match(old_sigs, new_sigs, cancellation)?;
 
@@ -316,34 +346,9 @@ fn row_signature_alignment(
         mapping.removed.sort_unstable();
         mapping.inserted.extend(new_rest);
         mapping.inserted.sort_unstable();
-
-        let (n_matched, n_removed, n_inserted) = (
-            mapping.matched.len(),
-            mapping.removed.len(),
-            mapping.inserted.len(),
-        );
-        mapping.summary = AlignmentSummaryData {
-            inserted_rows: n_inserted,
-            removed_rows: n_removed,
-            matched_rows: n_matched,
-            // Same clamp as the RowKey rescue, and for the same reason (`src/align.rs:251`'s
-            // comment, verbatim): rows placed by their content alone, or not at all, are neither
-            // `High` nor `Exact`-worthy -- so a sheet with any unsampled row is at most `Medium`,
-            // however many of them paired. Without this, a sheet where *every* row is unsampled and
-            // happens to be identical on both sides (the degenerate case, test 5) would content-pair
-            // every row and report `Exact` -- vacuously true about the counts, and exactly as
-            // untrustworthy a claim as RowKey's pre-f130 behaviour, since nothing here was matched by
-            // an actual signature. Whether an ambiguous-but-harmless pairing should be reported
-            // *differently* from a genuinely under-matched one is
-            // confidence-that-measures-counts/01's question; reusing this existing clamp is not
-            // inventing a new answer to it, only applying the one RowKey already shipped.
-            confidence: match confidence_for(n_matched, n_removed, n_inserted) {
-                MatchConfidence::Exact | MatchConfidence::High => MatchConfidence::Medium,
-                lower => lower,
-            },
-        };
     }
 
+    finish_summary(&mut mapping, content_placed, ambiguous);
     Ok(mapping)
 }
 
@@ -425,8 +430,51 @@ fn lcs_match(
             removed_rows: n_removed,
             matched_rows: n_matched,
             confidence,
+            reasons: Vec::new(),
         },
     })
+}
+
+/// Sets the summary, and its reasons, from the final pairing. Every row alignment ends here, so no path
+/// reports a `confidence` without the reasons for it.
+///
+/// `content_placed`: some row had no key or no sampled cell and was placed by identical content. `ambiguous`:
+/// the duplicate reason, if the mode's sequence repeats a value on either side. Either one caps the
+/// confidence at `Medium`. `Exact` and `High` claim a reliability a pairing made by content, or among identical
+/// values, does not have. That is the keyless clamp, applied to every path.
+fn finish_summary(
+    mapping: &mut RowMapping,
+    content_placed: bool,
+    ambiguous: Option<ConfidenceReason>,
+) {
+    let (n_matched, n_removed, n_inserted) = (
+        mapping.matched.len(),
+        mapping.removed.len(),
+        mapping.inserted.len(),
+    );
+    let raw = confidence_for(n_matched, n_removed, n_inserted);
+    let mut reasons = Vec::new();
+    if content_placed {
+        reasons.push(ConfidenceReason::RowsPlacedByContent);
+    }
+    if let Some(reason) = ambiguous {
+        reasons.push(reason);
+    }
+    let capped = !reasons.is_empty();
+    let confidence = match raw {
+        MatchConfidence::Exact | MatchConfidence::High if capped => MatchConfidence::Medium,
+        other => other,
+    };
+    if confidence == MatchConfidence::Medium && reasons.is_empty() {
+        reasons.push(ConfidenceReason::TooFewMatched);
+    }
+    mapping.summary = AlignmentSummaryData {
+        inserted_rows: n_inserted,
+        removed_rows: n_removed,
+        matched_rows: n_matched,
+        confidence,
+        reasons,
+    };
 }
 
 /// `Exact` when every row on both sides was matched; `High` when matched rows outnumber the rest;
@@ -439,6 +487,87 @@ fn confidence_for(n_matched: usize, n_removed: usize, n_inserted: usize) -> Matc
     } else {
         MatchConfidence::Medium
     }
+}
+
+/// The first way `mapping` breaks the alignment invariant for `(old_cells, new_cells)`, or `None`.
+///
+/// Every row with a cell on a side is in exactly one of that side's buckets (clauses 1 and 2), no bucket
+/// names a row the sheet does not have (3), and `matched` is injective (4). See
+/// `docs/src/maintainers/row-alignment-invariant.md` for why each clause holds and what the invariant
+/// does not catch (a mis-pairing satisfies all four).
+fn row_mapping_violation(
+    old_cells: &CellMap,
+    new_cells: &CellMap,
+    mapping: &RowMapping,
+) -> Option<String> {
+    let old_rows: BTreeSet<u32> = old_cells.keys().map(|(r, _)| *r).collect();
+    let new_rows: BTreeSet<u32> = new_cells.keys().map(|(r, _)| *r).collect();
+
+    let mut new_partner: BTreeMap<u32, u32> = BTreeMap::new();
+    for (&old, &new) in &mapping.matched {
+        if let Some(other) = new_partner.insert(new, old) {
+            return Some(format!(
+                "clause 4 (matched is injective): old rows {other} and {old} are both matched to new row {new}"
+            ));
+        }
+    }
+
+    for &old in mapping.matched.keys().chain(&mapping.removed) {
+        if !old_rows.contains(&old) {
+            return Some(format!(
+                "clause 3 (no row is invented): old row {old} is in the mapping but the old sheet has no cell on it"
+            ));
+        }
+    }
+    for &new in mapping.matched.values().chain(&mapping.inserted) {
+        if !new_rows.contains(&new) {
+            return Some(format!(
+                "clause 3 (no row is invented): new row {new} is in the mapping but the new sheet has no cell on it"
+            ));
+        }
+    }
+
+    let mut old_count: BTreeMap<u32, usize> = BTreeMap::new();
+    for &old in mapping.matched.keys().chain(&mapping.removed) {
+        *old_count.entry(old).or_insert(0) += 1;
+    }
+    for &old in &old_rows {
+        match old_count.get(&old).copied().unwrap_or(0) {
+            1 => {}
+            0 => {
+                return Some(format!(
+                    "clause 1 (old side, total): old row {old} has cells but is in neither matched nor removed"
+                ));
+            }
+            n => {
+                return Some(format!(
+                    "clause 1 (old side, disjoint): old row {old} is in {n} buckets (matched or removed)"
+                ));
+            }
+        }
+    }
+
+    let mut new_count: BTreeMap<u32, usize> = BTreeMap::new();
+    for &new in mapping.matched.values().chain(&mapping.inserted) {
+        *new_count.entry(new).or_insert(0) += 1;
+    }
+    for &new in &new_rows {
+        match new_count.get(&new).copied().unwrap_or(0) {
+            1 => {}
+            0 => {
+                return Some(format!(
+                    "clause 2 (new side, total): new row {new} has cells but is in neither matched nor inserted"
+                ));
+            }
+            n => {
+                return Some(format!(
+                    "clause 2 (new side, disjoint): new row {new} is in {n} buckets (matched or inserted)"
+                ));
+            }
+        }
+    }
+
+    None
 }
 
 // ---------------------------------------------------------------------------

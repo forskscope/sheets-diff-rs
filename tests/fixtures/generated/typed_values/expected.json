@@ -33,6 +33,11 @@
             "col": 1,
             "a1": "A1"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 1
+            }
+          },
           "value": {
             "old": {
               "Text": "100"
@@ -51,6 +56,11 @@
             "row": 1,
             "col": 2,
             "a1": "B1"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 1
+            }
           },
           "value": {
             "old": {

@@ -183,7 +183,8 @@ pub enum AlignmentMode {
     /// the rest are reported as removed (old side) or inserted (new side), so a change in such a
     /// row is still seen, as a whole-row change — the same rescue `RowKey` describes for a row
     /// missing its key. A `missing_row_signature` warning gives the count per side, and the
-    /// sheet's alignment confidence is at most `Medium`. A sampled column that no row populates
+    /// sheet's alignment confidence is at most `Medium`. A signature repeated on either side raises a
+    /// `duplicate_row_signature` warning, since identical rows are then paired by position among themselves. A sampled column that no row populates
     /// therefore matches nothing and reports every row that differs. With `sample_columns: None`
     /// every cell contributes to its row's signature, so no row can ever be excluded and this
     /// warning never fires.

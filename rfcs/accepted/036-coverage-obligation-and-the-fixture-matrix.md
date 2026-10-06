@@ -184,6 +184,9 @@ nothing checks.
   accident covers nothing (two goldens did exactly that for
   `formula_unavailable` until f135 removed the accident).
 
+  *Extended 2026-10-06 (confidence-that-measures-counts/02):* `DuplicateRowSignature` is
+  covered by corpus row 19 through its dedicated-options pattern, with the assertion on the payload.
+
   *Adopted 2026-10-01, from M9 unit 05's proposal, with §5.1's "assert on the
   thing" requirement made explicit. The set is knowable:
   `every_code_in_the_table_is_producible_and_nothing_else_is` already enumerates

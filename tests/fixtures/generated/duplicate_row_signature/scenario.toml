@@ -1,0 +1,4 @@
+name        = "duplicate_row_signature_under_row_signature_alignment"
+kind        = "feature"
+description = "Rows 1 and 2 have the same sampled signature (column A is `A` in both). Under AlignmentMode::RowSignature{sample_columns: Some([1])} they are paired by position among themselves, and the swap reports two spurious changes. Raises duplicate_row_signature, which no corpus scenario produced before this."
+notes       = ""

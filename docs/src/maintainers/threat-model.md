@@ -539,8 +539,9 @@ All surfaced during M2; none currently fixed.
   number, inserted rows at their new-sheet row number), so a numeric
   coincidence between the two can still produce two distinct, individually
   correct `CellDiff` entries with the same `.address`. This is a labelling
-  ambiguity a consumer's UI would need to disambiguate (e.g. via which
-  `CellChangeKind` applies), not a lost or wrong comparison.
+  ambiguity a consumer's UI disambiguates with `CellDiff::row_placement`, which says
+  which row each sheet numbers the change in (`CellChangeKind` cannot: it says only
+  whether a value was added, removed or modified), not a lost or wrong comparison.
 - **The bytes-input path owns a copy where it could borrow.** `open_bytes`
   turns a borrowed `impl AsRef<[u8]>` into an owned `Vec<u8>` via `to_vec()`
   before handing it to the `Cursor`-based reader (RFC-035 Handoff 04

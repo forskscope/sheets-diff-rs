@@ -1138,6 +1138,27 @@ fn main() {
         println!("✓ missing_row_signature");
     }
 
+    // 27. Duplicate row signature -- two rows with the same sampled signature, swapped, under RowSignature
+    //     alignment (confidence-that-measures-counts/02, RFC-036 #19). Before 3.5.0 the signature path emitted no
+    //     diagnostic at all, and this swap reported two spurious changes with alignment_summary `Exact`. A dedicated
+    //     test (not this generator) applies RowSignature and asserts duplicate_row_signature fires with its payload.
+    {
+        let dir = base.join("duplicate_row_signature");
+        let old = wb_strings(&[(0, 0, "A"), (0, 1, "x"), (1, 0, "A"), (1, 1, "y")]);
+        let new = wb_strings(&[(0, 0, "A"), (0, 1, "y"), (1, 0, "A"), (1, 1, "x")]);
+        write_fixture_pair(&dir, &old, &new);
+        write_scenario(
+            &dir,
+            "duplicate_row_signature_under_row_signature_alignment",
+            "feature",
+            "Rows 1 and 2 have the same sampled signature (column A is `A` in both). Under \
+             AlignmentMode::RowSignature{sample_columns: Some([1])} they are paired by position among \
+             themselves, and the swap reports two spurious changes. Raises duplicate_row_signature, which no \
+             corpus scenario produced before this.",
+        );
+        println!("✓ duplicate_row_signature");
+    }
+
     // Encrypted-workbook fixture (M5 Handoff 03) -- a single standalone
     // negative-input file, like `not_a_zip.xlsx`, not an old/new scenario
     // pair, so it does not go under `base` or get a `scenario.toml`.

@@ -33,6 +33,11 @@
             "col": 2,
             "a1": "B1"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 1
+            }
+          },
           "value": {
             "old": {
               "Text": "v0"
@@ -51,6 +56,11 @@
             "row": 2,
             "col": 2,
             "a1": "B2"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 2
+            }
           },
           "value": {
             "old": {
@@ -71,6 +81,11 @@
             "col": 2,
             "a1": "B3"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 3
+            }
+          },
           "value": {
             "old": {
               "Text": "v2"
@@ -89,6 +104,11 @@
             "row": 4,
             "col": 2,
             "a1": "B4"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 4
+            }
           },
           "value": {
             "old": {
@@ -109,6 +129,11 @@
             "col": 2,
             "a1": "B5"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 5
+            }
+          },
           "value": {
             "old": {
               "Text": "v4"
@@ -127,6 +152,11 @@
             "row": 6,
             "col": 2,
             "a1": "B6"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 6
+            }
           },
           "value": {
             "old": {
@@ -147,6 +177,11 @@
             "col": 2,
             "a1": "B7"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 7
+            }
+          },
           "value": {
             "old": {
               "Text": "v6"
@@ -165,6 +200,11 @@
             "row": 8,
             "col": 2,
             "a1": "B8"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 8
+            }
           },
           "value": {
             "old": {
@@ -185,6 +225,11 @@
             "col": 2,
             "a1": "B9"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 9
+            }
+          },
           "value": {
             "old": {
               "Text": "v8"
@@ -203,6 +248,11 @@
             "row": 10,
             "col": 2,
             "a1": "B10"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 10
+            }
           },
           "value": {
             "old": {

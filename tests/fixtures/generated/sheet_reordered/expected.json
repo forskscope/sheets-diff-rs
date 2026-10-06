@@ -91,6 +91,11 @@
             "col": 1,
             "a1": "A1"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 1
+            }
+          },
           "value": {
             "old": {
               "Text": "gamma_before"

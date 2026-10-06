@@ -221,6 +221,14 @@ would have filled it; §11).
 `FormatChange` is a zero-field placeholder, reserved for RFC-022, which
 remains blocked: calamine 0.36 does not expose a cell-style API.
 
+> **Extended 2026-10-06 (row-space-and-the-anchor/01).** The `CellDiff` shape above is the 3.3.0 shape.
+> It now also carries `pub row_placement: RowPlacement`, which says which row number belongs to which
+> sheet; see `model.rs` and `docs/src/semantics.md`'s *Row placement*. The sentence "**One `CellDiff`
+> per logical address**" was true only under `Positional` alignment. Under `RowKey` or `RowSignature`
+> one address can carry more than one `CellDiff`, each a distinct change in a different row-number
+> space, so keying by address alone merges distinct changes. The `output::view` row projection named
+> in that sentence does not follow the rule; its one-row-per-address claim was removed in 3.4.0.
+
 ## §6. Sheet change classification
 
 **Source:** `src/model.rs`. Governed originally by RFC-009.

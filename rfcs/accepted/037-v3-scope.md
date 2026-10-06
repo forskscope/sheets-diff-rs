@@ -436,3 +436,28 @@ Stating these closes the list, which is the point of writing it down.
    answer rather than ask it.
 2. **§3.3** — does `FormatCompareMode` survive as a single-variant reservation?
 3. **§3.6** — implement, rename, or remove `HeaderColumn`?
+
+---
+
+## Deferred to v4 — row-space-and-the-anchor/02 (2026-10-06)
+
+Recorded here because no v4 successor document exists yet. The 3.5.0 navigation route (`DiffView::change_at`,
+`key_at`, `position_of`, `first_change`, `next_change`, `previous_change`, and `ChangeKey`) is additive and ships
+alongside the two methods it replaces, which are deprecated since 3.5.0 and keep their behaviour. The repair itself
+is breaking and waits for v4:
+
+1. **`ChangeAnchor` carries the row space.** Its fields are public and it is not `#[non_exhaustive]`, so the change is
+   breaking. It is the cause of the shared-anchor collision.
+2. **The `view.rs` types become `#[non_exhaustive]`**, so the next change to their shape is a minor. The current
+   `CellChangeRow` and `OwnedCellChangeRow` have public fields and no `#[non_exhaustive]`, so adding
+   `row_placement` to them is breaking today. This must land first, in v4.
+3. **`ChangeAnchor`'s `Ord` comes off, or `ChangeAnchor` becomes an identity.** `Ord` exists to sort change rows into
+   canonical order. It compiles as a map key, and a `BTreeMap` keyed by it silently merges rows that share an anchor.
+   Nothing in the crate does this, which is why no test catches it. The 3.5.0 documentation says so, and tells
+   consumers to use `ChangeKey`.
+4. **`next_after` and `previous_before` are removed**, after the deprecation window the RFC-031 §7 rule requires.
+5. **`CellChangeRow` exposes `row_placement`**, so a GUI built on `output::view` can tell two rows apart from the view
+   alone. Without it the route above works only for consumers who also hold the `WorkbookDiff`.
+
+Not in this list, and not a v4 concern: following "the same change" from one comparison to the next. That is an
+alignment question, and `ChangeKey` identifies a change only within one `WorkbookDiff`.

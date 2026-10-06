@@ -143,7 +143,10 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "duplicate keys in the header column",
-        r#"sum:2/2/0/8|[Modified al:3/0/1/High A3:Some(("dup", "")) B3:Some(("b", "")) !duplicate_alignment_key@Some(0)/Some("Sheet1")]"#,
+        // Changed by confidence-that-measures-counts/01 (3.5.0). A pairing among duplicate keys is placed by
+        // position, so it is capped at `Medium`. The recorded output was `al:3/0/1/High`. The rest of the
+        // fingerprint, the matched, inserted and removed counts and the warning, is unchanged.
+        r#"sum:2/2/0/8|[Modified al:3/0/1/Medium A3:Some(("dup", "")) B3:Some(("b", "")) !duplicate_alignment_key@Some(0)/Some("Sheet1")]"#,
     ),
     // Moved by f130 (3.1.0), and the only entry that is. This case's new sheet has a row with no
     // key -- `B5 = "3"`, nothing in `A5` -- and both modes through 3.0.0 never compared it: the

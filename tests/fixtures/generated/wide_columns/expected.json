@@ -33,6 +33,11 @@
             "col": 16384,
             "a1": "XFD1"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 1
+            }
+          },
           "value": {
             "old": {
               "Text": "before"

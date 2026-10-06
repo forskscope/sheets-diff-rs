@@ -33,6 +33,11 @@
             "col": 1,
             "a1": "A1"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 1
+            }
+          },
           "value": {
             "old": {
               "Text": "id_0"
@@ -51,6 +56,11 @@
             "row": 1,
             "col": 2,
             "a1": "B1"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 1
+            }
           },
           "value": {
             "old": {
@@ -71,6 +81,11 @@
             "col": 1,
             "a1": "A2"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 2
+            }
+          },
           "value": {
             "old": {
               "Text": "id_1"
@@ -89,6 +104,11 @@
             "row": 2,
             "col": 2,
             "a1": "B2"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 2
+            }
           },
           "value": {
             "old": {
@@ -109,6 +129,11 @@
             "col": 1,
             "a1": "A3"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 3
+            }
+          },
           "value": {
             "old": {
               "Text": "id_2"
@@ -127,6 +152,11 @@
             "row": 3,
             "col": 2,
             "a1": "B3"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 3
+            }
           },
           "value": {
             "old": {
@@ -147,6 +177,11 @@
             "col": 1,
             "a1": "A4"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 4
+            }
+          },
           "value": {
             "old": {
               "Text": "id_3"
@@ -165,6 +200,11 @@
             "row": 4,
             "col": 2,
             "a1": "B4"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 4
+            }
           },
           "value": {
             "old": {
@@ -185,6 +225,11 @@
             "col": 1,
             "a1": "A5"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 5
+            }
+          },
           "value": {
             "old": {
               "Text": "id_4"
@@ -203,6 +248,11 @@
             "row": 5,
             "col": 2,
             "a1": "B5"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 5
+            }
           },
           "value": {
             "old": {
@@ -223,6 +273,11 @@
             "col": 1,
             "a1": "A6"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 6
+            }
+          },
           "value": {
             "old": {
               "Text": "id_5"
@@ -241,6 +296,11 @@
             "row": 6,
             "col": 2,
             "a1": "B6"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 6
+            }
           },
           "value": {
             "old": {
@@ -261,6 +321,11 @@
             "col": 1,
             "a1": "A7"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 7
+            }
+          },
           "value": {
             "old": {
               "Text": "id_6"
@@ -279,6 +344,11 @@
             "row": 7,
             "col": 2,
             "a1": "B7"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 7
+            }
           },
           "value": {
             "old": {
@@ -299,6 +369,11 @@
             "col": 1,
             "a1": "A8"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 8
+            }
+          },
           "value": {
             "old": {
               "Text": "id_7"
@@ -317,6 +392,11 @@
             "row": 8,
             "col": 2,
             "a1": "B8"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 8
+            }
           },
           "value": {
             "old": {
@@ -337,6 +417,11 @@
             "col": 1,
             "a1": "A9"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 9
+            }
+          },
           "value": {
             "old": {
               "Text": "id_8"
@@ -355,6 +440,11 @@
             "row": 9,
             "col": 2,
             "a1": "B9"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 9
+            }
           },
           "value": {
             "old": {
@@ -375,6 +465,11 @@
             "col": 1,
             "a1": "A10"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 10
+            }
+          },
           "value": {
             "old": {
               "Text": "id_9"
@@ -393,6 +488,11 @@
             "row": 10,
             "col": 2,
             "a1": "B10"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 10
+            }
           },
           "value": {
             "old": {
@@ -413,6 +513,11 @@
             "col": 1,
             "a1": "A11"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 11
+            }
+          },
           "value": {
             "old": {
               "Text": "id_10"
@@ -431,6 +536,11 @@
             "row": 11,
             "col": 2,
             "a1": "B11"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 11
+            }
           },
           "value": {
             "old": {
@@ -451,6 +561,11 @@
             "col": 1,
             "a1": "A12"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 12
+            }
+          },
           "value": {
             "old": {
               "Text": "id_11"
@@ -469,6 +584,11 @@
             "row": 12,
             "col": 2,
             "a1": "B12"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 12
+            }
           },
           "value": {
             "old": {
@@ -489,6 +609,11 @@
             "col": 1,
             "a1": "A13"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 13
+            }
+          },
           "value": {
             "old": {
               "Text": "id_12"
@@ -507,6 +632,11 @@
             "row": 13,
             "col": 2,
             "a1": "B13"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 13
+            }
           },
           "value": {
             "old": {
@@ -527,6 +657,11 @@
             "col": 1,
             "a1": "A14"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 14
+            }
+          },
           "value": {
             "old": {
               "Text": "id_13"
@@ -545,6 +680,11 @@
             "row": 14,
             "col": 2,
             "a1": "B14"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 14
+            }
           },
           "value": {
             "old": {
@@ -565,6 +705,11 @@
             "col": 1,
             "a1": "A15"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 15
+            }
+          },
           "value": {
             "old": {
               "Text": "id_14"
@@ -583,6 +728,11 @@
             "row": 15,
             "col": 2,
             "a1": "B15"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 15
+            }
           },
           "value": {
             "old": {
@@ -603,6 +753,11 @@
             "col": 1,
             "a1": "A16"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 16
+            }
+          },
           "value": {
             "old": {
               "Text": "id_15"
@@ -621,6 +776,11 @@
             "row": 16,
             "col": 2,
             "a1": "B16"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 16
+            }
           },
           "value": {
             "old": {
@@ -641,6 +801,11 @@
             "col": 1,
             "a1": "A17"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 17
+            }
+          },
           "value": {
             "old": {
               "Text": "id_16"
@@ -659,6 +824,11 @@
             "row": 17,
             "col": 2,
             "a1": "B17"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 17
+            }
           },
           "value": {
             "old": {
@@ -679,6 +849,11 @@
             "col": 1,
             "a1": "A18"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 18
+            }
+          },
           "value": {
             "old": {
               "Text": "id_17"
@@ -697,6 +872,11 @@
             "row": 18,
             "col": 2,
             "a1": "B18"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 18
+            }
           },
           "value": {
             "old": {
@@ -717,6 +897,11 @@
             "col": 1,
             "a1": "A19"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 19
+            }
+          },
           "value": {
             "old": {
               "Text": "id_18"
@@ -735,6 +920,11 @@
             "row": 19,
             "col": 2,
             "a1": "B19"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 19
+            }
           },
           "value": {
             "old": {
@@ -755,6 +945,11 @@
             "col": 1,
             "a1": "A20"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 20
+            }
+          },
           "value": {
             "old": {
               "Text": "id_19"
@@ -773,6 +968,11 @@
             "row": 20,
             "col": 2,
             "a1": "B20"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 20
+            }
           },
           "value": {
             "old": {
@@ -793,6 +993,11 @@
             "col": 1,
             "a1": "A21"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 21
+            }
+          },
           "value": {
             "old": "Empty",
             "new": {
@@ -809,6 +1014,11 @@
             "row": 21,
             "col": 2,
             "a1": "B21"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 21
+            }
           },
           "value": {
             "old": "Empty",

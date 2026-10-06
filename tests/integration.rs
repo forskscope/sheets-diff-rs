@@ -1454,6 +1454,10 @@ fn diff_view_rows_matches_cell_diffs() {
 }
 
 #[test]
+#[expect(
+    deprecated,
+    reason = "checks the deprecated routes still behave on unique anchors (Positional)"
+)]
 fn diff_view_navigation() {
     use sheets_diff::output::view::{DiffView, ViewFilter};
 
@@ -2696,4 +2700,725 @@ fn iso_datetime_fixture_detects_change() {
         }
         _ => panic!("expected DateTime/DateTime"),
     }
+}
+
+// ============================================================================
+// row-space-and-the-anchor/01 — CellDiff::row_placement
+// ============================================================================
+
+/// The README's three-row reproduction, plus k1's value changing so that a matched row is numbered
+/// 1 on both sides (the case that separates a real pairing from a positional comparison).
+///   old: k1/a    k2/b    kdel/x            new: k1/a2   knew/z   k2/bb
+fn row_placement_reproduction() -> (Vec<u8>, Vec<u8>) {
+    let old = wb_strings(&[
+        (0, 0, "k1"),
+        (0, 1, "a"),
+        (1, 0, "k2"),
+        (1, 1, "b"),
+        (2, 0, "kdel"),
+        (2, 1, "x"),
+    ]);
+    let new = wb_strings(&[
+        (0, 0, "k1"),
+        (0, 1, "a2"),
+        (1, 0, "knew"),
+        (1, 1, "z"),
+        (2, 0, "k2"),
+        (2, 1, "bb"),
+    ]);
+    (old, new)
+}
+
+fn row_key_diff(old: &[u8], new: &[u8]) -> sheets_diff::WorkbookDiff {
+    use sheets_diff::options::AlignmentMode;
+    let opts = DiffOptions::builder()
+        .alignment(AlignmentMode::RowKey { columns: vec![1] })
+        .build()
+        .unwrap();
+    compare_bytes_with_options(old, new, opts).unwrap()
+}
+
+/// Test 1: two entries at one address, told apart by the field, not by the address.
+#[test]
+fn row_placement_tells_two_entries_at_one_address_apart() {
+    use sheets_diff::RowPlacement;
+    let (old, new) = row_placement_reproduction();
+    let d = row_key_diff(&old, &new);
+    let at_b2: Vec<_> = d.sheets[0]
+        .cell_diffs
+        .iter()
+        .filter(|c| c.address.a1 == "B2")
+        .collect();
+    assert_eq!(at_b2.len(), 2, "{at_b2:?}");
+    let paired = at_b2
+        .iter()
+        .find(|c| matches!(c.row_placement, RowPlacement::PairedByAlignment { .. }))
+        .expect("k2's change is a paired row");
+    assert_eq!(paired.change_kind(), CellChangeKind::Modified);
+    assert_eq!(
+        paired.row_placement,
+        RowPlacement::PairedByAlignment {
+            old_row: 2,
+            new_row: 3
+        }
+    );
+    let inserted = at_b2
+        .iter()
+        .find(|c| matches!(c.row_placement, RowPlacement::UnpairedInNewSheet { .. }))
+        .expect("knew is an inserted row");
+    assert_eq!(inserted.change_kind(), CellChangeKind::Added);
+    assert_eq!(
+        inserted.row_placement,
+        RowPlacement::UnpairedInNewSheet { new_row: 2 }
+    );
+}
+
+/// Test 2: a paired row's new-side number is the new sheet's. The variant alone would pass with
+/// the number wrong, which is the defect in miniature.
+#[test]
+fn a_paired_rows_new_side_number_is_the_new_sheets() {
+    use sheets_diff::RowPlacement;
+    let (old, new) = row_placement_reproduction();
+    let d = row_key_diff(&old, &new);
+    let k2 = d.sheets[0]
+        .cell_diffs
+        .iter()
+        .find_map(|c| match c.row_placement {
+            RowPlacement::PairedByAlignment {
+                old_row: 2,
+                new_row,
+            } => Some(new_row),
+            _ => None,
+        })
+        .expect("k2 paired old 2 -> new ?");
+    assert_eq!(k2, 3);
+}
+
+/// Test 3: an unpaired old row has no new-side number to read; the variant says so.
+#[test]
+fn an_unpaired_old_row_carries_no_new_number() {
+    use sheets_diff::RowPlacement;
+    let (old, new) = row_placement_reproduction();
+    let d = row_key_diff(&old, &new);
+    let a3: Vec<_> = d.sheets[0]
+        .cell_diffs
+        .iter()
+        .filter(|c| c.address.a1 == "A3")
+        .map(|c| c.row_placement.clone())
+        .collect();
+    assert_eq!(a3, vec![RowPlacement::UnpairedInOldSheet { old_row: 3 }]);
+}
+
+/// Test 4: k1 is a real pairing, numbered 1 on both sides. It must not be the positional variant
+/// that happens to carry the same numbers. Deriving the variant from "old == new" would fail here.
+#[test]
+fn a_pairing_with_equal_numbers_is_not_compared_positionally() {
+    use sheets_diff::RowPlacement;
+    let (old, new) = row_placement_reproduction();
+    let d = row_key_diff(&old, &new);
+    let b1 = d.sheets[0]
+        .cell_diffs
+        .iter()
+        .find(|c| c.address.a1 == "B1")
+        .expect("k1's value changed");
+    assert_eq!(
+        b1.row_placement,
+        RowPlacement::PairedByAlignment {
+            old_row: 1,
+            new_row: 1
+        }
+    );
+    assert_ne!(
+        b1.row_placement,
+        RowPlacement::ComparedPositionally { row: 1 }
+    );
+}
+
+/// Test 5: default options produce only ComparedPositionally, numbered as address.row.
+#[test]
+fn default_options_place_every_change_positionally_at_its_own_row() {
+    use sheets_diff::RowPlacement;
+    let (old, new) = row_placement_reproduction();
+    let d = compare_bytes(&old, &new).unwrap();
+    assert!(!d.sheets[0].cell_diffs.is_empty());
+    for c in &d.sheets[0].cell_diffs {
+        assert_eq!(
+            c.row_placement,
+            RowPlacement::ComparedPositionally { row: c.address.row },
+            "{}",
+            c.address.a1
+        );
+    }
+}
+
+/// Test 6: RowSignature also produces paired and unpaired placements, with the right numbers. A
+/// fix that only worked for RowKey would pass tests 1 to 5.
+#[test]
+fn row_signature_produces_paired_and_unpaired_placements_with_correct_numbers() {
+    use sheets_diff::RowPlacement;
+    use sheets_diff::options::AlignmentMode;
+    // Row 1 has an inserted row N above it; X's unsampled column B changes, so X is paired.
+    let old = wb_strings(&[(0, 0, "X"), (0, 1, "p"), (1, 0, "Y"), (1, 1, "q")]);
+    let new = wb_strings(&[
+        (0, 0, "N"),
+        (1, 0, "X"),
+        (1, 1, "p2"),
+        (2, 0, "Y"),
+        (2, 1, "q"),
+    ]);
+    let opts = DiffOptions::builder()
+        .alignment(AlignmentMode::RowSignature {
+            sample_columns: Some(vec![1]),
+        })
+        .build()
+        .unwrap();
+    let d = compare_bytes_with_options(&old, &new, opts).unwrap();
+    let cells = &d.sheets[0].cell_diffs;
+    let b1 = cells
+        .iter()
+        .find(|c| c.address.a1 == "B1")
+        .expect("X's change");
+    assert_eq!(
+        b1.row_placement,
+        RowPlacement::PairedByAlignment {
+            old_row: 1,
+            new_row: 2
+        }
+    );
+    let a1 = cells
+        .iter()
+        .find(|c| c.address.a1 == "A1")
+        .expect("N inserted");
+    assert_eq!(
+        a1.row_placement,
+        RowPlacement::UnpairedInNewSheet { new_row: 1 }
+    );
+}
+
+/// Test 8a: a consumer that keys each entry by what the CellDiff documentation says identifies a
+/// change -- its address *and* its row placement -- loses nothing. Dropping the placement from the
+/// key makes entries collide, which this test catches (failing-first, see the review request).
+#[test]
+fn a_consumer_keyed_by_address_and_placement_loses_nothing() {
+    use std::collections::HashMap;
+    let (old, new) = row_placement_reproduction();
+    let d = row_key_diff(&old, &new);
+    let cells = &d.sheets[0].cell_diffs;
+    let mut keyed: HashMap<(sheets_diff::CellAddress, sheets_diff::RowPlacement), usize> =
+        HashMap::new();
+    for c in cells {
+        let key = (c.address.clone(), c.row_placement.clone());
+        let previous = keyed.insert(key, 1);
+        assert!(previous.is_none(), "overwrote an entry at {}", c.address.a1);
+    }
+    assert_eq!(keyed.len(), cells.len());
+}
+
+/// Test 8b: the instruction we published before 3.4.0 -- "key by address alone, collapse to one row
+/// per address" -- drops an entry. This test pins that fact in the suite, in the present tense, so
+/// it fails if addresses ever become unique (then the instruction is simply correct again).
+///
+/// The published sentence, from `CellDiff`'s documentation before 3.4.0:
+///   "Consumers migrating from a per-facet model should collapse to one row per address rather than
+///    preserve the split."
+#[test]
+fn collapsing_by_address_as_the_published_instruction_said_drops_an_entry() {
+    use std::collections::HashMap;
+    let (old, new) = row_placement_reproduction();
+    let d = row_key_diff(&old, &new);
+    let cells = &d.sheets[0].cell_diffs;
+    let mut by_address: HashMap<String, &sheets_diff::CellDiff> = HashMap::new();
+    for c in cells {
+        by_address.insert(c.address.a1.clone(), c);
+    }
+    assert!(
+        by_address.len() < cells.len(),
+        "collapsing by address kept {} of {} entries; the published instruction loses a change here",
+        by_address.len(),
+        cells.len()
+    );
+}
+
+/// The row-space field is the one that makes a change at one address distinguishable from another;
+/// the fixture golden does not prove that, since default options cannot produce a second entry.
+#[test]
+fn default_options_never_produce_two_entries_at_one_address() {
+    let (old, new) = row_placement_reproduction();
+    let d = compare_bytes(&old, &new).unwrap();
+    let mut seen = std::collections::BTreeSet::new();
+    for c in &d.sheets[0].cell_diffs {
+        assert!(
+            seen.insert(c.address.a1.clone()),
+            "{} repeated",
+            c.address.a1
+        );
+    }
+}
+
+// ============================================================================
+// row-space-and-the-anchor/02 — the navigation route that cannot hang
+// ============================================================================
+
+/// The three-row reproduction with k1 changed, under RowKey. Six change rows; `B2` is shared.
+fn anchor_reproduction() -> sheets_diff::WorkbookDiff {
+    use sheets_diff::options::AlignmentMode;
+    let old = wb_strings(&[
+        (0, 0, "k1"),
+        (0, 1, "a"),
+        (1, 0, "k2"),
+        (1, 1, "b"),
+        (2, 0, "kdel"),
+        (2, 1, "x"),
+    ]);
+    let new = wb_strings(&[
+        (0, 0, "k1"),
+        (0, 1, "a2"),
+        (1, 0, "knew"),
+        (1, 1, "z"),
+        (2, 0, "k2"),
+        (2, 1, "bb"),
+    ]);
+    let opts = DiffOptions::builder()
+        .alignment(AlignmentMode::RowKey { columns: vec![1] })
+        .build()
+        .unwrap();
+    compare_bytes_with_options(&old, &new, opts).unwrap()
+}
+
+/// Test 1: the bounded forward walk on the new route visits every change exactly once, in canonical
+/// order, and terminates. The bound is the count plus one, so a walk that did not end would fail here.
+#[test]
+fn the_key_walk_visits_every_change_exactly_once_and_terminates() {
+    use sheets_diff::output::view::{DiffView, ViewFilter};
+    let d = anchor_reproduction();
+    let view = DiffView::new(&d);
+    let f = ViewFilter::default();
+    let count = view.row_count(&f);
+    assert_eq!(count, 6);
+
+    let mut visited = Vec::new();
+    let mut at = view.first_change(&f);
+    while let Some(key) = at {
+        assert!(visited.len() <= count, "the walk did not terminate");
+        visited.push(key.clone());
+        at = view.next_change(&key, &f);
+    }
+    assert_eq!(visited.len(), count);
+    let by_index: Vec<_> = (0..count).map(|i| view.key_at(i, &f).unwrap()).collect();
+    assert_eq!(
+        visited, by_index,
+        "the walk must follow the canonical order"
+    );
+    let distinct: std::collections::HashSet<_> = visited.iter().collect();
+    assert_eq!(distinct.len(), count, "every change must be visited once");
+}
+
+/// Test 2: the same, backwards, from the last change.
+#[test]
+fn the_key_walk_backwards_visits_every_change_exactly_once() {
+    use sheets_diff::output::view::{DiffView, ViewFilter};
+    let d = anchor_reproduction();
+    let view = DiffView::new(&d);
+    let f = ViewFilter::default();
+    let count = view.row_count(&f);
+
+    let mut visited = Vec::new();
+    let mut at = view.key_at(count - 1, &f);
+    while let Some(key) = at {
+        assert!(
+            visited.len() <= count,
+            "the backward walk did not terminate"
+        );
+        visited.push(key.clone());
+        at = view.previous_change(&key, &f);
+    }
+    visited.reverse();
+    let forward: Vec<_> = (0..count).map(|i| view.key_at(i, &f).unwrap()).collect();
+    assert_eq!(visited, forward);
+}
+
+/// Test 3: the deprecated `next_after` keeps its documented defect, pinned on purpose. If a later
+/// change alters what it returns here, that change must be a decision, not an accident.
+///
+/// This test pins a defect being held still while the route ships. It is not a claim that the
+/// behaviour is correct.
+#[test]
+#[expect(
+    deprecated,
+    reason = "pins the deprecated route's defect on purpose, while the route is still shipped"
+)]
+fn the_deprecated_next_after_keeps_its_defect_on_a_shared_anchor() {
+    use sheets_diff::output::view::{DiffView, ViewFilter};
+    let d = anchor_reproduction();
+    let view = DiffView::new(&d);
+    let f = ViewFilter::default();
+    let b1 = view.first(&f).unwrap();
+    let a2 = view.next_after(&b1, &f).unwrap();
+    let shared = view.next_after(&a2, &f).unwrap();
+    assert_eq!((shared.sheet_index, shared.row, shared.col), (0, 2, 2));
+    // Asked about either B2, it returns the second B2: the same anchor again, forever.
+    assert_eq!(view.next_after(&shared, &f).unwrap(), shared);
+}
+
+/// Test 4: the premise. The reproduction has two change rows with one anchor, under RowKey.
+#[test]
+fn two_change_rows_share_an_anchor_under_rowkey() {
+    use sheets_diff::output::view::{DiffView, ViewFilter};
+    let d = anchor_reproduction();
+    let view = DiffView::new(&d);
+    let anchors: Vec<_> = view
+        .rows(&ViewFilter::default())
+        .into_iter()
+        .map(|r| r.anchor)
+        .collect();
+    let distinct: std::collections::BTreeSet<_> = anchors.iter().collect();
+    assert!(distinct.len() < anchors.len(), "{anchors:?}");
+}
+
+/// Test 5: under Positional every anchor is unique, and the two routes agree.
+#[test]
+#[expect(
+    deprecated,
+    reason = "checks that the deprecated routes agree with the new ones where anchors are unique"
+)]
+fn under_positional_the_old_and_new_routes_agree() {
+    use sheets_diff::output::view::{DiffView, ViewFilter};
+    let old = wb_strings(&[(0, 0, "a"), (1, 0, "b"), (2, 0, "c")]);
+    let new = wb_strings(&[(0, 0, "x"), (1, 0, "y"), (2, 0, "z")]);
+    let d = compare_bytes(&old, &new).unwrap();
+    let view = DiffView::new(&d);
+    let f = ViewFilter::default();
+    let anchors: Vec<_> = view.rows(&f).into_iter().map(|r| r.anchor).collect();
+    let unique: std::collections::BTreeSet<_> = anchors.iter().collect();
+    assert_eq!(unique.len(), anchors.len());
+
+    let mut old_route = vec![view.first(&f).unwrap()];
+    while let Some(next) = view.next_after(old_route.last().unwrap(), &f) {
+        old_route.push(next);
+    }
+    assert_eq!(old_route, anchors);
+
+    let mut new_route = vec![view.first_change(&f).unwrap()];
+    while let Some(next) = view.next_change(new_route.last().unwrap(), &f) {
+        new_route.push(next);
+    }
+    assert_eq!(new_route.len(), anchors.len());
+}
+
+/// `position_of` and `key_at` are inverses over the view, and an absent key or index is `None`.
+#[test]
+fn position_of_and_key_at_are_inverses() {
+    use sheets_diff::output::view::{DiffView, ViewFilter};
+    let d = anchor_reproduction();
+    let view = DiffView::new(&d);
+    let f = ViewFilter::default();
+    let count = view.row_count(&f);
+    for i in 0..count {
+        let key = view.key_at(i, &f).unwrap();
+        assert_eq!(view.position_of(&key, &f), Some(i));
+    }
+    assert!(view.key_at(count, &f).is_none());
+    assert!(view.change_at(count, &f).is_none());
+    let first = view.change_at(0, &f).unwrap();
+    assert_eq!(first.address.a1, "B1");
+}
+
+/// The filter applies to keys and to walking alike: hiding a kind of change removes it from the walk.
+#[test]
+fn a_filter_removes_changes_from_the_key_walk() {
+    use sheets_diff::output::view::{DiffView, ViewFilter};
+    let d = anchor_reproduction();
+    let view = DiffView::new(&d);
+    let all = ViewFilter::default();
+    let values_only = ViewFilter {
+        include_formulas: false,
+        ..ViewFilter::default()
+    };
+    assert_eq!(view.row_count(&all), view.row_count(&values_only));
+    let count = view.row_count(&values_only);
+    let mut visited = 0;
+    let mut at = view.first_change(&values_only);
+    while let Some(key) = at {
+        assert!(visited <= count, "the filtered walk did not terminate");
+        visited += 1;
+        at = view.next_change(&key, &values_only);
+    }
+    assert_eq!(visited, count);
+}
+
+// ============================================================================
+// confidence-that-measures-counts/01 — Exact on a pairing it cannot vouch for
+// ============================================================================
+
+fn key_alignment(old: &[u8], new: &[u8]) -> sheets_diff::SheetDiff {
+    use sheets_diff::options::AlignmentMode;
+    let opts = DiffOptions::builder()
+        .alignment(AlignmentMode::RowKey { columns: vec![1] })
+        .build()
+        .unwrap();
+    compare_bytes_with_options(old, new, opts).unwrap().sheets[0].clone()
+}
+
+fn signature_alignment(old: &[u8], new: &[u8]) -> sheets_diff::SheetDiff {
+    use sheets_diff::options::AlignmentMode;
+    let opts = DiffOptions::builder()
+        .alignment(AlignmentMode::RowSignature {
+            sample_columns: Some(vec![1]),
+        })
+        .build()
+        .unwrap();
+    compare_bytes_with_options(old, new, opts).unwrap().sheets[0].clone()
+}
+
+/// The README's first reproduction: two keys repeated on both sides, rows swapped. The sheet reported
+/// `Exact` and two spurious changes. It must not be `Exact`, and the test records what the ambiguity cost.
+#[test]
+fn rowkey_with_duplicate_keys_does_not_report_exact() {
+    use sheets_diff::{ConfidenceReason, MatchConfidence};
+    let old = wb_strings(&[(0, 0, "A"), (0, 1, "x"), (1, 0, "A"), (1, 1, "y")]);
+    let new = wb_strings(&[(0, 0, "A"), (0, 1, "y"), (1, 0, "A"), (1, 1, "x")]);
+    let s = key_alignment(&old, &new);
+    let a = s.alignment_summary.as_ref().unwrap();
+    assert_eq!(a.confidence, MatchConfidence::Medium, "{a:?}");
+    assert!(a.is_ambiguous(), "{a:?}");
+    assert_eq!(a.reasons, vec![ConfidenceReason::DuplicateKeys]);
+    // The two changes are spurious: the rows were reordered. Recorded so the cost is on the record.
+    assert_eq!(s.cell_diffs.len(), 2, "{:?}", s.cell_diffs);
+}
+
+/// The README's second reproduction: two rows with the same sampled signature, swapped. Before this unit,
+/// `Exact`, two spurious changes, and no diagnostic.
+#[test]
+fn rowsignature_with_colliding_signatures_does_not_report_exact() {
+    use sheets_diff::{ConfidenceReason, MatchConfidence};
+    let old = wb_strings(&[(0, 0, "A"), (0, 1, "x"), (1, 0, "A"), (1, 1, "y")]);
+    let new = wb_strings(&[(0, 0, "A"), (0, 1, "y"), (1, 0, "A"), (1, 1, "x")]);
+    let s = signature_alignment(&old, &new);
+    let a = s.alignment_summary.as_ref().unwrap();
+    assert_eq!(a.confidence, MatchConfidence::Medium, "{a:?}");
+    assert!(a.is_ambiguous(), "{a:?}");
+    assert_eq!(a.reasons, vec![ConfidenceReason::DuplicateSignatures]);
+}
+
+/// The control: an unambiguous keyed pairing still reports `Exact`. Without it, "never say Exact" would pass.
+#[test]
+fn an_unambiguous_rowkey_pairing_still_reports_exact() {
+    use sheets_diff::MatchConfidence;
+    // Every key matches, so every row pairs by identity; only a value changes, so the pairing is clean.
+    let old = wb_strings(&[
+        (0, 0, "a"),
+        (0, 1, "1"),
+        (1, 0, "b"),
+        (1, 1, "2"),
+        (2, 0, "c"),
+        (2, 1, "3"),
+    ]);
+    let new = wb_strings(&[
+        (0, 0, "a"),
+        (0, 1, "1"),
+        (1, 0, "b"),
+        (1, 1, "2"),
+        (2, 0, "c"),
+        (2, 1, "3x"),
+    ]);
+    let s = key_alignment(&old, &new);
+    let a = s.alignment_summary.as_ref().unwrap();
+    assert_eq!(a.confidence, MatchConfidence::Exact, "{a:?}");
+    assert!(a.reasons.is_empty(), "{a:?}");
+    assert!(!a.is_ambiguous());
+}
+
+/// Decision on sub-answer 2: harmless ambiguity still lowers confidence. Two identical rows share a key, so the
+/// matcher pairs them by position. Their pairing does not change the diff, and the sheet is still `Medium`. The
+/// rule keys on the existence of a duplicate, not on whether the duplicates differ: that is conservative and
+/// cheap, and the other answer would need a content comparison the matcher does not do.
+#[test]
+fn identical_duplicate_rows_are_still_ambiguous_by_decision() {
+    use sheets_diff::{ConfidenceReason, MatchConfidence};
+    let old = wb_strings(&[(0, 0, "A"), (0, 1, "same"), (1, 0, "A"), (1, 1, "same")]);
+    let s = key_alignment(&old, &old);
+    let a = s.alignment_summary.as_ref().unwrap();
+    assert_eq!(a.confidence, MatchConfidence::Medium, "{a:?}");
+    assert_eq!(a.reasons, vec![ConfidenceReason::DuplicateKeys]);
+}
+
+/// The A-04 sheets. A keyless spacer, otherwise identical, and a sheet where nothing matched must now be
+/// distinguishable by their reasons, which is the measurable outcome of the unit. Before, both were `Medium`
+/// and nothing said why.
+#[test]
+fn the_keyless_sheet_and_the_nothing_matched_sheet_are_distinguishable() {
+    use sheets_diff::{ConfidenceReason, MatchConfidence};
+    let keyless_old = wb_strings(&[
+        (0, 0, "id1"),
+        (0, 1, "v1"),
+        (1, 1, "spacer"),
+        (2, 0, "id2"),
+        (2, 1, "v2"),
+    ]);
+    let keyless = key_alignment(&keyless_old, &keyless_old);
+    let k = keyless.alignment_summary.as_ref().unwrap();
+
+    let none_old = wb_strings(&[(0, 0, "a"), (0, 1, "1"), (1, 0, "b"), (1, 1, "2")]);
+    let none_new = wb_strings(&[(0, 0, "c"), (0, 1, "1"), (1, 0, "d"), (1, 1, "2")]);
+    let nothing = key_alignment(&none_old, &none_new);
+    let n = nothing.alignment_summary.as_ref().unwrap();
+
+    assert_eq!(k.confidence, MatchConfidence::Medium, "{k:?}");
+    assert_eq!(n.confidence, MatchConfidence::Medium, "{n:?}");
+    assert_eq!(k.reasons, vec![ConfidenceReason::RowsPlacedByContent]);
+    assert_eq!(n.reasons, vec![ConfidenceReason::TooFewMatched]);
+    assert_ne!(k.reasons, n.reasons);
+    assert!(!k.is_ambiguous() && !n.is_ambiguous());
+}
+
+/// A sheet with keyless rows *and* duplicate keys at once. Its reasons name each cause once, and the
+/// sheet is ambiguous. Asserts the no-repeat promise on the field, and that the order is not depended on.
+#[test]
+fn co_occurring_causes_are_each_named_once() {
+    use sheets_diff::ConfidenceReason;
+    let old = wb_strings(&[
+        (0, 0, "A"),
+        (0, 1, "x"),
+        (1, 0, "A"),
+        (1, 1, "y"),
+        (2, 1, "spacer"),
+    ]);
+    let new = wb_strings(&[
+        (0, 0, "A"),
+        (0, 1, "y"),
+        (1, 0, "A"),
+        (1, 1, "x"),
+        (2, 1, "spacer"),
+    ]);
+    let s = key_alignment(&old, &new);
+    let a = s.alignment_summary.as_ref().unwrap();
+    let mut sorted = a.reasons.clone();
+    sorted.sort_by_key(|r| format!("{r:?}"));
+    let mut distinct = sorted.clone();
+    distinct.dedup();
+    assert_eq!(sorted, distinct, "a reason repeated: {:?}", a.reasons);
+    let mut expected = vec![
+        ConfidenceReason::DuplicateKeys,
+        ConfidenceReason::RowsPlacedByContent,
+    ];
+    expected.sort_by_key(|r| format!("{r:?}"));
+    assert_eq!(
+        sorted, expected,
+        "order is not part of the contract; the set is"
+    );
+    assert!(a.is_ambiguous());
+}
+
+// ============================================================================
+// confidence-that-measures-counts/02 — a mode that never warns
+// ============================================================================
+
+fn signature_warnings(d: &sheets_diff::WorkbookDiff) -> Vec<&sheets_diff::Diagnostic> {
+    d.sheets[0]
+        .diagnostics
+        .iter()
+        .filter(|x| x.kind.code() == "duplicate_row_signature")
+        .collect()
+}
+
+/// The committed `duplicate_row_signature` fixture under the dedicated options its row in the corpus matrix names.
+/// Asserts the payload, not just the code.
+#[test]
+fn duplicate_row_signature_fixture_fires_under_row_signature_alignment() {
+    use sheets_diff::options::AlignmentMode;
+    let dir = std::path::Path::new("tests/fixtures/generated/duplicate_row_signature");
+    let old = std::fs::read(dir.join("old.xlsx")).unwrap();
+    let new = std::fs::read(dir.join("new.xlsx")).unwrap();
+    let opts = DiffOptions::builder()
+        .alignment(AlignmentMode::RowSignature {
+            sample_columns: Some(vec![1]),
+        })
+        .build()
+        .unwrap();
+    let d = compare_bytes_with_options(&old, &new, opts).unwrap();
+    let w = signature_warnings(&d);
+    assert_eq!(w.len(), 1, "{:?}", d.sheets[0].diagnostics);
+    assert_eq!(w[0].severity, Severity::Warning);
+    assert_eq!(
+        w[0].kind,
+        DiagnosticKind::DuplicateRowSignature {
+            old_count: 1,
+            new_count: 1
+        }
+    );
+    assert_eq!(w[0].location.sheet_order, Some(0));
+    assert_eq!(w[0].location.sheet_name.as_deref(), Some("Sheet1"));
+    assert!(w[0].location.address.is_none());
+}
+
+/// Decision, pinned: the warning fires under `sample_columns: None` too. Identical signatures under `None` can
+/// still hide a formula difference, because a signature is built from the displayed value and no formula. See the
+/// comment beside the detection in `src/align.rs`.
+#[test]
+fn the_warning_fires_under_sample_columns_none_because_a_signature_is_not_the_cell() {
+    use sheets_diff::options::AlignmentMode;
+    let old = wb_strings(&[(0, 0, "x"), (1, 0, "x")]);
+    let opts = DiffOptions::builder()
+        .alignment(AlignmentMode::RowSignature {
+            sample_columns: None,
+        })
+        .build()
+        .unwrap();
+    let d = compare_bytes_with_options(&old, &old, opts).unwrap();
+    let w = signature_warnings(&d);
+    assert_eq!(w.len(), 1, "{:?}", d.sheets[0].diagnostics);
+    assert_eq!(
+        w[0].kind,
+        DiagnosticKind::DuplicateRowSignature {
+            old_count: 1,
+            new_count: 1
+        }
+    );
+}
+
+/// The silence that is correct: a sheet whose signatures are all distinct raises nothing, so the warning is not a
+/// reflex.
+#[test]
+fn distinct_signatures_raise_no_duplicate_warning() {
+    use sheets_diff::options::AlignmentMode;
+    let old = wb_strings(&[(0, 0, "A"), (0, 1, "x"), (1, 0, "B"), (1, 1, "y")]);
+    let opts = DiffOptions::builder()
+        .alignment(AlignmentMode::RowSignature {
+            sample_columns: Some(vec![1]),
+        })
+        .build()
+        .unwrap();
+    let d = compare_bytes_with_options(&old, &old, opts).unwrap();
+    assert!(
+        signature_warnings(&d).is_empty(),
+        "{:?}",
+        d.sheets[0].diagnostics
+    );
+}
+
+/// One detection, two uses: on the same sheet the warning and the `DuplicateSignatures` reason both appear, and
+/// both come from the same two counts.
+#[test]
+fn the_warning_and_the_reason_come_from_one_detection() {
+    use sheets_diff::ConfidenceReason;
+    use sheets_diff::options::AlignmentMode;
+    let old = wb_strings(&[(0, 0, "A"), (0, 1, "x"), (1, 0, "A"), (1, 1, "y")]);
+    let new = wb_strings(&[(0, 0, "A"), (0, 1, "y"), (1, 0, "A"), (1, 1, "x")]);
+    let opts = DiffOptions::builder()
+        .alignment(AlignmentMode::RowSignature {
+            sample_columns: Some(vec![1]),
+        })
+        .build()
+        .unwrap();
+    let d = compare_bytes_with_options(&old, &new, opts).unwrap();
+    let a = d.sheets[0].alignment_summary.as_ref().unwrap();
+    assert_eq!(a.reasons, vec![ConfidenceReason::DuplicateSignatures]);
+    let w = signature_warnings(&d);
+    assert!(matches!(
+        w[0].kind,
+        DiagnosticKind::DuplicateRowSignature {
+            old_count: 1,
+            new_count: 1
+        }
+    ));
 }

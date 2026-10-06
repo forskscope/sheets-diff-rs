@@ -93,6 +93,14 @@ pub struct AlignmentSummary {
 }
 ```
 
+> **Extended 2026-10-06 (confidence-that-measures-counts/01).** This RFC specified the principle, that `Exact` and
+> `High` claim a reliability the alignment does not have. It did not state the rule that computes `confidence`, and
+> the count-only rule that shipped (`Exact` when every row was matched) breaks the principle for duplicate keys: a
+> pairing made among identical keys is placed by position alone, and was reported `Exact`. The rule now is: a sheet
+> whose pairing was placed by content, or among identical keys (`RowKey`) or signatures (`RowSignature`), is at most
+> `Medium`, whatever its counts. The reasons are `AlignmentSummary::reasons`, and `is_ambiguous()` answers the
+> ambiguity question. `confidence` is not derived from the counts; the reasons explain it and do not decompose it.
+
 ## 6. Internal design
 
 Suggested internal approach for row-key mode:

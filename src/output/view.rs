@@ -4,7 +4,7 @@
 //! on demand.  No GUI framework dependency is introduced.
 
 use crate::address::CellAddress;
-use crate::model::{CellChangeKind, CellDiff, Severity, SheetChange, WorkbookDiff};
+use crate::model::{CellChangeKind, CellDiff, RowPlacement, Severity, SheetChange, WorkbookDiff};
 
 // ---------------------------------------------------------------------------
 // Filtering
@@ -43,12 +43,58 @@ impl Default for ViewFilter {
 /// number is in whichever row space its change was numbered in (see [`CellDiff`]).
 /// Under `Positional` it is unique. [`DiffView::next_after`] and [`DiffView::previous_before`]
 /// find their argument by anchor equality, so with a colliding anchor they can fail to advance.
+///
+/// **`Ord` orders change rows into canonical sequence. It is not an identity, and must not be used
+/// as a map key.** A `BTreeMap` keyed by anchor compiles and silently merges rows that share one.
+/// To identify a change, use [`ChangeKey`].
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct ChangeAnchor {
     pub sheet_index: usize,
     pub row: u32,
     pub col: u32,
+}
+
+/// Identifies one change within one [`WorkbookDiff`]: the sheet, the row placement, and the column.
+///
+/// It is unique within its diff, because each [`CellDiff`] is one coordinate in one row space. It is
+/// **not** a cross-diff identity. Following "the same change" from one comparison to the next is an
+/// alignment question, not a key question, and no key can answer it; the index of a sheet and the row
+/// numbers both move when a file changes. Its fields are private, so it is produced by [`DiffView`]
+/// and cannot be constructed by hand.
+///
+/// Derives `Eq` and `Hash`, so it keys a `HashMap` directly. It has no `Ord`: a consumer has no meaning
+/// to attach to an ordering of changes beyond the order [`DiffView::position_of`] reports.
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct ChangeKey {
+    sheet_index: usize,
+    row_placement: RowPlacement,
+    col: u32,
+}
+
+impl ChangeKey {
+    /// The 0-based index of the sheet the change is in, within its workbook.
+    pub fn sheet_index(&self) -> usize {
+        self.sheet_index
+    }
+
+    /// Which row of each sheet the change belongs to. See [`RowPlacement`].
+    pub fn row_placement(&self) -> &RowPlacement {
+        &self.row_placement
+    }
+
+    /// The 1-based column of the change.
+    pub fn col(&self) -> u32 {
+        self.col
+    }
+
+    fn of(sheet_index: usize, cd: &CellDiff) -> Self {
+        Self {
+            sheet_index,
+            row_placement: cd.row_placement.clone(),
+            col: cd.address.col,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -215,10 +261,17 @@ impl<'a> DiffView<'a> {
 
     /// Return the anchor immediately after `current`, or `None` if at end.
     ///
+    /// Deprecated: use [`DiffView::next_change`], which cannot fail to advance.
+    ///
     /// **Can fail to advance.** `current` is found by anchor equality. When two change rows share
     /// its anchor (possible under `RowKey` or `RowSignature`; see [`ChangeAnchor`]), this matches the
     /// first of them and returns the second, so called with either one it returns the later one, and
     /// a forward loop stops at the pair instead of moving past it.
+    #[deprecated(
+        since = "3.5.0",
+        note = "can fail to advance when two change rows share an anchor; use \
+                DiffView::next_change, which cannot"
+    )]
     pub fn next_after(&self, current: &ChangeAnchor, filter: &ViewFilter) -> Option<ChangeAnchor> {
         let mut past = false;
         for row in self.rows(filter).into_iter() {
@@ -234,10 +287,17 @@ impl<'a> DiffView<'a> {
 
     /// Return the anchor immediately before `current`, or `None` if at start.
     ///
+    /// Deprecated: use [`DiffView::previous_change`], which cannot skip a change.
+    ///
     /// **Can skip a change.** `current` is found by anchor equality. When two change rows share its
     /// anchor (possible under `RowKey` or `RowSignature`; see [`ChangeAnchor`]), this matches the first
     /// of them, so asked about the later one it returns the predecessor of the earlier one, and the
     /// earlier row is skipped.
+    #[deprecated(
+        since = "3.5.0",
+        note = "can skip a change when two change rows share an anchor; use \
+                DiffView::previous_change, which cannot"
+    )]
     pub fn previous_before(
         &self,
         current: &ChangeAnchor,
@@ -251,6 +311,91 @@ impl<'a> DiffView<'a> {
             prev = Some(row.anchor.clone());
         }
         None
+    }
+
+    /// The change at `index` in the view, or `None` past the end.
+    ///
+    /// Route A: a position, for walking. Moving one change is `index ± 1`, and `row_count` gives the
+    /// length. Each call re-filters the whole workbook, so walking every change this way costs O(n²);
+    /// that cost is pre-existing, and a cache is a separate change.
+    pub fn change_at(&'a self, index: usize, filter: &ViewFilter) -> Option<CellChangeRow<'a>> {
+        self.rows(filter).into_iter().nth(index)
+    }
+
+    /// The key of the change at `index` in the view, or `None` past the end.
+    ///
+    /// Takes the same index as [`DiffView::change_at`], so a caller holding both cannot pair one index
+    /// with another's result. To visit every change, map over `0..row_count(filter)`.
+    pub fn key_at(&self, index: usize, filter: &ViewFilter) -> Option<ChangeKey> {
+        self.visible_cells(filter)
+            .get(index)
+            .map(|(sheet_index, cd)| ChangeKey::of(*sheet_index, cd))
+    }
+
+    /// The key of the first change in the view, or `None` if there are none.
+    pub fn first_change(&self, filter: &ViewFilter) -> Option<ChangeKey> {
+        self.key_at(0, filter)
+    }
+
+    /// The position of `key` in the view, or `None` if this view does not contain that change.
+    pub fn position_of(&self, key: &ChangeKey, filter: &ViewFilter) -> Option<usize> {
+        self.visible_cells(filter)
+            .iter()
+            .position(|(sheet_index, cd)| ChangeKey::of(*sheet_index, cd) == *key)
+    }
+
+    /// The change after `key`, or `None` at the end or if `key` is not in this view.
+    ///
+    /// Cannot fail to advance: keys are unique within a diff, so `key` has one position, and the
+    /// result is the entry after it.
+    pub fn next_change(&self, key: &ChangeKey, filter: &ViewFilter) -> Option<ChangeKey> {
+        let visible = self.visible_cells(filter);
+        let at = visible
+            .iter()
+            .position(|(sheet_index, cd)| ChangeKey::of(*sheet_index, cd) == *key)?;
+        visible
+            .get(at + 1)
+            .map(|(sheet_index, cd)| ChangeKey::of(*sheet_index, cd))
+    }
+
+    /// The change before `key`, or `None` at the start or if `key` is not in this view.
+    ///
+    /// Cannot skip a change, for the same reason as [`DiffView::next_change`].
+    pub fn previous_change(&self, key: &ChangeKey, filter: &ViewFilter) -> Option<ChangeKey> {
+        let visible = self.visible_cells(filter);
+        let at = visible
+            .iter()
+            .position(|(sheet_index, cd)| ChangeKey::of(*sheet_index, cd) == *key)?;
+        at.checked_sub(1)
+            .and_then(|prev| visible.get(prev))
+            .map(|(sheet_index, cd)| ChangeKey::of(*sheet_index, cd))
+    }
+
+    /// Each visible change as its sheet index and cell diff, in the order `rows` reports them.
+    ///
+    /// Uses the same filter and the same `cell_to_row` as `rows`, so the two agree on which changes
+    /// are visible and in what order.
+    fn visible_cells(&self, filter: &ViewFilter) -> Vec<(usize, &CellDiff)> {
+        let mut out = Vec::new();
+        for (sheet_idx, sd) in self.workbook.sheets.iter().enumerate() {
+            if let Some(ref allowed) = filter.sheets
+                && !allowed.contains(&sheet_idx)
+            {
+                continue;
+            }
+            let sheet_name = sd
+                .new_sheet
+                .as_ref()
+                .or(sd.old_sheet.as_ref())
+                .map(|s| s.name.as_str())
+                .unwrap_or("?");
+            for cd in &sd.cell_diffs {
+                if cell_to_row(cd, sheet_idx, sheet_name, filter).is_some() {
+                    out.push((sheet_idx, cd));
+                }
+            }
+        }
+        out
     }
 
     // ------------------------------------------------------------------

@@ -108,14 +108,26 @@ pub struct SheetRef {
 // Sheet change classification (RFC-009 / RFC-033 §6)
 // ---------------------------------------------------------------------------
 
-/// How confident the sheet-matching algorithm is about a non-exact pairing.
+/// How much a pairing can be trusted. Shared by two subjects, and each variant says what it means for each.
+///
+/// - **Sheet matching** (RFC-009) sets `confidence` on a renamed sheet pair, and only `Medium` and `Low`.
+/// - **Row alignment** (RFC-011) sets `AlignmentSummary::confidence` for a sheet's rows. It is not derived from
+///   the row counts beside it: read `AlignmentSummary::reasons` for why it is what it is.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 #[non_exhaustive]
 pub enum MatchConfidence {
+    /// Row alignment: every row on both sides was paired by identity, with no ambiguity and no row placed by
+    /// content. Sheet matching does not produce `Exact`.
     Exact,
+    /// Row alignment: most rows matched, the unmatched ones are genuine insertions and removals, and no reason
+    /// applies. Sheet matching does not produce `High`.
     High,
+    /// Row alignment: some rows are unmatched, or a reason caps the value (a row placed by content, or a pairing
+    /// among identical keys or signatures). Sheet matching: a rename paired on positive but weaker evidence.
     Medium,
+    /// Sheet matching: a rename with no positive link between the two sheets, the weakest kind of rename. Row
+    /// alignment never produces `Low`: no row-alignment rule yields it, so it is unreachable there.
     Low,
 }
 
@@ -521,6 +533,30 @@ pub enum CellChangeKind {
     Modified,
 }
 
+/// Which row of each sheet a [`CellDiff`] belongs to.
+///
+/// [`CellDiff::address`] carries one row number, and which sheet that number belongs to depends on
+/// how the row was aligned. Read the row numbers from here, not from `address`, whenever a sheet's
+/// own numbering matters — for instance when showing a user an address in a file they have open.
+///
+/// Exhaustive: the domain is closed at four. A fifth variant would need a new alignment concept.
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub enum RowPlacement {
+    /// Alignment paired this row across the sheets. `address.row` is `old_row`; the same row is
+    /// numbered `new_row` in the new sheet. The two numbers are often unequal, and may be equal.
+    PairedByAlignment { old_row: u32, new_row: u32 },
+    /// Alignment found no counterpart in the new sheet. `address.row` is `old_row`; there is no
+    /// new-sheet row number for this row.
+    UnpairedInOldSheet { old_row: u32 },
+    /// Alignment found no counterpart in the old sheet. `address.row` is `new_row`; there is no
+    /// old-sheet row number for this row.
+    UnpairedInNewSheet { new_row: u32 },
+    /// No alignment ran: row N of the old sheet was compared with row N of the new sheet, so the
+    /// one number is correct in both. `address.row` is `row`.
+    ComparedPositionally { row: u32 },
+}
+
 /// A merged per-cell diff entry (RFC-033 §5).
 ///
 /// **Under `Positional` alignment, one `CellDiff` per address. Under `RowKey` or
@@ -536,9 +572,12 @@ pub enum CellChangeKind {
 /// sheets is numbered in the old sheet, and a row inserted into the new sheet is
 /// numbered in the new sheet, so one number can name two different rows.
 /// **Collapsing by address merges those changes and loses one of them.** Keep the
-/// `cell_diffs` sequence as it arrives, and key a map by address only under
-/// `Positional`. A future minor release will carry the row numbers each change is
-/// numbered in, so the two can be told apart without that rule.
+/// `cell_diffs` sequence as it arrives.
+///
+/// **A change is identified by its address together with its
+/// [`row_placement`](Self::row_placement).** Under `Positional` the address alone is enough,
+/// because each address then carries one entry; under an aligned mode the address alone does not
+/// identify a change, and a map keyed by it loses entries.
 ///
 /// `change_kind()` is derived from the sub-fields, not stored.
 #[non_exhaustive]
@@ -546,6 +585,8 @@ pub enum CellChangeKind {
 #[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct CellDiff {
     pub address: CellAddress,
+    /// Which row of each sheet this change belongs to. See [`RowPlacement`].
+    pub row_placement: RowPlacement,
     pub value: Option<ValueChange>,
     pub formula: Option<FormulaChange>,
     /// Reserved until RFC-022.
@@ -721,6 +762,16 @@ pub enum DiagnosticKind {
         old_count: usize,
         new_count: usize,
     },
+    /// Under `AlignmentMode::RowSignature`, a row signature repeats on one side. Rows with identical signatures
+    /// are paired by position among themselves, so the pairing among them may be arbitrary, and it is an
+    /// ambiguity whether or not it changes the diff. The counts are of distinct repeated signatures per side, as
+    /// for `DuplicateAlignmentKey`. A signature is a rendering of each cell's value, not the cell, so an identical
+    /// signature can hide a formula difference; the reason is written beside the detection in `src/align.rs`.
+    /// The same detection feeds `AlignmentSummary::reasons`.
+    DuplicateRowSignature {
+        old_count: usize,
+        new_count: usize,
+    },
 }
 
 impl DiagnosticKind {
@@ -761,6 +812,7 @@ impl DiagnosticKind {
             DiagnosticKind::DuplicateAlignmentKey { .. } => "duplicate_alignment_key",
             DiagnosticKind::MissingAlignmentKey { .. } => "missing_alignment_key",
             DiagnosticKind::MissingRowSignature { .. } => "missing_row_signature",
+            DiagnosticKind::DuplicateRowSignature { .. } => "duplicate_row_signature",
         }
     }
 }
@@ -863,6 +915,28 @@ pub struct DiffMetrics {
 // SheetDiff
 // ---------------------------------------------------------------------------
 
+/// Why a row alignment reports the `confidence` it does.
+///
+/// Read this with [`AlignmentSummary::reasons`]. It is not a decomposition of the three counts beside
+/// it: `confidence` is not derived from them, and a reason explains a value, it does not reproduce one.
+#[non_exhaustive]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub enum ConfidenceReason {
+    /// Some rows had no key or no sampled cell, so they were placed by identical content, not by identity.
+    /// Not an ambiguity on its own; it caps `confidence` at `Medium`.
+    RowsPlacedByContent,
+    /// Under `RowKey`, a key repeats on one side, so the matcher paired among identical keys by position.
+    /// An ambiguity: the pairing may be arbitrary, and [`AlignmentSummary::is_ambiguous`] is `true`.
+    DuplicateKeys,
+    /// Under `RowSignature`, a signature repeats on one side, so the matcher paired among rows with
+    /// identical sampled content by position. An ambiguity: [`AlignmentSummary::is_ambiguous`] is `true`.
+    DuplicateSignatures,
+    /// Rows were unmatched and no ambiguity or content placement applies. Neither an ambiguity nor a
+    /// content placement: the count alone sets `confidence`.
+    TooFewMatched,
+}
+
 /// Summary of row-alignment decisions for a sheet pair (RFC-011).
 ///
 /// `None` on `SheetDiff.alignment_summary` when mode is `Positional`.
@@ -873,7 +947,35 @@ pub struct AlignmentSummary {
     pub inserted_rows: usize,
     pub removed_rows: usize,
     pub matched_rows: usize,
+    /// How much this pairing can be trusted. Read [`reasons`](Self::reasons) for why it is what it is.
+    ///
+    /// `confidence` is **not** derived from the three counts beside it: two sheets with identical counts can
+    /// report different values, because a pairing made among identical keys or signatures, or by identical
+    /// content, is capped at `Medium` even when every row matched.
     pub confidence: MatchConfidence,
+    /// Why `confidence` is what it is. A set: several may apply at once.
+    ///
+    /// No reason appears more than once. The order is not meaningful: it is the order the matcher found
+    /// the reasons in, and a consumer must not depend on it. An empty list means no reason applies, which
+    /// is the case for `Exact` and for `High`. Use [`is_ambiguous`](Self::is_ambiguous) to gate a decision, not
+    /// a match over this list.
+    pub reasons: Vec<ConfidenceReason>,
+}
+
+impl AlignmentSummary {
+    /// `true` when a pairing in this sheet was made between identical keys or identical signatures, so the
+    /// choice among them was positional.
+    ///
+    /// This is the question a consumer vetoes on. It is answerable on its own, from this method, and not by
+    /// inferring it from the absence of another reason.
+    pub fn is_ambiguous(&self) -> bool {
+        self.reasons.iter().any(|reason| {
+            matches!(
+                reason,
+                ConfidenceReason::DuplicateKeys | ConfidenceReason::DuplicateSignatures
+            )
+        })
+    }
 }
 
 /// The diff result for one logical sheet pair.

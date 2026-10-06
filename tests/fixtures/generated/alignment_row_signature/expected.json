@@ -33,6 +33,11 @@
             "col": 1,
             "a1": "A1"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 1
+            }
+          },
           "value": {
             "old": {
               "Text": "row_0_a"
@@ -51,6 +56,11 @@
             "row": 1,
             "col": 2,
             "a1": "B1"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 1
+            }
           },
           "value": {
             "old": {
@@ -71,6 +81,11 @@
             "col": 1,
             "a1": "A2"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 2
+            }
+          },
           "value": {
             "old": {
               "Text": "row_1_a"
@@ -89,6 +104,11 @@
             "row": 2,
             "col": 2,
             "a1": "B2"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 2
+            }
           },
           "value": {
             "old": {
@@ -109,6 +129,11 @@
             "col": 1,
             "a1": "A3"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 3
+            }
+          },
           "value": {
             "old": {
               "Text": "row_2_a"
@@ -127,6 +152,11 @@
             "row": 3,
             "col": 2,
             "a1": "B3"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 3
+            }
           },
           "value": {
             "old": {
@@ -147,6 +177,11 @@
             "col": 1,
             "a1": "A4"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 4
+            }
+          },
           "value": {
             "old": {
               "Text": "row_3_a"
@@ -165,6 +200,11 @@
             "row": 4,
             "col": 2,
             "a1": "B4"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 4
+            }
           },
           "value": {
             "old": {
@@ -185,6 +225,11 @@
             "col": 1,
             "a1": "A5"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 5
+            }
+          },
           "value": {
             "old": {
               "Text": "row_4_a"
@@ -203,6 +248,11 @@
             "row": 5,
             "col": 2,
             "a1": "B5"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 5
+            }
           },
           "value": {
             "old": {
@@ -223,6 +273,11 @@
             "col": 1,
             "a1": "A6"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 6
+            }
+          },
           "value": {
             "old": "Empty",
             "new": {
@@ -239,6 +294,11 @@
             "row": 6,
             "col": 2,
             "a1": "B6"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 6
+            }
           },
           "value": {
             "old": "Empty",

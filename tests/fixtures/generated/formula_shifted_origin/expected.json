@@ -33,6 +33,11 @@
             "col": 1,
             "a1": "A7"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 7
+            }
+          },
           "value": null,
           "formula": {
             "old": {

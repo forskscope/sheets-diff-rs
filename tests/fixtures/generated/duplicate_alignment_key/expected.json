@@ -33,6 +33,11 @@
             "col": 2,
             "a1": "B2"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 2
+            }
+          },
           "value": {
             "old": {
               "Number": 2.0

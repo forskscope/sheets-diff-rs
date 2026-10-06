@@ -38,6 +38,7 @@ const TABLE: &[&str] = &[
     "duplicate_alignment_key",
     "missing_alignment_key",
     "missing_row_signature",
+    "duplicate_row_signature",
 ];
 
 // ---------------------------------------------------------------------------
@@ -85,7 +86,7 @@ fn corpus() -> Vec<(String, WorkbookDiff)> {
         let name = dir.file_name().unwrap().to_string_lossy().into_owned();
         out.push((name, compare_bytes(&old, &new).unwrap()));
     }
-    assert_eq!(out.len(), 26, "the corpus has 26 scenarios");
+    assert_eq!(out.len(), 27, "the corpus has 27 scenarios");
     out
 }
 
@@ -194,6 +195,17 @@ fn synthetic() -> Vec<(&'static str, WorkbookDiff)> {
                 wb_strings(&[(0, 0, "id1"), (1, 1, "note"), (2, 0, "id3")]),
                 wb_strings(&[(0, 0, "id1"), (1, 1, "note"), (2, 0, "id3")]),
                 row_key_opts(None),
+            )
+            .unwrap(),
+        ),
+        (
+            "duplicate_row_signature",
+            // Rows 1 and 2 have the same sampled signature, and are paired by position among themselves.
+            // The swap raises duplicate_row_signature (confidence-that-measures-counts/02).
+            compare_bytes_with_options(
+                wb_strings(&[(0, 0, "A"), (0, 1, "x"), (1, 0, "A"), (1, 1, "y")]),
+                wb_strings(&[(0, 0, "A"), (0, 1, "y"), (1, 0, "A"), (1, 1, "x")]),
+                row_signature_opts(),
             )
             .unwrap(),
         ),

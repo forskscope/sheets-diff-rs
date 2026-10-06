@@ -13,8 +13,8 @@ use crate::matcher::{MatchedPair, match_sheets};
 use crate::meta::compare_workbook_metadata;
 use crate::model::{
     AlignmentSummary, CellDiff, Diagnostic, DiagnosticKind, DiagnosticLocation, DiffMetrics,
-    DiffStage, Severity, SheetChange, SheetDiff, SheetRef, SheetSummary, Side, WorkbookDiff,
-    WorkbookSideInfo,
+    DiffStage, RowPlacement, Severity, SheetChange, SheetDiff, SheetRef, SheetSummary, Side,
+    WorkbookDiff, WorkbookSideInfo,
 };
 use crate::normalize::normalize_cell_value;
 use crate::objects::report_object_coverage;
@@ -531,16 +531,41 @@ fn build_sheet_diff(
         // `old_lookup`/`new_lookup` are `None` when that side genuinely has
         // no counterpart for this coordinate (never a numeric fallback that
         // could accidentally hit an unrelated row — the D-03 defect).
-        let (row, col, old_lookup, new_lookup): (u32, u32, Option<u32>, Option<u32>) = match *key {
+        let (row, col, old_lookup, new_lookup, row_placement): (
+            u32,
+            u32,
+            Option<u32>,
+            Option<u32>,
+            RowPlacement,
+        ) = match *key {
             CoordKey::Old(r, c) => {
                 let new_lookup = align_mapping
                     .as_ref()
                     .and_then(|m| m.matched.get(&r))
                     .copied();
-                (r, c, Some(r), new_lookup)
+                let placement = match new_lookup {
+                    Some(n) => RowPlacement::PairedByAlignment {
+                        old_row: r,
+                        new_row: n,
+                    },
+                    None => RowPlacement::UnpairedInOldSheet { old_row: r },
+                };
+                (r, c, Some(r), new_lookup, placement)
             }
-            CoordKey::InsertedNew(r, c) => (r, c, None, Some(r)),
-            CoordKey::Positional(r, c) => (r, c, Some(r), Some(r)),
+            CoordKey::InsertedNew(r, c) => (
+                r,
+                c,
+                None,
+                Some(r),
+                RowPlacement::UnpairedInNewSheet { new_row: r },
+            ),
+            CoordKey::Positional(r, c) => (
+                r,
+                c,
+                Some(r),
+                Some(r),
+                RowPlacement::ComparedPositionally { row: r },
+            ),
         };
 
         let old_cell = old_lookup
@@ -584,6 +609,7 @@ fn build_sheet_diff(
         let address = CellAddress::new_unchecked(row, col);
         cell_diffs.push(CellDiff {
             address,
+            row_placement,
             value: value_change,
             formula: formula_change,
             format: None,
@@ -608,6 +634,7 @@ fn build_sheet_diff(
             removed_rows: m.summary.removed_rows,
             matched_rows: m.summary.matched_rows,
             confidence: m.summary.confidence,
+            reasons: m.summary.reasons,
         }),
         diagnostics: std::mem::take(sheet_diag),
         summary,

@@ -29,6 +29,30 @@
       "cell_diffs": [
         {
           "address": {
+            "row": 1,
+            "col": 2,
+            "a1": "B1"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 1
+            }
+          },
+          "value": {
+            "old": {
+              "Text": "x"
+            },
+            "new": {
+              "Text": "y"
+            },
+            "reason": "ContentChanged"
+          },
+          "formula": null,
+          "format": null,
+          "diagnostics": []
+        },
+        {
+          "address": {
             "row": 2,
             "col": 2,
             "a1": "B2"
@@ -40,10 +64,10 @@
           },
           "value": {
             "old": {
-              "Text": "before"
+              "Text": "y"
             },
             "new": {
-              "Text": "AFTER"
+              "Text": "x"
             },
             "reason": "ContentChanged"
           },
@@ -65,8 +89,8 @@
       "alignment_summary": null,
       "diagnostics": [],
       "summary": {
-        "cells_changed": 1,
-        "values_changed": 1,
+        "cells_changed": 2,
+        "values_changed": 2,
         "formulas_changed": 0
       }
     }
@@ -96,8 +120,8 @@
     "sheets_renamed": 0,
     "sheets_moved": 0,
     "sheets_changed": 1,
-    "cells_changed": 1,
-    "values_changed": 1,
+    "cells_changed": 2,
+    "values_changed": 2,
     "formulas_changed": 0,
     "diagnostics": {
       "warnings": 0,
@@ -106,9 +130,9 @@
   },
   "metrics": {
     "sheets_read": 1,
-    "cells_read": 6,
-    "cells_compared": 3,
-    "diffs_emitted": 1,
+    "cells_read": 8,
+    "cells_compared": 4,
+    "diffs_emitted": 2,
     "diagnostics_emitted": 1
   }
 }

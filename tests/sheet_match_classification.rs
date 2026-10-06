@@ -77,8 +77,9 @@ fn with_mode(mode: SheetMatchingMode) -> DiffOptions {
 /// `defined_name_changed` by M9 unit 07 (2026-10-01) — each with its classification as of this
 /// corpus's `compare_bytes` default options (the only options this test ever uses) -- a new
 /// baseline going forward, not a claim about what 2.6.0 would have produced for a scenario it
-/// never had.
-/// 32 sheets over 26 scenarios; only `renamed_sheet` carries a rename.
+/// never had. `duplicate_row_signature` (confidence-that-measures-counts/02, 3.5.0) is the same kind of row:
+/// its baseline is not sourced from 2.6.0 either.
+/// 33 sheets over 27 scenarios; only `renamed_sheet` carries a rename.
 const BASELINE_2_6_0: &[(&str, &[&str])] = &[
     ("alignment_bound_exceeded", &["Modified"]),
     ("alignment_header_column", &["Modified"]),
@@ -100,6 +101,7 @@ const BASELINE_2_6_0: &[(&str, &[&str])] = &[
     ("formula_unavailable", &["Modified"]),
     ("iso_datetime", &["Modified"]),
     ("missing_alignment_key", &["Modified"]),
+    ("duplicate_row_signature", &["Modified"]),
     ("missing_row_signature", &["Modified"]),
     ("non_ascii_text", &["Modified"]),
     ("renamed_sheet", &["Renamed(Medium)"]),

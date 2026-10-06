@@ -33,6 +33,11 @@
             "col": 1,
             "a1": "A5"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 5
+            }
+          },
           "value": {
             "old": {
               "Text": "before"

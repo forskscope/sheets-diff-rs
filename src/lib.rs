@@ -79,11 +79,12 @@ pub use error::{LimitKind, OpenErrorKind, ReadErrorKind, SheetsDiffError};
 // Model
 pub use model::{
     AlignmentSummary, CellChangeKind, CellDateTime, CellDiff, CellDisplay, CellDuration, CellError,
-    CellNumberFormat, CellSnapshot, CellValue, DateTimeKind, Diagnostic, DiagnosticKind,
-    DiagnosticLocation, DiagnosticSummary, DiffMetrics, DiffStage, DiffSummary, DisplaySource,
-    FormatChange, FormulaChange, FormulaText, MatchConfidence, Severity, SheetChange, SheetDiff,
-    SheetMatchReason, SheetRef, SheetSummary, Side, SourceDescription, SourceKind, ValueChange,
-    ValueDifferenceKind, WorkbookChange, WorkbookDiff, WorkbookObjectChange, WorkbookSideInfo,
+    CellNumberFormat, CellSnapshot, CellValue, ConfidenceReason, DateTimeKind, Diagnostic,
+    DiagnosticKind, DiagnosticLocation, DiagnosticSummary, DiffMetrics, DiffStage, DiffSummary,
+    DisplaySource, FormatChange, FormulaChange, FormulaText, MatchConfidence, RowPlacement,
+    Severity, SheetChange, SheetDiff, SheetMatchReason, SheetRef, SheetSummary, Side,
+    SourceDescription, SourceKind, ValueChange, ValueDifferenceKind, WorkbookChange, WorkbookDiff,
+    WorkbookObjectChange, WorkbookSideInfo,
 };
 
 // Address
@@ -195,6 +196,10 @@ pub struct MigrationGuideDoctests;
 #[doc = include_str!("../docs/src/migration/v2-to-v3.md")]
 #[cfg(doctest)]
 pub struct MigrationGuideV3Doctests;
+
+#[doc = include_str!("../docs/src/migration/v3.4-to-v3.5.md")]
+#[cfg(doctest)]
+pub struct MigrationGuide35Doctests;
 
 #[doc = include_str!("../docs/src/api-guide.md")]
 #[cfg(doctest)]

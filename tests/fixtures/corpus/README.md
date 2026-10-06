@@ -125,6 +125,7 @@ for every row below, not just a golden comparison.
 | 16 | `duplicate_alignment_key` | `duplicate_alignment_key` — zero coverage in the corpus before this; same dedicated-options pattern as 13/14, a repeated key value under `RowKey` | `duplicate_alignment_key_fixture_fires_under_row_key_alignment` |
 | 17 | `defined_name_changed` | `defined_name_scope_unknown` and `unsupported_workbook_metadata` — zero coverage in the corpus before this; both come from the same unconditional metadata pass (`meta.rs`: "there is no mode to disable or configure it with"), so one scenario (one defined name, target changed) closes both | `defined_name_changed_fixture_fires_both_metadata_codes` |
 | 18 | `missing_row_signature` | `missing_row_signature` — the signature analogue of 13; zero coverage in the corpus before this (only a hand-built, non-corpus unit test, `tests/rowsignature_unmapped_rows.rs`, the-row-that-vanishes/01). Through 3.3.0 a row with no cell in the sampled column did not warn — it vanished from the comparison entirely, with `alignment_summary` reporting `Exact` | `missing_row_signature_fixture_fires_under_row_signature_alignment` |
+| 19 | `duplicate_row_signature` | `duplicate_row_signature` — the signature analogue of 16; zero coverage in the corpus before this. Under `RowSignature` a signature repeated on either side pairs rows by position among themselves, and nothing said so until 3.5.0 | `duplicate_row_signature_fixture_fires_under_row_signature_alignment` |
 
 Scenarios 1–9 are pure `rust_xlsxwriter` output (RFC-036 Handoff 02); 10 and
 11 are generated then XML-patched via `patch_xlsx_xml`, duplicated into
@@ -149,7 +150,7 @@ covered — none were genuinely unreachable.** §5.4's "explicitly deferred" all
 the end; every code turned out to be a shape question once checked, not an options gap or an
 engine limitation. See RFC-036 §5.4's own annotation for the per-code reasoning.
 
-**13, 14, 16 and 18 need a non-default `AlignmentMode` (13, 16, 18) or a non-default
+**13, 14, 16, 18 and 19 need a non-default `AlignmentMode` (13, 16, 18, 19) or a non-default
 `max_alignment_product` (14), and the golden mechanism (`generated_fixtures_match_golden`,
 `scenario.toml`) has no per-scenario options at all — confirmed by reading both, not assumed.**
 Rows 3/4 above already

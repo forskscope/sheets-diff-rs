@@ -167,6 +167,48 @@ not repeated here since the mechanism is identical.
 
 ---
 
+## Row placement
+
+Every `CellDiff` carries a `row_placement` that says which row number belongs to
+which sheet. `address` carries one row number, and which sheet it belongs to depends
+on how the row was aligned, so read `row_placement` whenever a sheet's own numbering
+matters — for instance when showing a user an address in a file they have open.
+
+| `row_placement` | `address.row` is | The other sheet |
+|---|---|---|
+| `PairedByAlignment { old_row, new_row }` | `old_row` | the same row is `new_row` in the new sheet |
+| `UnpairedInOldSheet { old_row }` | `old_row` | no new-sheet row for this row |
+| `UnpairedInNewSheet { new_row }` | `new_row` | no old-sheet row for this row |
+| `ComparedPositionally { row }` | `row` | the same number on both sides |
+
+Under `Positional` (the default) every entry is `ComparedPositionally`, and one
+address carries one entry. Under `RowKey` or `RowSignature` one address can carry
+two entries that are distinct changes: the same address can name two different
+rows, one on each side. The example below has exactly that shape.
+
+```rust
+use sheets_diff::options::AlignmentMode;
+use sheets_diff::{DiffOptions, RowPlacement, compare_bytes_with_options};
+
+let old = std::fs::read("tests/fixtures/generated/missing_row_signature/old.xlsx").unwrap();
+let new = std::fs::read("tests/fixtures/generated/missing_row_signature/new.xlsx").unwrap();
+let opts = DiffOptions::builder()
+    .alignment(AlignmentMode::RowSignature { sample_columns: Some(vec![1]) })
+    .build()
+    .unwrap();
+let diff = compare_bytes_with_options(&old, &new, opts).unwrap();
+let cells = &diff.sheets[0].cell_diffs;
+
+// Two entries at B2. Keyed by address alone they collide and one is lost.
+assert_eq!(cells.len(), 2);
+assert!(cells.iter().all(|c| c.address.a1 == "B2"));
+assert!(cells.iter().any(|c| c.row_placement == RowPlacement::UnpairedInOldSheet { old_row: 2 }));
+assert!(cells.iter().any(|c| c.row_placement == RowPlacement::UnpairedInNewSheet { new_row: 2 }));
+# Ok::<(), sheets_diff::SheetsDiffError>(())
+```
+
+Key by `(address, row_placement)`, or keep the `cell_diffs` sequence as it arrives.
+
 ## Warning handling
 
 A comparison can succeed — return `Ok(WorkbookDiff)` — while also carrying

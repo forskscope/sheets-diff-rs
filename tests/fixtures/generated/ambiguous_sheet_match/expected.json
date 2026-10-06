@@ -30,6 +30,11 @@
             "col": 1,
             "a1": "A1"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 1
+            }
+          },
           "value": {
             "old": {
               "Text": "x"
@@ -73,6 +78,11 @@
             "row": 1,
             "col": 1,
             "a1": "A1"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 1
+            }
           },
           "value": {
             "old": {
@@ -118,6 +128,11 @@
             "col": 1,
             "a1": "A1"
           },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 1
+            }
+          },
           "value": {
             "old": "Empty",
             "new": {
@@ -161,6 +176,11 @@
             "row": 1,
             "col": 1,
             "a1": "A1"
+          },
+          "row_placement": {
+            "ComparedPositionally": {
+              "row": 1
+            }
           },
           "value": {
             "old": "Empty",

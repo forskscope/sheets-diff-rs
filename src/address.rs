@@ -46,7 +46,7 @@ pub const MAX_COL_LABEL: &str = "XFD";
 /// use sheets_diff::CellAddress;
 /// let _ = CellAddress { row: 1, col: 1, a1: "A1".to_string() };
 /// ```
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 #[non_exhaustive]
 pub struct CellAddress {
