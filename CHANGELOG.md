@@ -2,6 +2,91 @@
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-10-06
+
+**Two behaviour changes reach consumers, and both are defect fixes.** First, under `RowKey` or `RowSignature`, a
+sheet with a repeated key or signature used to report `Exact` beside the engine's own warning that the pairing may be
+a guess. It now reports `Medium`. **If you gate on `confidence == Exact`, such a sheet will now stop passing. That is
+the fix, not a regression.** Second, under `RowSignature` a repeated signature now raises a `duplicate_row_signature`
+warning (`DiagnosticKind::DuplicateRowSignature`, with `old_count` and `new_count`). If you count diagnostics per
+sheet, or treat any warning as a failure, expect one more kind on those sheets. Sheets with distinct signatures get
+none.
+
+**The new field and the new route.** `CellDiff` gains `row_placement`, a `RowPlacement` saying which row number each
+sheet uses for the change. Under `RowKey` or `RowSignature` one address can carry two distinct changes, each numbered
+in a different row space, so a change is identified by its address together with its placement. Collapsing by address
+alone merges distinct changes. That is the instruction we published before 3.4.0, and 3.4.0 corrected it.
+`CellAddress` now derives `Hash`, so the pair can key a `HashMap`. `DiffView` gains `change_at`, `key_at`,
+`first_change`, `position_of`, `next_change` and `previous_change`. A `ChangeKey` identifies a change within one
+comparison, not across two. `DiffView::next_after` and `previous_before` are deprecated and keep their behaviour; their
+notes say when they can fail to advance. The JSON output gains a `row_placement` key on every cell diff and a
+`reasons` list on each alignment summary, which says why a confidence value is what it is.
+
+**Why this is a minor.** The public API is additive throughout, nothing is removed or re-signed, and the deprecations
+keep their behaviour (RFC-031 §7). The two behaviour changes correct a value that was reported too confidently, and a
+path that stayed silent.
+
+**What the invariant does not cover.** The alignment invariant is checked in debug builds only. The fuzz target that
+reaches it, `fuzz_self_comparison`, stays out of CI until `calamine` #694 returns, so it is unfuzzed in CI this cycle.
+
+**Where this came from.** ForskScope asked for the row-space field and were blocked on it for a release. The shape
+went through two revisions because they said the first was unusable. The reason value is a set of reasons because a
+single value would have hidden the ambiguity veto their gate turns on behind the cause it ignores. The alignment
+invariant is theirs: *"you are not short of a mode constructed in a test, you are short of an invariant."* Thank you
+to ForskScope for the reports that shaped it.
+
+### Added
+
+- **A change can be walked and identified without anchors.** `DiffView::change_at`, `key_at`, `position_of`,
+  `first_change`, `next_change` and `previous_change`, and the `ChangeKey` type. A `ChangeKey` identifies one change
+  within one `WorkbookDiff`; it derives `Eq` and `Hash`, so it keys a `HashMap`. Its fields are private, so it is
+  produced by `DiffView`. `CellAddress` now derives `Hash` too, so a change's address can key a map. `ChangeAnchor`'s
+  documentation now says its `Ord` is not an identity. See `docs/src/migration/v3.4-to-v3.5.md`.
+
+- **Every `CellDiff` now says which row each sheet numbers it in: `CellDiff::row_placement`, of type
+  `RowPlacement`.** Under `RowKey` or `RowSignature` one address can carry two entries that are distinct
+  changes, each numbered in a different sheet's row space, and `address` alone cannot tell them apart. The
+  field can: `PairedByAlignment { old_row, new_row }` for a row alignment paired across the sheets,
+  `UnpairedInOldSheet { old_row }` and `UnpairedInNewSheet { new_row }` for a row with no counterpart, and
+  `ComparedPositionally { row }` when no alignment ran. A paired row whose old and new numbers differ now
+  reports both. Under the default `Positional` alignment every entry is `ComparedPositionally`, and nothing
+  else changes. A change is identified by its address together with its `row_placement`, and
+  `CellAddress` now derives `Hash`, so that identity can key a `HashMap` as well as a `BTreeMap`. See
+  `docs/src/semantics.md`, *Row placement*.
+
+### Changed
+
+- **`RowSignature` now says when a repeated signature has made rows pair by position.** A signature that repeats on
+  either side raises a new `DiagnosticKind::DuplicateRowSignature { old_count, new_count }` warning (code
+  `duplicate_row_signature`), with the number of repeated signatures on each side. It fires under any
+  `sample_columns`, including `None`, because a signature is built from displayed values and not formulas. Consumers
+  that count diagnostics per sheet will see one more kind on such sheets. Sheets with distinct signatures get no new
+  warning. See `docs/src/migration/v3.4-to-v3.5.md`.
+
+- **A row alignment no longer reports `Exact` for a pairing it cannot vouch for.** A sheet whose rows were paired
+  among identical keys (`RowKey`, with a key repeated on either side) or identical signatures (`RowSignature`, with
+  a signature repeated on either side) now reports `Medium`, as a keyless or content-placed row already did. Before
+  this, `RowKey` with duplicate keys and no keyless row reported `Exact`, and two spurious changes in the README's
+  reproduction came with it. Identical duplicates are capped too: the rule keys on the existence of a duplicate, not on
+  whether it changes the diff. **If you gate on `confidence == Exact`, a sheet with repeated keys or signatures will
+  now stop passing.** `AlignmentSummary` gains `reasons`, which says why a value is what it is, and `is_ambiguous()`,
+  which answers the ambiguity question. `confidence` is still not derived from the counts beside it.
+
+- **`DiffView::next_after` and `DiffView::previous_before` are deprecated, and keep their behaviour.** Under `RowKey`
+  or `RowSignature` two change rows can share an anchor, and then `next_after` can fail to advance and
+  `previous_before` can skip a change. Use `DiffView::next_change` and `previous_change`, which cannot. The deprecation
+  notes say so.
+
+- **The JSON output of `CellDiff` gained a `row_placement` key, and it is a tagged object, not a string.**
+  Consumers who parse `--format json` or serialise `CellDiff` should expect it. Nothing is removed or renamed,
+  and there is no `Deserialize`. Migration notes: `docs/src/migration/v3.4-to-v3.5.md`.
+
+### Documentation
+
+- **RFC-033 §5 is annotated, not rewritten.** Its "one `CellDiff` per logical address" sentence was true only
+  under `Positional` alignment; the annotation records what it now means and that the row projection's claim was
+  removed in 3.4.0.
+
 ## [3.4.0] - 2026-10-06
 
 **One behaviour changed, and it is a defect fix: under `AlignmentMode::RowSignature { sample_columns:
