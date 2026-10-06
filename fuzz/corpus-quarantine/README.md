@@ -14,6 +14,19 @@ reader can reach `calamine`'s open base-26 column overflow
 it. All three — this directory, `fuzz_self_comparison`'s absence from the matrix, and that `-runs=0`
 — are closed by the same change: #694 fixed and the dependency bumped.
 
+**A fourth consequence, recorded 2026-10-06 so it closes with them rather than being rediscovered.**
+`compute_row_mapping` carries a debug-build assertion of the row-alignment invariant
+(`docs/src/maintainers/row-alignment-invariant.md`): every row with a cell is in exactly one of
+`matched`, `removed` or `inserted`. **No target CI runs can reach it.** `fuzz_open_xlsx_bytes` calls
+`compare_bytes`, which uses default options and therefore `Positional`, and `Positional` builds no
+mapping at all — so that target cannot exercise the invariant however long it runs. The only target
+that can is `fuzz_self_comparison`, which is the one absent from the matrix above. Its corpus was
+replayed by hand at the invariant unit's review (13 seeds, a copy, `-a` explicit) and was clean, but
+that is a one-off, not a gate. **When the matrix is restored, `fuzz_self_comparison` returning is
+what first puts the invariant under a fuzzer.** Noted because the natural assumption — that a green
+`fuzz-smoke` exercises alignment — is false, and was briefly made in the invariant unit's own
+handoff.
+
 ## `fuzz_open_xlsx_bytes/paired_encrypted`
 
 Quarantined 2026-09-29 (M9 unit 01 review). RFC-028 §6's "password-protected" category, built from

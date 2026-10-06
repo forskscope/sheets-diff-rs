@@ -85,10 +85,23 @@ options should use builders.
 
 If `serde` output is advertised as stable:
 
-- adding optional fields is minor-compatible;
+- adding a field is minor-compatible, **whether it is optional or always present**, and the shape of
+  an added field's value is unconstrained — a scalar, an object, or a tagged enum are all additive;
 - removing or renaming fields is breaking;
 - changing enum tag names is breaking;
 - experimental sections must be under clearly named optional keys.
+
+> **Amended 2026-10-06, from a question raised at `row-space-and-the-anchor/01`'s review.** The first
+> bullet said only *"adding optional fields is minor-compatible"*, which left two things to
+> inference. `CellDiff::row_placement` is **always present** and serialises as a **tagged object**,
+> and the dev team correctly declined to decide whether §8 covered it. It does, and the bullet now
+> says so: nothing is removed or renamed, the crate implements no `Deserialize` so no round-trip can
+> break, and an external parser gains a key it did not have. The amendment is to the wording, not to
+> the policy — but a policy that has to be read by inference is one a careful implementer stops on,
+> which is what happened, and stopping was right.</br>
+> The same reasoning does not extend to *changing* an existing field's value shape, which is
+> breaking and is covered by the third bullet in spirit; if that ever comes up it needs its own
+> sentence rather than this one stretched.
 
 ## 9. Release checklist
 
