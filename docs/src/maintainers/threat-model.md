@@ -283,7 +283,7 @@ reporting channel for "multiple distinct root-cause vulnerabilities" in 0.36.1, 
 that the project "isn't currently resourced to handle the volume of public vulnerabilities that are
 reported", and that "there are enough public issues that need to be fixed first." That is a candid
 answer from a maintainer doing unpaid work, not a failure — **but it means a fix on a schedule we
-could depend on is not something to assume.** `calamine` 0.36.1 is the newest release (2026-07-27),
+could depend on is not something to assume.** `calamine` 0.36.1 was the newest release on 2026-07-27,
 so no published version carries a fix for either.
 
 **And RustSec still has nothing.** It holds one calamine entry, RUSTSEC-2021-0015, unrelated;

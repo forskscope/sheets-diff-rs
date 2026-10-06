@@ -382,7 +382,8 @@ Stating these closes the list, which is the point of writing it down.
 - **`Deserialize`** stays declined (RFC-014, ForskScope asked directly).
 - **No new features.** Not style comparison, not a formula normaliser, not
   parallel execution. v3 is a correction release, not a capability release.
-- **MSRV stays 1.88** unless something here forces otherwise.
+- **MSRV stays 1.88** unless something here forces otherwise. *(Annotated 2026-10-06, never-hold-a-version-you-could-read/01:
+  1.88 was the MSRV at this RFC's acceptance; the current value is `Cargo.toml`'s `rust-version`.)*
 - **No module reorganisation.** `view.rs`'s status (M9 O5) is a documentation
   decision, not a layout change.
 - **Nothing found after this RFC is accepted joins it** without the owner

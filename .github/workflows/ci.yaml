@@ -197,6 +197,18 @@ jobs:
         run: cargo deny check
 
   # ---------------------------------------------------------------------------
+  # versions -- never-hold-a-version-you-could-read/01: prose that names a dependency or MSRV version is
+  # asserted against Cargo.toml / Cargo.lock, so a bump cannot quietly make a document false. Runs on every
+  # push and PR: the defect arrives with an ordinary dependency-bump commit.
+  # ---------------------------------------------------------------------------
+  versions:
+    name: versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 .github/scripts/check-version-claims.py
+
+  # ---------------------------------------------------------------------------
   # fuzz-smoke — RFC-028. A bounded smoke run per target, not a full fuzz
   # campaign. Distinguishes infrastructure failure (toolchain/install, does
   # not block) from an actual crash found by the fuzzer (blocks): only the
@@ -442,7 +454,7 @@ jobs:
     name: release (gh release, body extracted from CHANGELOG.md)
     if: startsWith(github.ref, 'refs/tags/')
     needs:
-      [test, msrv, lint, tree, deps, fuzz-smoke, doctests-nightly, public-api, install, package]
+      [test, msrv, lint, tree, deps, versions, fuzz-smoke, doctests-nightly, public-api, install, package]
     runs-on: ubuntu-latest
     permissions:
       contents: write
