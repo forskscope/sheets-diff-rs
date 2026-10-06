@@ -1,7 +1,11 @@
 //! Cell-level value and formula comparison (RFC-010, RFC-018, RFC-019).
 
+use std::collections::BTreeSet;
+
+use crate::formula_refs::{RowMap, map_row_references};
 use crate::model::{
-    CellDateTime, CellValue, FormulaChange, FormulaText, ValueChange, ValueDifferenceKind,
+    CellDateTime, CellValue, FormulaChange, FormulaDifference, FormulaText, RowPlacement,
+    ValueChange, ValueDifferenceKind,
 };
 use crate::options::{
     DateComparePolicy, FormulaCompareMode, NumberComparePolicy, NumericTypePolicy,
@@ -173,10 +177,17 @@ fn normalized_serial_eq(a_serial: f64, a_1904: bool, b_serial: f64, b_1904: bool
 ///
 /// Returns `Some(FormulaChange)` when the formulas differ; `None` when equal or
 /// when the mode is `Ignore`.
+///
+/// **The annotation cannot suppress a change, structurally.** Both early returns below (`Ignore`, and
+/// `old_raw == new_raw`) come before [`explain`] runs, and `explain`'s value only ever lands in
+/// `FormulaChange::difference`. Whether a change is reported is decided by raw-text equality alone, exactly as
+/// before the annotation existed, and nothing downstream of `explain` can reach that decision. Do not move
+/// `explain` above either return: that would break the rule that annotates and never suppresses.
 pub fn compare_formulas(
     old_formula: Option<&str>,
     new_formula: Option<&str>,
     mode: FormulaCompareMode,
+    context: &FormulaContext<'_>,
 ) -> Option<FormulaChange> {
     if mode == FormulaCompareMode::Ignore {
         return None;
@@ -201,7 +212,43 @@ pub fn compare_formulas(
     Some(FormulaChange {
         old: old_text,
         new: new_text,
+        difference: explain(old_formula, new_formula, context),
     })
+}
+
+/// What `compare_formulas` needs to say why two texts differ, beyond the texts themselves.
+pub struct FormulaContext<'a> {
+    /// The cell's placement. Mapping is attempted only for `PairedByAlignment`.
+    pub placement: &'a RowPlacement,
+    /// The sheet pair's row mapping, built once per sheet. `None` when no alignment ran.
+    pub rows: Option<&'a RowMap<'a>>,
+    /// Every defined name in either workbook, from `normalise_defined_names`. Never defaulted: an empty set is a
+    /// fact about the workbooks, not a fallback.
+    pub names: &'a BTreeSet<String>,
+}
+
+/// The annotation. It does not decide whether a change is reported: the caller has already seen the texts differ.
+fn explain(
+    old_formula: Option<&str>,
+    new_formula: Option<&str>,
+    context: &FormulaContext<'_>,
+) -> FormulaDifference {
+    if !matches!(context.placement, RowPlacement::PairedByAlignment { .. }) {
+        return FormulaDifference::NoRowMovement;
+    }
+    // A formula added or removed: nothing to map, and mapping cannot explain it.
+    let (Some(old), Some(new)) = (old_formula, new_formula) else {
+        return FormulaDifference::NotExplainedByRowMapping;
+    };
+    // A paired cell implies an alignment ran, so `rows` is `Some`. If it were not, we cannot map: claim nothing.
+    let Some(rows) = context.rows else {
+        return FormulaDifference::NotDetermined;
+    };
+    match map_row_references(old, rows, context.names) {
+        Some(mapped) if mapped == new => FormulaDifference::ExplainedByRowMapping,
+        Some(_) => FormulaDifference::NotExplainedByRowMapping,
+        None => FormulaDifference::NotDetermined,
+    }
 }
 
 // ---------------------------------------------------------------------------

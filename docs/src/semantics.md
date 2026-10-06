@@ -73,6 +73,42 @@ both, or neither. `DiffSummary.formulas_changed` counts this cell;
 `values_changed` does not, because nothing about the cached *value*
 changed — only what produces it.
 
+### Formulas and moved rows
+
+Excel rewrites the row numbers inside a formula when rows move, so under `RowKey` or `RowSignature` a formula that
+nobody edited can still differ as text: `=C5*2` is `=C6*2` once a row is inserted above it. Every such change is
+reported, as it always was. `FormulaChange::difference` says **why** the two texts differ:
+
+| `FormulaDifference` | Meaning |
+|---|---|
+| `ExplainedByRowMapping` | Mapping the old formula's row references through this sheet's alignment makes the two texts equal. Its references moved with the row. |
+| `NotExplainedByRowMapping` | Mapping did not explain it: the mapped text still differs, or a formula was added or removed (`old` and `new` say which). |
+| `NoRowMovement` | No mapping was attempted: the sheet was compared positionally, or the cell is not paired by alignment. |
+| `NotDetermined` | Mapping was attempted and declined. **Nothing is claimed.** It does not mean the formula is unchanged. |
+
+**Nothing is suppressed.** To drop the cascade, filter out the entries that are `ExplainedByRowMapping`:
+
+```rust
+use sheets_diff::{compare_bytes, FormulaDifference};
+
+let old = std::fs::read("tests/fixtures/generated/formula/old.xlsx").unwrap();
+let new = std::fs::read("tests/fixtures/generated/formula/new.xlsx").unwrap();
+let diff = compare_bytes(&old, &new).unwrap();
+
+let real: Vec<_> = diff.sheets[0].cell_diffs.iter()
+    .filter(|c| c.formula.as_ref().is_some_and(|f| f.difference != FormulaDifference::ExplainedByRowMapping))
+    .collect();
+// Under `Positional` (the default) no row is mapped, so nothing is explained and everything is kept.
+assert_eq!(real.len(), 1);
+assert_eq!(real[0].formula.as_ref().unwrap().difference, FormulaDifference::NoRowMovement);
+```
+
+A formula is declined, whole, if it contains a string literal, a sheet qualifier, a structured reference, a
+whole-column or whole-row form, a defined name, a function whose name reads as a cell reference (`LOG10`), a reference
+to a row with no counterpart, or if it holds a range on a sheet whose rows were reordered. Such a formula is still
+reported, and a consumer filtering on `ExplainedByRowMapping` will see it. Only plain `A1` references and ranges of them
+are mapped, and `$` does not stop a reference moving when a row is inserted: it governs copy and fill.
+
 ---
 
 ## Sheet rename

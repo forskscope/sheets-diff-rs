@@ -89,7 +89,8 @@ placement for which mapping is attempted.
 - the JSON gains a key on every formula change.
 
 **4. Correct `AlignmentMode`'s documentation**, which is where this defect is visible as a false
-claim: `RowSignature` says it *"reduces cascades after row insertion/deletion"*, and on a sheet with a
+claim: **`RowKey`** says it *"reduces cascades after row insertion/deletion"* (`src/options.rs:166`;
+corrected 2026-10-07 from this handoff's original misattribution to `RowSignature`), and on a sheet with a
 formula column over moved rows it does not — it exchanges a value cascade for a formula one. Say that
 plainly, and say what the annotation now lets a consumer do about it. **This paragraph is owed
 whatever happens to the rest of the unit**; it was true before the annotation existed.

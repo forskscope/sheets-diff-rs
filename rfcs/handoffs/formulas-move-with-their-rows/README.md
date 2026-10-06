@@ -19,8 +19,9 @@ alignment that pairs a row across a shift reports that row's formulas as changed
 The truth is about three changed cells. **Alignment does not remove the cascade on this shape, it
 exchanges one for another:** positional compares row 5 with row 5 and gets formulas right and values
 wrong; alignment the reverse. A formula column over the data is close to the most ordinary shape a
-sheet has, and `AlignmentMode::RowSignature`'s own doc claims it *"reduces cascades after row
-insertion/deletion"*.
+sheet has, and `AlignmentMode::RowKey`'s own doc claims it *"reduces cascades after row
+insertion/deletion"* (`src/options.rs:166` — **corrected 2026-10-07**: this handoff first attributed
+the sentence to `RowSignature`, whose doc is silent on cascades; unit 02's proposal caught it).
 
 ## The one rule that governs both units
 

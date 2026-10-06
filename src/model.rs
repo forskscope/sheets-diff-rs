@@ -501,6 +501,39 @@ pub struct FormulaText {
     pub normalized: Option<String>,
 }
 
+/// Why a [`FormulaChange`]'s two texts differ.
+///
+/// Excel rewrites the row numbers inside a formula when rows move, so under `RowKey` or `RowSignature` a formula
+/// that was never edited can still differ as text: `=C5*2` is `=C6*2` after a row is inserted above it. This says
+/// whether mapping the old formula's references through the sheet's alignment explains the difference.
+///
+/// **It annotates and never suppresses.** Every change is reported whatever this says. A caller who wants the
+/// cascade gone filters **out** the entries that are [`ExplainedByRowMapping`](Self::ExplainedByRowMapping).
+///
+/// `#[non_exhaustive]`: the domain is expected to grow (a reference that maps to `#REF!`, a cross-sheet mapping
+/// that was unavailable), per RFC-031 §6.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+#[non_exhaustive]
+pub enum FormulaDifference {
+    /// Mapping the old formula's row references through this sheet's alignment makes the two texts equal. The
+    /// formula was not edited; its references moved with the row.
+    ExplainedByRowMapping,
+    /// Mapping did not explain the difference. Either the old formula was mapped and still differs from the new
+    /// one, so it differs for some other reason, which may include an edit; or there was no formula on one side,
+    /// so there was nothing to map. The `old` and `new` options of [`FormulaChange`] say which: a formula added or
+    /// removed lands here, and is not a variant of its own, because it would restate what `old` and `new`
+    /// already carry.
+    NotExplainedByRowMapping,
+    /// No mapping was attempted, because no row moved to explain anything: the sheet was compared positionally, or
+    /// this cell's [`RowPlacement`] is not `PairedByAlignment`.
+    NoRowMovement,
+    /// Mapping was attempted and declined: part of the formula was not understood, or a reference pointed at a
+    /// row with no counterpart, or the sheet's rows were reordered and the formula holds a range. **Nothing is
+    /// claimed either way**: this is not "the formula is unchanged". See the CHANGELOG for the classes declined.
+    NotDetermined,
+}
+
 /// A formula-layer change at one cell address.
 ///
 /// `None` in `old` or `new` means the formula was added or removed.
@@ -510,6 +543,8 @@ pub struct FormulaText {
 pub struct FormulaChange {
     pub old: Option<FormulaText>,
     pub new: Option<FormulaText>,
+    /// Why the two texts differ. Always present. See [`FormulaDifference`].
+    pub difference: FormulaDifference,
 }
 
 /// Reserved for RFC-022 (style/format diffs).  Always `None` — calamine 0.36

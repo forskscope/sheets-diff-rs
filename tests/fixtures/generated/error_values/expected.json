@@ -55,7 +55,8 @@
             "new": {
               "raw": "A2",
               "normalized": null
-            }
+            },
+            "difference": "NoRowMovement"
           },
           "format": null,
           "diagnostics": []

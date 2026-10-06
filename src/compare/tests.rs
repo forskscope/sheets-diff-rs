@@ -202,13 +202,23 @@ fn empty_vs_empty_produces_no_change() {
 
 #[test]
 fn formula_ignore_returns_none() {
-    let r = compare_formulas(Some("=A1"), Some("=B1"), FormulaCompareMode::Ignore);
+    let r = compare_formulas(
+        Some("=A1"),
+        Some("=B1"),
+        FormulaCompareMode::Ignore,
+        &positional(),
+    );
     assert!(r.is_none());
 }
 
 #[test]
 fn equal_formulas_return_none() {
-    let r = compare_formulas(Some("=A1+B1"), Some("=A1+B1"), FormulaCompareMode::RawText);
+    let r = compare_formulas(
+        Some("=A1+B1"),
+        Some("=A1+B1"),
+        FormulaCompareMode::RawText,
+        &positional(),
+    );
     assert!(r.is_none());
 }
 
@@ -218,6 +228,7 @@ fn different_formulas_return_change() {
         Some("=A1+B1"),
         Some("=A1+B1+C1"),
         FormulaCompareMode::RawText,
+        &positional(),
     )
     .unwrap();
     assert_eq!(r.old.as_ref().unwrap().raw, "=A1+B1");
@@ -226,7 +237,26 @@ fn different_formulas_return_change() {
 
 #[test]
 fn formula_added() {
-    let r = compare_formulas(None, Some("=SUM(A1:A10)"), FormulaCompareMode::RawText).unwrap();
+    let r = compare_formulas(
+        None,
+        Some("=SUM(A1:A10)"),
+        FormulaCompareMode::RawText,
+        &positional(),
+    )
+    .unwrap();
     assert!(r.old.is_none());
     assert!(r.new.is_some());
+}
+
+/// The context for a cell compared positionally: no alignment ran, so nothing is mapped.
+fn positional() -> FormulaContext<'static> {
+    static PLACEMENT: crate::model::RowPlacement =
+        crate::model::RowPlacement::ComparedPositionally { row: 1 };
+    static NAMES: std::sync::OnceLock<std::collections::BTreeSet<String>> =
+        std::sync::OnceLock::new();
+    FormulaContext {
+        placement: &PLACEMENT,
+        rows: None,
+        names: NAMES.get_or_init(Default::default),
+    }
 }

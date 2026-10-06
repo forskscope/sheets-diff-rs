@@ -2,13 +2,16 @@
 //!
 //! Public entry points live in `lib.rs`; this module owns the pipeline logic.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Read, Seek};
+
+use calamine::Reader;
 
 use crate::address::{CellAddress, ComparedRange};
 use crate::align::compute_row_mapping;
-use crate::compare::{compare_formulas, compare_values};
+use crate::compare::{FormulaContext, compare_formulas, compare_values};
 use crate::error::{LimitKind, SheetsDiffError};
+use crate::formula_refs::{RowMap, normalise_defined_names};
 use crate::matcher::{MatchedPair, match_sheets};
 use crate::meta::compare_workbook_metadata;
 use crate::model::{
@@ -244,6 +247,18 @@ fn run_pipeline(
     let mut total_cells_compared: u64 = 0;
     let mut metrics = DiffMetrics::default();
 
+    // Every defined name in either workbook, read once (the same call `meta.rs` makes). Formula annotation
+    // refuses any word that is one. The union over-refuses, which is the safe direction, and the set is never
+    // defaulted: an empty set means neither workbook has any.
+    let defined_names = normalise_defined_names(
+        old_wb
+            .reader
+            .defined_names()
+            .iter()
+            .chain(new_wb.reader.defined_names().iter())
+            .map(|(name, _)| name.as_str()),
+    );
+
     for (idx, pair) in matched.into_iter().enumerate() {
         check_cancel(&opts)?;
 
@@ -267,7 +282,10 @@ fn run_pipeline(
             &pair,
             &mut old_wb,
             &mut new_wb,
-            &opts,
+            &SheetInputs {
+                opts: &opts,
+                defined_names: &defined_names,
+            },
             &mut total_diffs,
             &mut total_cells_read,
             &mut total_cells_compared,
@@ -343,15 +361,23 @@ fn run_pipeline(
 // Per-sheet processing
 // ---------------------------------------------------------------------------
 
+/// What every sheet pair is processed against, bundled so the per-sheet functions stay under clippy's argument limit.
+struct SheetInputs<'a> {
+    opts: &'a DiffOptions,
+    /// Every defined name in either workbook, normalised. See `run_pipeline`.
+    defined_names: &'a BTreeSet<String>,
+}
+
 fn process_sheet_pair(
     pair: &MatchedPair,
     old_wb: &mut OpenedWorkbook,
     new_wb: &mut OpenedWorkbook,
-    opts: &DiffOptions,
+    inputs: &SheetInputs<'_>,
     total_diffs: &mut u64,
     total_cells_read: &mut u64,
     total_cells_compared: &mut u64,
 ) -> Result<SheetDiff, SheetsDiffError> {
+    let opts = inputs.opts;
     let mut sheet_diag: Vec<Diagnostic> = Vec::new();
 
     let old: SheetReadResult = match &pair.old_sheet {
@@ -380,7 +406,7 @@ fn process_sheet_pair(
         pair,
         old,
         new,
-        opts,
+        inputs,
         total_diffs,
         total_cells_compared,
         &mut sheet_diag,
@@ -391,11 +417,12 @@ fn build_sheet_diff(
     pair: &MatchedPair,
     (old_map, old_start, old_end): SheetReadResult,
     (new_map, new_start, new_end): SheetReadResult,
-    opts: &DiffOptions,
+    inputs: &SheetInputs<'_>,
     total_diffs: &mut u64,
     total_cells_compared: &mut u64,
     sheet_diag: &mut Vec<Diagnostic>,
 ) -> Result<SheetDiff, SheetsDiffError> {
+    let (opts, defined_names) = (inputs.opts, inputs.defined_names);
     let compared_range = ComparedRange::union(old_start, old_end, new_start, new_end);
 
     // Alignment (RFC-011): compute row mapping if mode is not Positional.
@@ -419,6 +446,9 @@ fn build_sheet_diff(
     } else {
         None
     };
+
+    // The row mapping as formula annotation needs it, with its monotonicity computed once for the sheet pair.
+    let row_map = align_mapping.as_ref().map(|m| RowMap::new(&m.matched));
 
     // Build the coordinate set, remapping new-side rows when aligned.
     //
@@ -581,6 +611,11 @@ fn build_sheet_diff(
             old_cell.formula.as_deref(),
             new_cell.formula.as_deref(),
             opts.comparison.formula,
+            &FormulaContext {
+                placement: &row_placement,
+                rows: row_map.as_ref(),
+                names: defined_names,
+            },
         );
 
         if value_change.is_none() && formula_change.is_none() {

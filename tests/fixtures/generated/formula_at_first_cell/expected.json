@@ -47,7 +47,8 @@
             "new": {
               "raw": "2+0",
               "normalized": null
-            }
+            },
+            "difference": "NoRowMovement"
           },
           "format": null,
           "diagnostics": []

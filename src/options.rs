@@ -163,7 +163,15 @@ pub enum AlignmentMode {
     #[default]
     Positional,
     /// Match rows by the values in the specified key columns (1-based).
-    /// Reduces cascades after row insertion/deletion.
+    ///
+    /// Pairs rows by key, so a row that moved is compared with its own counterpart. **That removes the cascade of
+    /// value changes. It does not remove the cascade in formula columns.** Excel rewrites row references when rows
+    /// move, so a formula such as `=C5*2` that is now `=C6*2` is reported as changed although nobody edited it.
+    /// Each formula change carries [`FormulaChange::difference`](crate::FormulaChange::difference), which says
+    /// whether mapping the old formula's references through this alignment makes the two texts equal
+    /// ([`FormulaDifference::ExplainedByRowMapping`](crate::FormulaDifference::ExplainedByRowMapping)). A caller who
+    /// wants the cascade gone filters **out** the entries that are explained. Nothing is suppressed: every change
+    /// is still reported, and `NotDetermined` means we declined, not that the formula is unchanged.
     ///
     /// **This mode needs a key.** A row with no cell in any key column cannot be matched by key. It is
     /// not skipped. Rows with the same values in the same columns on both sides are paired with one
@@ -174,6 +182,9 @@ pub enum AlignmentMode {
     /// row that differs. Duplicate keys warn too (`duplicate_alignment_key`).
     RowKey { columns: Vec<u32> },
     /// Match rows by a hash of selected cell values (content similarity).
+    ///
+    /// Like `RowKey`, this does not remove the cascade in formula columns, because Excel rewrites row references
+    /// when rows move. See `RowKey` and [`FormulaChange::difference`](crate::FormulaChange::difference).
     /// `sample_columns` limits which columns contribute to the signature;
     /// `None` means all columns.
     ///
