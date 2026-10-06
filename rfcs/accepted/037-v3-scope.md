@@ -456,8 +456,42 @@ is breaking and waits for v4:
    Nothing in the crate does this, which is why no test catches it. The 3.5.0 documentation says so, and tells
    consumers to use `ChangeKey`.
 4. **`next_after` and `previous_before` are removed**, after the deprecation window the RFC-031 §7 rule requires.
-5. **`CellChangeRow` exposes `row_placement`**, so a GUI built on `output::view` can tell two rows apart from the view
-   alone. Without it the route above works only for consumers who also hold the `WorkbookDiff`.
+5. **`CellChangeRow` exposes `row_placement`** — **ergonomic only, and its original justification was
+   wrong.** *(Corrected 2026-10-06 at the architect's review of this list.)* The stated reason was that
+   without it "the route above works only for consumers who also hold the `WorkbookDiff`". Both halves
+   are false: `DiffView::new` takes `&WorkbookDiff`, so **every** view consumer holds one by
+   construction; and `ChangeKey::row_placement()` already returns the placement, so `key_at(i)` gives a
+   GUI the distinction **from the view alone, today, in 3.5.0**. What remains is a preference for the
+   placement sitting on the row rather than behind a second call. **No consumer lacks a capability
+   because of this**, which matters for whether the list below justifies a major at all.
 
 Not in this list, and not a v4 concern: following "the same change" from one comparison to the next. That is an
 alignment question, and `ChangeKey` identifies a change only within one `WorkbookDiff`.
+
+### There is no v4 decision, and that is the architect's omission — 2026-10-06
+
+**This heading says "Deferred to v4". No v4 has been agreed.** The owner was asked about the items on
+2026-10-06 and did not recognise the destination, which is correct: it was never put to them. Over two
+milestones the architect wrote "v4" into handoffs and reviews as a deferral target, and five items were
+parked against a release nobody had decided to have. A major-version transition is explicitly the
+owner's call to make and the architect's to escalate; it was deferred *to* instead of escalated *about*.
+
+**What the list is worth, re-read with item 5 corrected:**
+
+| Item | What a consumer gains | Who is affected today |
+|---|---|---|
+| 1. `ChangeAnchor` carries the row space | the deprecated methods stop failing to advance | nobody known — no consumer uses `output::view` |
+| 2. `view.rs` types `#[non_exhaustive]` | the *next* shape change is a minor | nobody; prophylactic |
+| 3. `Ord` off `ChangeAnchor` | a trap closed | nobody known; nothing in the crate keys by anchor |
+| 4. the two deprecated methods removed | housekeeping | nobody |
+| 5. `row_placement` on `CellChangeRow` | a second call saved | nobody; see above |
+
+**None of the five is a capability a consumer lacks.** The one real defect among them — the shared-anchor
+collision — already has a correct, additive route shipped beside it in 3.5.0, and the module it affects
+has no known consumer.
+
+So the architect's recommendation, for the owner to accept or reject: **do not plan a 4.0.0 for these.**
+Keep the list as what *rides* the next major if one is ever called for another reason, and record that
+none of these five is a reason to call one. If that is accepted, this heading should read "Rides the next
+major, if one happens" rather than "Deferred to v4", because the current wording implies a schedule that
+does not exist.
