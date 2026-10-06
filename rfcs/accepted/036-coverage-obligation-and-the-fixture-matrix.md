@@ -214,6 +214,72 @@ nothing checks.
   existing mechanisms, `SheetChange::{Added,Removed}` and
   `DiagnosticKind::AmbiguousSheetMatch`, already give.)*
 
+### 5.5 Options: every constructor, not every value
+
+**Added 2026-10-06.** Owed since 2026-10-05 and twice mis-stated before being written; the history is
+part of the rule, because both failed attempts failed in instructive ways.
+
+> **For every public option, the matrix must name each **constructor** the option admits — every enum
+> variant, and both arms of every `Option` — and each one must be constructed by some test. An option
+> whose constructors are not enumerated is not covered, whatever the scenario count says.**
+
+#### The defect this comes from
+
+`AlignmentMode::RowSignature { sample_columns: Option<Vec<u32>> }` shipped with `RowSignature` and was
+never fuzzed, never asserted, and — as it turns out — never fully constructed. Under
+`sample_columns: Some(cols)`, a row with no cell in any sampled column got no entry in the signature
+map, so it was in none of `matched`, `removed` or `inserted`, and **its cells were never compared**: a
+real change produced zero cell diffs, zero diagnostics, and an `alignment_summary` reporting `Exact`.
+It was f130's defect on the path f130 did not touch, and it survived every release until 3.4.0.
+
+#### Why "every mode constructed by a test" was too weak
+
+That was the first wording, and it is wrong because **the mode was constructed.** Measured at tag
+3.3.0: seven tests construct `AlignmentMode::RowSignature`, and **every one of them passes
+`sample_columns: None`.** Not one passed `Some(...)`. The mode was covered by any count you like; the
+defect lived in an argument to it.
+
+The lesson is that an option's *own* fields have variants too, and a rule that stops at the outer
+enum stops one level above where the inputs actually branch.
+
+#### Why "every option value" is impossible
+
+That was the second wording. `sample_columns` is a `Vec<u32>`: the value space is unbounded, so the
+rule cannot be satisfied and therefore cannot be a rule. This is why the obligation lands on
+**constructors**, which are finite and readable off the type — `None` and `Some` here; four variants
+for `AlignmentMode`; and so on — rather than on values, which are not.
+
+#### What I got wrong about the instrument, and the correction
+
+I was going to write that a coverage tool would not have caught this, on the reasoning that the gap
+was a missing *case* rather than a missing *line*. **That is false, and checking it is what produced
+this section.** With no test passing `Some(...)`, the `if let Some(cols) = sample_cols` filter in
+`compute_row_signatures` was **never executed**, so ordinary branch coverage would have reported it
+uncovered for the whole life of the mode.
+
+So this rule is not a substitute for an instrument we lack; it is a written-down form of one we were
+not using. **Two consequences:**
+
+1. The enumeration is cheap and belongs in the matrix regardless, because it is reviewable by reading
+   a type and a test list, with no tooling.
+2. **Branch coverage over the test suite is worth adding**, and would have found this without anyone
+   enumerating anything. Not scoped here — it is a CI-cost decision for the owner — but recorded, so
+   that the next person weighing it knows it had a concrete catch.
+
+#### What this does not cover
+
+A constructor that is built by a test **but only in its easy shape**. `Some(cols)` where every row has
+a sampled cell exercises the constructor and misses the defect. The constructor list is a floor, not a
+ceiling, and §5.1's definition still governs: an assertion that would fail if the behaviour broke.
+Enumerating constructors makes the floor checkable; it does not make the matrix complete.
+
+#### Relationship to the row-alignment invariant
+
+`docs/src/maintainers/row-alignment-invariant.md` catches the whole class differently and without
+enumeration: a row that disappears violates it under *any* mode and *any* option value, so the
+assertion fires in the first test that happens to reach the shape. **Prefer an invariant where one
+exists.** This section is for where none does.
+
 ## 6. Testing and verification
 
 This RFC *is* test policy; its verification is that the eleven scenarios exist,
