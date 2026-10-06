@@ -2,6 +2,61 @@
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-10-07
+
+**Nothing to re-check: no reported change, value or count differs from 3.5.0.** This release only adds information beside what was
+already reported. That holds by the structure of the code and not only by comparison: both of `compare_formulas`'s early returns come
+before the annotation is computed, so the annotation cannot reach the decision to report a change. We also compared the reported set
+against 3.5.0 over the whole fixture corpus and a 200-row reproduction, under four alignment modes, and it is identical.
+
+**What is new: `FormulaChange::difference`.** Under `RowKey` or `RowSignature`, a formula that was never edited was reported as
+changed, because Excel rewrites row references when rows move: `=C5*2` becomes `=C6*2`. The new field says whether mapping the old
+formula's references through the sheet's alignment explains the difference. **Filter out `ExplainedByRowMapping` and that cascade is
+gone.** Nothing is suppressed for you: you choose to filter. **`NotDetermined` means we declined, not that the formula is unchanged.**
+Stage 1 declines whole classes of formula, and the entry below names them, so a sheet full of them will still show the cascade. Do not
+read this release as removing the formula cascade everywhere.
+
+**`RowKey`'s documentation was wrong, and you may have relied on it.** It said the mode "reduces cascades after row insertion/deletion"
+without qualification. It removes the cascade of value changes and does not remove the cascade in formula columns. It now says so, and
+says what `difference` lets you do about it.
+
+**For maintainers:** a `versions` CI gate now checks that the dependency and MSRV versions our prose names match `Cargo.toml` and
+`Cargo.lock`, so a dependency bump cannot quietly make a document false. It checks version strings only.
+
+**Why this is a minor.** The public API only grows: `FormulaDifference`, with four variants, and `FormulaChange::difference`. Nothing
+is removed or re-signed, and no reported value changes. `compare_formulas`'s signature changed, and it is not public.
+
+**Where this came from.** ForskScope measured the formula cascade and asked for the capability. They had already checked two things
+about its definition that we would otherwise have had to establish: that references must be mapped through the row mapping and not
+compared in relative form, and that `$` does not decide whether a reference moves. The rule *never hold a version you could read* is
+theirs, and the `versions` gate is that rule applied to our own prose. Thank you.
+
+### Added
+
+- **A formula change now says why its two texts differ: `FormulaChange::difference`, of type `FormulaDifference`.**
+  **Nothing is suppressed: the set of reported changes is exactly what it was.** Excel rewrites row references when
+  rows move, so under `RowKey` or `RowSignature` a formula that was never edited, such as `=C5*2` becoming `=C6*2`, was
+  reported as a change. If you want that cascade gone, filter **out** `ExplainedByRowMapping`. The other values are
+  `NotExplainedByRowMapping` (mapped and still different, or a formula added or removed), `NoRowMovement` (no mapping
+  attempted: the default `Positional` alignment, or a cell not paired by alignment) and `NotDetermined`.
+  **`NotDetermined` means we declined, not that the formula is unchanged.** We decline a formula, whole, if it contains
+  a string literal, a sheet qualifier, a structured reference, a whole-column or whole-row form, a defined name, a
+  function whose name reads as a cell (`LOG10`), a reference to a row with no counterpart, or a range on a sheet whose
+  rows were reordered. Such a formula is still reported as a change, and you will see it unfiltered. See
+  `docs/src/migration/v3.5-to-v3.6.md`.
+
+### Changed
+
+- **The JSON output of every formula change gained a `"difference"` string.** It is a string (`"NoRowMovement"` under
+  the default `Positional` alignment), where `row_placement` is a tagged object. Nothing is removed or renamed.
+
+### Documentation
+
+- **`AlignmentMode::RowKey`'s documentation no longer claims it "reduces cascades after row insertion/deletion".** It
+  removes the cascade of value changes and not the cascade in formula columns. `RowSignature` now points at the same
+  note. Excel rewrites the row references, so a formula column over moved rows reports changes nobody made, and
+  `FormulaChange::difference` lets a caller filter them out.
+
 ## [3.5.0] - 2026-10-06
 
 **Two behaviour changes reach consumers, and both are defect fixes.** First, under `RowKey` or `RowSignature`, a
