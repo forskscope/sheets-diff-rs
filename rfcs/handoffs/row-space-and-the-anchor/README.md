@@ -43,6 +43,11 @@ cell_diffs:                          view anchors:
   B3  row=3 col=2  Removed             { sheet_index: 0, row: 3, col: 2 }
 ```
 
+**Five rows, and that count belongs to this shape only.** Unit 01 extends the reproduction so `k1`'s
+value changes too (it needs a paired row numbered 1 on both sides), which adds a `B1` entry and makes
+`row_count` **6**. Both numbers are correct for their own input; this table is the unextended shape.
+Unit 02's review caught that this was not said, after re-measuring and finding 6.
+
 `B2 Modified` is k2's changed value in the **old** row space. `B2 Added` is `knew`'s cell in the
 **new** row space. Nothing in the public API separates them.
 
